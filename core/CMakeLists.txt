@@ -1,4 +1,11 @@
-add_library(utp_core STATIC src/uri_parser.cpp src/engine.cpp)
+find_package(SQLite3 REQUIRED)
+
+add_library(utp_core STATIC 
+    src/uri_parser.cpp 
+    src/engine.cpp 
+    src/chunk_planner.cpp
+    src/state_manager.cpp
+)
 
 target_include_directories(utp_core
     PUBLIC
@@ -8,3 +15,4 @@ target_include_directories(utp_core
 )
 
 target_compile_features(utp_core PUBLIC cxx_std_20)
+target_link_libraries(utp_core PUBLIC SQLite::SQLite3)
