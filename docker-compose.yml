@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  engine:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: utp-engine
+    ports:
+      - "8080:8080"
+    volumes:
+      - utp-data:/app/data
+    restart: unless-stopped
+    environment:
+      - UTP_ENV=production
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: utp-web
+    ports:
+      - "80:80"
+    depends_on:
+      - engine
+    restart: unless-stopped
+
+volumes:
+  utp-data:

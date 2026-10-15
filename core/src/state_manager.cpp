@@ -1,3 +1,4 @@
+#include <mutex>
 #include "utp/state_manager.hpp"
 #include <sqlite3.h>
 #include <stdexcept>
@@ -5,6 +6,9 @@
 #include <chrono>
 
 namespace utp {
+
+static std::recursive_mutex g_db_mutex;
+
 
 static std::string state_to_string(TransferState state) {
     switch(state) {
@@ -36,20 +40,63 @@ static std::string chunk_state_to_string(ChunkState state) {
     }
 }
 
+static TransferState string_to_state(const std::string& str) {
+    if (str == "CREATED") return TransferState::CREATED;
+    if (str == "AUTHENTICATING") return TransferState::AUTHENTICATING;
+    if (str == "DISCOVERING") return TransferState::DISCOVERING;
+    if (str == "NEGOTIATING") return TransferState::NEGOTIATING;
+    if (str == "PLANNING") return TransferState::PLANNING;
+    if (str == "TRANSFERRING") return TransferState::TRANSFERRING;
+    if (str == "VERIFYING") return TransferState::VERIFYING;
+    if (str == "COMMITTING") return TransferState::COMMITTING;
+    if (str == "COMPLETED") return TransferState::COMPLETED;
+    if (str == "PAUSED") return TransferState::PAUSED;
+    if (str == "RETRYING") return TransferState::RETRYING;
+    if (str == "REPAIRING") return TransferState::REPAIRING;
+    if (str == "CANCELLED") return TransferState::CANCELLED;
+    if (str == "FAILED") return TransferState::FAILED;
+    return TransferState::FAILED;
+}
+
+static ChunkState string_to_chunk_state(const std::string& str) {
+    if (str == "PENDING") return ChunkState::PENDING;
+    if (str == "IN_PROGRESS") return ChunkState::IN_PROGRESS;
+    if (str == "COMPLETE") return ChunkState::COMPLETE;
+    return ChunkState::FAILED;
+}
+
+static ResourceInfo parse_resource_uri(const std::string& uri) {
+    ResourceInfo info;
+    auto pos = uri.find("://");
+    if (pos != std::string::npos) {
+        info.provider = uri.substr(0, pos);
+        info.path = uri.substr(pos + 3);
+    } else {
+        info.provider = "local";
+        info.path = uri;
+    }
+    return info;
+}
+
 StateManager::StateManager(const std::string& db_path) {
+    std::lock_guard<std::recursive_mutex> lock(g_db_mutex);
     if (sqlite3_open(db_path.c_str(), &db_) != SQLITE_OK) {
         throw std::runtime_error("Failed to open SQLite database: " + std::string(sqlite3_errmsg(db_)));
     }
+    sqlite3_busy_timeout(db_, 10000);
+    execute("PRAGMA journal_mode=WAL;");
     init_schema();
 }
 
 StateManager::~StateManager() {
+    std::lock_guard<std::recursive_mutex> lock(g_db_mutex);
     if (db_) {
         sqlite3_close(db_);
     }
 }
 
 void StateManager::execute(const std::string& sql) {
+    std::lock_guard<std::recursive_mutex> lock(g_db_mutex);
     char* err_msg = nullptr;
     if (sqlite3_exec(db_, sql.c_str(), nullptr, nullptr, &err_msg) != SQLITE_OK) {
         std::string err = err_msg ? err_msg : "Unknown error";
@@ -59,6 +106,7 @@ void StateManager::execute(const std::string& sql) {
 }
 
 void StateManager::init_schema() {
+    std::lock_guard<std::recursive_mutex> lock(g_db_mutex);
     const char* schema = R"(
         CREATE TABLE IF NOT EXISTS transfers (
             id TEXT PRIMARY KEY,
@@ -86,6 +134,7 @@ void StateManager::init_schema() {
 }
 
 void StateManager::create_transfer(const Transfer& transfer) {
+    std::lock_guard<std::recursive_mutex> lock(g_db_mutex);
     const char* sql = "INSERT OR REPLACE INTO transfers (id, source_uri, destination_uri, state, bytes_total, bytes_completed, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
     sqlite3_stmt* stmt;
     if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
@@ -113,6 +162,7 @@ void StateManager::create_transfer(const Transfer& transfer) {
 }
 
 void StateManager::update_transfer_state(const std::string& transfer_id, TransferState state) {
+    std::lock_guard<std::recursive_mutex> lock(g_db_mutex);
     const char* sql = "UPDATE transfers SET state = ?, updated_at = ? WHERE id = ?";
     sqlite3_stmt* stmt;
     if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
@@ -133,6 +183,7 @@ void StateManager::update_transfer_state(const std::string& transfer_id, Transfe
 }
 
 void StateManager::update_transfer_progress(const std::string& transfer_id, uint64_t bytes_completed) {
+    std::lock_guard<std::recursive_mutex> lock(g_db_mutex);
     const char* sql = "UPDATE transfers SET bytes_completed = ?, updated_at = ? WHERE id = ?";
     sqlite3_stmt* stmt;
     if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
@@ -152,7 +203,57 @@ void StateManager::update_transfer_progress(const std::string& transfer_id, uint
     sqlite3_finalize(stmt);
 }
 
+std::optional<Transfer> StateManager::get_transfer(const std::string& transfer_id) {
+    std::lock_guard<std::recursive_mutex> lock(g_db_mutex);
+    const char* sql = "SELECT source_uri, destination_uri, state, bytes_total, bytes_completed FROM transfers WHERE id = ?";
+    sqlite3_stmt* stmt;
+    if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        throw std::runtime_error("Failed to prepare select transfer statement");
+    }
+    
+    sqlite3_bind_text(stmt, 1, transfer_id.c_str(), -1, SQLITE_TRANSIENT);
+    
+    std::optional<Transfer> result;
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        Transfer t;
+        t.id = transfer_id;
+        t.source = parse_resource_uri(reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0)));
+        t.destination = parse_resource_uri(reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1)));
+        t.state = string_to_state(reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2)));
+        t.size = sqlite3_column_int64(stmt, 3);
+        t.bytes_transferred = sqlite3_column_int64(stmt, 4);
+        result = t;
+    }
+    
+    sqlite3_finalize(stmt);
+    return result;
+}
+
+std::vector<ChunkInfo> StateManager::get_plan(const std::string& transfer_id) {
+    std::lock_guard<std::recursive_mutex> lock(g_db_mutex);
+    const char* sql = "SELECT offset, size, state FROM chunks WHERE transfer_id = ? ORDER BY chunk_index ASC";
+    sqlite3_stmt* stmt;
+    if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {
+        throw std::runtime_error("Failed to prepare select chunks statement");
+    }
+    
+    sqlite3_bind_text(stmt, 1, transfer_id.c_str(), -1, SQLITE_TRANSIENT);
+    
+    std::vector<ChunkInfo> plan;
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        ChunkInfo c;
+        c.offset = sqlite3_column_int64(stmt, 0);
+        c.size = sqlite3_column_int64(stmt, 1);
+        c.state = string_to_chunk_state(reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2)));
+        plan.push_back(c);
+    }
+    
+    sqlite3_finalize(stmt);
+    return plan;
+}
+
 void StateManager::save_plan(const std::string& transfer_id, const std::vector<ChunkInfo>& plan) {
+    std::lock_guard<std::recursive_mutex> lock(g_db_mutex);
     execute("BEGIN TRANSACTION;");
     try {
         const char* sql = "INSERT OR REPLACE INTO chunks (transfer_id, chunk_index, offset, size, state) VALUES (?, ?, ?, ?, ?)";
@@ -182,6 +283,7 @@ void StateManager::save_plan(const std::string& transfer_id, const std::vector<C
 }
 
 void StateManager::update_chunk_state(const std::string& transfer_id, uint64_t chunk_index, ChunkState state) {
+    std::lock_guard<std::recursive_mutex> lock(g_db_mutex);
     const char* sql = "UPDATE chunks SET state = ? WHERE transfer_id = ? AND chunk_index = ?";
     sqlite3_stmt* stmt;
     if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) {

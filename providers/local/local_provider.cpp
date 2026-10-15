@@ -27,19 +27,22 @@ FileInfo LocalProvider::stat(Path path) {
     }
     return {
         path,
-        fs::file_size(path),
-        fs::is_directory(path)
+        fs::is_directory(path) ? 0 : fs::file_size(path),
+        fs::is_directory(path),
+        fs::path(path).filename().string()
     };
 }
 
 std::vector<FileInfo> LocalProvider::list(Path path) {
     std::vector<FileInfo> result;
-    if (fs::is_directory(path)) {
-        for (const auto& entry : fs::directory_iterator(path)) {
+    std::string target = path.empty() ? "." : path;
+    if (fs::exists(target) && fs::is_directory(target)) {
+        for (const auto& entry : fs::directory_iterator(target)) {
             result.push_back({
                 entry.path().string(),
                 entry.is_regular_file() ? entry.file_size() : 0,
-                entry.is_directory()
+                entry.is_directory(),
+                entry.path().filename().string()
             });
         }
     }
@@ -64,6 +67,10 @@ WriteSession LocalProvider::openWrite(Path path, uint64_t size) {
     auto& state = write_sessions_[id];
     state.path = path;
     state.temp_path = path + ".utp.tmp";
+    fs::path tp(state.temp_path);
+    if (tp.has_parent_path()) {
+        fs::create_directories(tp.parent_path());
+    }
     state.stream.open(state.temp_path, std::ios::binary);
     if (!state.stream.is_open()) {
         write_sessions_.erase(id);
@@ -72,7 +79,7 @@ WriteSession LocalProvider::openWrite(Path path, uint64_t size) {
     return {id};
 }
 
-size_t LocalProvider::read(ReadStream session, uint8_t* buffer, size_t count) {
+size_t LocalProvider::read(ReadStream session, uint64_t offset, uint8_t* buffer, size_t count) {
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = read_streams_.find(session.id);
     if (it == read_streams_.end()) {

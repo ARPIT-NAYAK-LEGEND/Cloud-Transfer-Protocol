@@ -2,3 +2,6 @@ build/
 .DS_Store
 *.swp
 *.db
+*.exe
+.utp_*
+

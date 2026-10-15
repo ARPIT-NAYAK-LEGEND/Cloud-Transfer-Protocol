@@ -11,6 +11,7 @@ add_executable(utp_unit_tests
     test_placeholder.cpp 
     test_uri_parser.cpp
     test_mock_provider.cpp
+    test_chaos.cpp
 )
 
 target_link_libraries(utp_unit_tests

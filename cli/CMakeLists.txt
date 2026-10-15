@@ -1,2 +1,2 @@
 add_executable(utp main.cpp)
-target_link_libraries(utp PRIVATE utp_core utp_providers_local)
+target_link_libraries(utp PRIVATE utp_core utp_providers_local utp_providers_gdrive utp_providers_onedrive utp_providers_s3 utp_providers_azure)

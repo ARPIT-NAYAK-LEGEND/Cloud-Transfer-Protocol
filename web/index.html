@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>UTP | Universal Cloud Transfer Protocol</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <!-- Animated Background -->
+    <div class="bg-orb orb-1"></div>
+    <div class="bg-orb orb-2"></div>
+    <div class="bg-orb orb-3"></div>
+
+    <main class="container">
+      <header>
+        <h1 class="glow-text">UTP Engine</h1>
+        <p class="subtitle">Universal Cloud Transfer Protocol Dashboard</p>
+      </header>
+
+      <div class="dashboard-grid">
+        <!-- New Transfer Card -->
+        <section class="glass-card new-transfer-card">
+          <h2>New Transfer</h2>
+          <form id="transferForm">
+            <div class="input-group">
+              <label for="srcUri">Source URI</label>
+              <input type="text" id="srcUri" placeholder="e.g., gdrive://folder_id" required />
+            </div>
+            
+            <div class="icon-connector">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>
+            </div>
+
+            <div class="input-group">
+              <label for="destUri">Destination URI</label>
+              <input type="text" id="destUri" placeholder="e.g., onedrive://folder_id" required />
+            </div>
+
+            <button type="submit" class="btn-primary">Initiate Transfer</button>
+          </form>
+        </section>
+
+        <!-- Active Transfers List -->
+        <section class="glass-card transfers-list-card">
+          <h2>Active Transfers</h2>
+          <div id="transfersContainer" class="transfers-container">
+            <!-- Dynamic Transfer Items Will Spawn Here -->
+            <div class="empty-state">
+              <p>No active transfers.</p>
+              <span>Initiate a transfer to see progress.</span>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

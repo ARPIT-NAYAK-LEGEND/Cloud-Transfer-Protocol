@@ -46,10 +46,18 @@ public:
     }
 
     size_t read(ReadStream session, uint8_t* buffer, size_t count) override {
-        return 0;
+        if (inject_failures_ && (rand() % 100 < fail_rate_)) {
+            if (rand() % 2 == 0) throw TransferError(ErrorCategory::RATE_LIMIT, "429 Too Many Requests");
+            else throw TransferError(ErrorCategory::RETRYABLE, "Connection Reset");
+        }
+        return count;
     }
 
     void write(WriteSession session, uint64_t offset, const uint8_t* data, size_t size) override {
+        if (inject_failures_ && (rand() % 100 < fail_rate_)) {
+            if (rand() % 2 == 0) throw TransferError(ErrorCategory::RATE_LIMIT, "429 Too Many Requests");
+            else throw TransferError(ErrorCategory::RETRYABLE, "Connection Timeout");
+        }
     }
 
     void abort(WriteSession session) override {
@@ -61,8 +69,15 @@ public:
         files[path] = size;
     }
 
+    void enable_chaos(int fail_rate) {
+        inject_failures_ = true;
+        fail_rate_ = fail_rate;
+    }
+
 private:
     std::map<Path, uint64_t> files;
+    bool inject_failures_ = false;
+    int fail_rate_ = 0;
 };
 
 } // namespace utp

@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <optional>
 
 struct sqlite3;
 
@@ -25,6 +26,9 @@ public:
     void create_transfer(const Transfer& transfer);
     void update_transfer_state(const std::string& transfer_id, TransferState state);
     void update_transfer_progress(const std::string& transfer_id, uint64_t bytes_completed);
+
+    std::optional<Transfer> get_transfer(const std::string& transfer_id);
+    std::vector<ChunkInfo> get_plan(const std::string& transfer_id);
 
     void save_plan(const std::string& transfer_id, const std::vector<ChunkInfo>& plan);
     void update_chunk_state(const std::string& transfer_id, uint64_t chunk_index, ChunkState state);

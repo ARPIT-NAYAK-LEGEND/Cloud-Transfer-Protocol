@@ -13,6 +13,9 @@ add_subdirectory(providers)
 # Add cli
 add_subdirectory(cli)
 
+# Add API Server
+add_subdirectory(server)
+
 # Testing setup
 enable_testing()
 add_subdirectory(tests/unit)

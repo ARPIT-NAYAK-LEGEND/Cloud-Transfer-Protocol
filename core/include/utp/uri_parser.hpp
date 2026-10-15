@@ -7,6 +7,7 @@ namespace utp {
 
 struct Resource {
     std::string scheme;
+    std::string account;
     std::string host_or_bucket;
     std::string path;
 };

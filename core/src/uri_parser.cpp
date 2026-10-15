@@ -5,39 +5,51 @@ namespace utp {
 Resource parse_uri(const std::string& uri) {
     Resource res;
 
-    // Find scheme
+    // Find scheme delimiter
     size_t scheme_end = uri.find("://");
     if (scheme_end == std::string::npos || scheme_end == 0) {
         throw std::invalid_argument("Invalid URI: missing or malformed scheme");
     }
-    res.scheme = uri.substr(0, scheme_end);
+    std::string raw_scheme = uri.substr(0, scheme_end);
 
-    // Find host and path
-    size_t rest_start = scheme_end + 3; // length of "://"
-    size_t path_start = uri.find("/", rest_start);
-
-    if (path_start == std::string::npos) {
-        res.host_or_bucket = uri.substr(rest_start);
-        res.path = "";
+    // Check if account is in scheme: e.g. "gdrive:my_work" or "onedrive+personal"
+    size_t colon_pos = raw_scheme.find(':');
+    size_t plus_pos = raw_scheme.find('+');
+    size_t delim_pos = (colon_pos != std::string::npos) ? colon_pos : plus_pos;
+    if (delim_pos != std::string::npos && delim_pos > 0) {
+        res.scheme = raw_scheme.substr(0, delim_pos);
+        res.account = raw_scheme.substr(delim_pos + 1);
     } else {
-        res.host_or_bucket = uri.substr(rest_start, path_start - rest_start);
-        res.path = uri.substr(path_start + 1); // skip the '/' itself for the internal path logic
+        res.scheme = raw_scheme;
     }
 
-    // Edge cases
+    // Find rest after "://"
+    std::string rest = uri.substr(scheme_end + 3);
+
+    // Check for userinfo / account: e.g. "my_work@..."
+    size_t slash_pos = rest.find('/');
+    size_t at_pos = rest.find('@');
+    if (at_pos != std::string::npos && (slash_pos == std::string::npos || at_pos < slash_pos)) {
+        if (res.account.empty()) {
+            res.account = rest.substr(0, at_pos);
+        }
+        rest = rest.substr(at_pos + 1);
+    }
+
+    // Find host and path
+    size_t path_start = rest.find('/');
+    if (path_start == std::string::npos) {
+        res.host_or_bucket = rest;
+        res.path = "";
+    } else {
+        res.host_or_bucket = rest.substr(0, path_start);
+        res.path = rest.substr(path_start + 1);
+    }
+
+    // Validate scheme
     if (res.scheme.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+-.") != std::string::npos) {
         throw std::invalid_argument("Invalid URI: invalid characters in scheme");
     }
-    
-    // For local, we often just want the path, but let's conform to typical structure or keep host empty
-    // Actually, local:///path means host is empty, and path is /path.
-    // wait, if we have local:///path, rest_start is "://"
-    // "local:///path" -> scheme="local", rest="/path". 
-    // uri.find("/") on "/path" is at index 0 of rest. So host is empty, path is "path".
-    // That means local:///path translates to host="", path="path".
-    
-    // If it's local://path, host="path", path=""
-    // But usually it's local:///path
 
     return res;
 }
