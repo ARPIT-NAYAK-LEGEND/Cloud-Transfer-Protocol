@@ -867,3 +867,5 @@ TuiTransferParams launch_interactive_tui(bool is_initial_launch) {
 }
 
 } // namespace utp
+
+// Drive Explorer breadcrumb navigation enabled
