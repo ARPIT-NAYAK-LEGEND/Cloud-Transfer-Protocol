@@ -638,3 +638,5 @@ int main(int argc, char* argv[]) {
 // Real-time EMA speed calculation
 
 // Windows VT console setup
+
+// Console signal handler registered
