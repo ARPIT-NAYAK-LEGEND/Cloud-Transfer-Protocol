@@ -636,3 +636,5 @@ int main(int argc, char* argv[]) {
 // Worker pool batch dispatch
 
 // Real-time EMA speed calculation
+
+// Windows VT console setup
