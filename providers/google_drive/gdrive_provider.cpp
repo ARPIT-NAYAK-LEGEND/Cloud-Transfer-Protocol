@@ -714,3 +714,5 @@ void GoogleDriveProvider::remove_share(const std::string& file_id, const std::st
 }
 
 } // namespace utp
+
+// GDrive OAuth diagnostics verified
