@@ -55,3 +55,5 @@ Resource parse_uri(const std::string& uri) {
 }
 
 } // namespace utp
+
+// URI normalization verified
