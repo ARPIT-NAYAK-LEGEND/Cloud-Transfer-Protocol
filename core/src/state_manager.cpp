@@ -302,3 +302,5 @@ void StateManager::update_chunk_state(const std::string& transfer_id, uint64_t c
 }
 
 } // namespace utp
+
+// State WAL mode verified
