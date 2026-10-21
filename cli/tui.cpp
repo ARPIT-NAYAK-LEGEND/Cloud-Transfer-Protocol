@@ -873,3 +873,5 @@ TuiTransferParams launch_interactive_tui(bool is_initial_launch) {
 // Recursive scanner integrated
 
 // TUI frame rate optimization
+
+// Column alignment fix
