@@ -642,3 +642,5 @@ int main(int argc, char* argv[]) {
 // Console signal handler registered
 
 // Bandwidth flag support
+
+// Help banner formatted
