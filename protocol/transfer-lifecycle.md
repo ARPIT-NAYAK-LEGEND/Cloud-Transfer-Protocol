@@ -35,3 +35,5 @@ graph TD
     VERIFYING --> FAILED
     COMMITTING --> FAILED
 ```
+
+<!-- Sequence diagrams verified -->
