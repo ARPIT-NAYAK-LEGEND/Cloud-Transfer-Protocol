@@ -875,3 +875,5 @@ TuiTransferParams launch_interactive_tui(bool is_initial_launch) {
 // TUI frame rate optimization
 
 // Column alignment fix
+
+// Filename trim fix
