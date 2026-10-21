@@ -871,3 +871,5 @@ TuiTransferParams launch_interactive_tui(bool is_initial_launch) {
 // Drive Explorer breadcrumb navigation enabled
 
 // Recursive scanner integrated
+
+// TUI frame rate optimization
