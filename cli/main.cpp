@@ -640,3 +640,5 @@ int main(int argc, char* argv[]) {
 // Windows VT console setup
 
 // Console signal handler registered
+
+// Bandwidth flag support
