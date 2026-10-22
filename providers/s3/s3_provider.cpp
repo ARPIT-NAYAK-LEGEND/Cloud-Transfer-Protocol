@@ -492,5 +492,3 @@ void S3Provider::abort(WriteSession session) {
 }
 
 } // namespace utp
-
-// S3 timeout guard verified

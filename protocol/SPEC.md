@@ -31,5 +31,3 @@ UTP mandates a durable state machine (e.g., stored in SQLite) to persist the tra
 3. **Execution**: Chunks are read from the source and dispatched concurrently to the destination.
 4. **Verification**: An overarching cryptographic hash (e.g., SHA-256) ensures end-to-end integrity.
 5. **Commitment**: The destination provider commits the transfer, finalizing the remote file.
-
-<!-- Security spec verified -->

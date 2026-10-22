@@ -603,5 +603,3 @@ void OneDriveProvider::abort(WriteSession session) {
 }
 
 } // namespace utp
-
-// OneDrive session recovery verified

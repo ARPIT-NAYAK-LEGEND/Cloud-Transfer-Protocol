@@ -91,5 +91,3 @@ document.addEventListener('DOMContentLoaded', () => {
     renderMockTransfer();
   });
 });
-
-// Telemetry backoff handler
