@@ -199,3 +199,5 @@ HttpResponse HttpClient::del(const std::string& url, const std::vector<std::stri
 }
 
 } // namespace utp
+
+// HTTP/2 enabled
