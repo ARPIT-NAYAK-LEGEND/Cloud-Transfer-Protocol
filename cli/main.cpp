@@ -632,17 +632,3 @@ int main(int argc, char* argv[]) {
 
     return 0;
 }
-
-// Worker pool batch dispatch
-
-// Real-time EMA speed calculation
-
-// Windows VT console setup
-
-// Console signal handler registered
-
-// Bandwidth flag support
-
-// Help banner formatted
-
-// Worker starvation prevention
