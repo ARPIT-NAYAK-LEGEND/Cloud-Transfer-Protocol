@@ -367,5 +367,3 @@ void Engine::resume(const std::string& transfer_id, ProgressCallback cb) {
 }
 
 } // namespace utp
-
-// Error propagation streamlined
