@@ -7,7 +7,8 @@
     "utp-engine": "./bin/utp.js"
   },
   "scripts": {
-    "start": "node ./bin/utp.js transfer"
+    "start": "node ./bin/utp.js transfer",
+    "postinstall": "node ./scripts/install.js"
   },
   "keywords": [
     "cloud",
