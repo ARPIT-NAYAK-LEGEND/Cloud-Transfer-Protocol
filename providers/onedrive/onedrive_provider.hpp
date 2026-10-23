@@ -10,8 +10,8 @@ namespace utp {
 
 class OneDriveProvider : public StorageProvider {
 public:
-    OneDriveProvider(const std::string& client_id = "5091c9e9-674d-466c-849a-e1bf7d6badee", 
-                     const std::string& client_secret = "REDACTED_REVOKED_AZURE_SECRET",
+    OneDriveProvider(const std::string& client_id = "", 
+                     const std::string& client_secret = "",
                      const std::string& name_context = "");
     ~OneDriveProvider() override;
 

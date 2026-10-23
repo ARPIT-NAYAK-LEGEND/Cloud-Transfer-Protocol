@@ -1,11 +1,25 @@
+# Build artifacts
 build/
-.DS_Store
-*.swp
-*.db
 *.exe
+*.db
+
+# Credentials & tokens
 .utp_*
-scratch/
 .env
 .env.*
-*.log
 
+# IDE & editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Runtime & scratch
+scratch/
+node_modules/
+*.log

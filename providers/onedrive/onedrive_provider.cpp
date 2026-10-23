@@ -165,7 +165,7 @@ OneDriveProvider::OneDriveProvider(const std::string& client_id, const std::stri
     if (client_secret_.empty()) {
         const char* env_cs = std::getenv("ONEDRIVE_CLIENT_SECRET");
         if (env_cs && strlen(env_cs) > 0) client_secret_ = env_cs;
-        else client_secret_ = "REDACTED_REVOKED_AZURE_SECRET";
+        // Secret is injected via create_provider() in main.cpp (XOR-obfuscated at compile time)
     }
     authenticate();
 }

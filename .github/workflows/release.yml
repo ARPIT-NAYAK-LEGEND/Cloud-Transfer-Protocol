@@ -83,8 +83,42 @@ jobs:
           name: utp-linux-x64
           path: utp-linux-x64.tar.gz
 
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          brew install openssl sqlite
+
+      - name: Compile UTP CLI
+        run: |
+          clang++ -std=c++20 -O3 -I core/include -I . \
+            -I$(brew --prefix openssl)/include -L$(brew --prefix openssl)/lib \
+            -I$(brew --prefix sqlite)/include -L$(brew --prefix sqlite)/lib \
+            cli/main.cpp cli/tui.cpp \
+            core/src/chunk_planner.cpp core/src/engine.cpp core/src/state_manager.cpp core/src/uri_parser.cpp \
+            providers/azure/azure_provider.cpp providers/common/http_client.cpp \
+            providers/dropbox/dropbox_provider.cpp providers/google_drive/gdrive_provider.cpp \
+            providers/icloud/icloud_provider.cpp providers/local/local_provider.cpp \
+            providers/onedrive/onedrive_provider.cpp providers/s3/s3_provider.cpp \
+            providers/webdav/webdav_provider.cpp \
+            -o utp -lcurl -lssl -lcrypto -lpthread -lsqlite3
+
+      - name: Package macOS tar.gz
+        run: |
+          tar -czvf utp-macos.tar.gz utp LICENSE README.md
+
+      - name: Upload macOS Asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: utp-macos
+          path: utp-macos.tar.gz
+
   create-release:
-    needs: [build-windows, build-linux]
+    needs: [build-windows, build-linux, build-macos]
     runs-on: ubuntu-latest
     steps:
       - name: Download all artifacts
@@ -96,6 +130,7 @@ jobs:
           files: |
             utp-windows-x64/utp-windows-x64.zip
             utp-linux-x64/utp-linux-x64.tar.gz
+            utp-macos/utp-macos.tar.gz
           draft: false
           prerelease: false
           generate_release_notes: true

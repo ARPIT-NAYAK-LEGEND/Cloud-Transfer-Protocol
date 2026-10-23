@@ -32,6 +32,8 @@ if (platform === 'win32') {
   assetName = 'utp-windows-x64.zip';
 } else if (platform === 'linux') {
   assetName = 'utp-linux-x64.tar.gz';
+} else if (platform === 'darwin') {
+  assetName = 'utp-macos.tar.gz';
 }
 
 if (!assetName) {

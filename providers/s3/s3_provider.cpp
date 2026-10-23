@@ -71,8 +71,8 @@ static std::string extract_xml_tag(const std::string& xml, const std::string& ta
 } // namespace
 
 S3Provider::S3Provider(const std::string& access_key, const std::string& secret_key, const std::string& region, const std::string& custom_endpoint) {
-    access_key_ = access_key.empty() ? "REDACTED_AWS_ACCESS_KEY_ID" : access_key;
-    secret_key_ = secret_key.empty() ? "REDACTED_AWS_SECRET_ACCESS_KEY" : secret_key;
+    access_key_ = access_key;
+    secret_key_ = secret_key;
 
     const char* env_ak = std::getenv("AWS_ACCESS_KEY_ID");
     if (env_ak && strlen(env_ak) > 0) access_key_ = env_ak;

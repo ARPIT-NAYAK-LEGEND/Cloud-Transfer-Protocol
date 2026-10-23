@@ -45,7 +45,8 @@ public:
         // dummy commit
     }
 
-    size_t read(ReadStream session, uint8_t* buffer, size_t count) override {
+    size_t read(ReadStream session, uint64_t offset, uint8_t* buffer, size_t count) override {
+        (void)offset;
         if (inject_failures_ && (rand() % 100 < fail_rate_)) {
             if (rand() % 2 == 0) throw TransferError(ErrorCategory::RATE_LIMIT, "429 Too Many Requests");
             else throw TransferError(ErrorCategory::RETRYABLE, "Connection Reset");

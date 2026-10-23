@@ -10,7 +10,13 @@ namespace utp {
 AzureBlobProvider::AzureBlobProvider() {
     account_name_ = "mock_azure_account";
     account_key_ = "mock_azure_key";
+    const char* env_acc = std::getenv("AZURE_STORAGE_ACCOUNT");
+    if (env_acc && strlen(env_acc) > 0) account_name_ = env_acc;
+    const char* env_key = std::getenv("AZURE_STORAGE_KEY");
+    if (env_key && strlen(env_key) > 0) account_key_ = env_key;
     endpoint_ = "https://" + account_name_ + ".blob.core.windows.net";
+    const char* env_ep = std::getenv("AZURE_STORAGE_ENDPOINT");
+    if (env_ep && strlen(env_ep) > 0) endpoint_ = env_ep;
 }
 
 AzureBlobProvider::~AzureBlobProvider() {}
