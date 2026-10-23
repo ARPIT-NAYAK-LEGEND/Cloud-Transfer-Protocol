@@ -1,0 +1,101 @@
+name: Release UTP Multi-Platform
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up MSYS2 UCRT64
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-curl
+            mingw-w64-ucrt-x86_64-openssl
+            mingw-w64-ucrt-x86_64-sqlite3
+
+      - name: Compile UTP CLI
+        shell: msys2 {0}
+        run: |
+          g++ -std=c++20 -O3 -I core/include -I . \
+            cli/main.cpp cli/tui.cpp \
+            core/src/chunk_planner.cpp core/src/engine.cpp core/src/state_manager.cpp core/src/uri_parser.cpp \
+            providers/azure/azure_provider.cpp providers/common/http_client.cpp \
+            providers/dropbox/dropbox_provider.cpp providers/google_drive/gdrive_provider.cpp \
+            providers/icloud/icloud_provider.cpp providers/local/local_provider.cpp \
+            providers/onedrive/onedrive_provider.cpp providers/s3/s3_provider.cpp \
+            providers/webdav/webdav_provider.cpp \
+            -o utp.exe -lcurl -lssl -lcrypto -lws2_32 -lsqlite3
+
+      - name: Package Windows ZIP
+        shell: pwsh
+        run: |
+          Compress-Archive -Path utp.exe, LICENSE, README.md -DestinationPath utp-windows-x64.zip
+
+      - name: Upload Windows Asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: utp-windows-x64
+          path: utp-windows-x64.zip
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libcurl4-openssl-dev libssl-dev libsqlite3-dev
+
+      - name: Compile UTP CLI
+        run: |
+          g++ -std=c++20 -O3 -I core/include -I . \
+            cli/main.cpp cli/tui.cpp \
+            core/src/chunk_planner.cpp core/src/engine.cpp core/src/state_manager.cpp core/src/uri_parser.cpp \
+            providers/azure/azure_provider.cpp providers/common/http_client.cpp \
+            providers/dropbox/dropbox_provider.cpp providers/google_drive/gdrive_provider.cpp \
+            providers/icloud/icloud_provider.cpp providers/local/local_provider.cpp \
+            providers/onedrive/onedrive_provider.cpp providers/s3/s3_provider.cpp \
+            providers/webdav/webdav_provider.cpp \
+            -o utp -lcurl -lssl -lcrypto -lpthread -lsqlite3
+
+      - name: Package Linux tar.gz
+        run: |
+          tar -czvf utp-linux-x64.tar.gz utp LICENSE README.md
+
+      - name: Upload Linux Asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: utp-linux-x64
+          path: utp-linux-x64.tar.gz
+
+  create-release:
+    needs: [build-windows, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            utp-windows-x64/utp-windows-x64.zip
+            utp-linux-x64/utp-linux-x64.tar.gz
+          draft: false
+          prerelease: false
+          generate_release_notes: true

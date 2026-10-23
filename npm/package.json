@@ -1,0 +1,34 @@
+{
+  "name": "utp-engine",
+  "version": "2.5.0",
+  "description": "Universal Cloud Transfer Protocol (UTP) - Direct 0-Disk High-Speed Cloud-to-Cloud Pipeline",
+  "bin": {
+    "utp": "./bin/utp.js",
+    "utp-engine": "./bin/utp.js"
+  },
+  "scripts": {
+    "start": "node ./bin/utp.js transfer"
+  },
+  "keywords": [
+    "cloud",
+    "transfer",
+    "google-drive",
+    "onedrive",
+    "dropbox",
+    "icloud",
+    "s3",
+    "r2",
+    "b2",
+    "webdav",
+    "cli"
+  ],
+  "author": "Arpit Nayak",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol.git"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}

@@ -4,4 +4,8 @@ build/
 *.db
 *.exe
 .utp_*
+scratch/
+.env
+.env.*
+*.log
 
