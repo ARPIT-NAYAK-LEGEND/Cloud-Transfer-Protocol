@@ -38,3 +38,19 @@ target_compile_features(utp_providers_s3 PUBLIC cxx_std_20)
 add_library(utp_providers_azure STATIC azure/azure_provider.cpp)
 target_link_libraries(utp_providers_azure PUBLIC utp_providers_interface utp_core utp_providers_common CURL::libcurl)
 target_compile_features(utp_providers_azure PUBLIC cxx_std_20)
+
+# Dropbox
+add_library(utp_providers_dropbox STATIC dropbox/dropbox_provider.cpp)
+target_link_libraries(utp_providers_dropbox PUBLIC utp_providers_interface utp_core utp_providers_common CURL::libcurl)
+target_compile_features(utp_providers_dropbox PUBLIC cxx_std_20)
+
+# WebDAV
+add_library(utp_providers_webdav STATIC webdav/webdav_provider.cpp)
+target_link_libraries(utp_providers_webdav PUBLIC utp_providers_interface utp_core utp_providers_common CURL::libcurl)
+target_compile_features(utp_providers_webdav PUBLIC cxx_std_20)
+
+# iCloud
+add_library(utp_providers_icloud STATIC icloud/icloud_provider.cpp)
+target_link_libraries(utp_providers_icloud PUBLIC utp_providers_interface utp_core utp_providers_common CURL::libcurl)
+target_compile_features(utp_providers_icloud PUBLIC cxx_std_20)
+

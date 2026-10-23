@@ -61,7 +61,20 @@ public:
             if (account_id == "default" || account_id.empty()) return "Primary OneDrive (zyphe4@outlook.com)";
             return "OneDrive (" + account_id + ")";
         }
+        if (provider == "dropbox") {
+            if (account_id == "default" || account_id.empty()) return "Dropbox";
+            return "Dropbox (" + account_id + ")";
+        }
+        if (provider == "icloud") {
+            if (account_id == "local" || account_id == "bridge") return "Local iCloud Drive";
+            if (account_id == "default" || account_id.empty()) return "iCloud Drive";
+            return "iCloud (" + account_id + ")";
+        }
         if (provider == "s3") return "AWS S3";
+        if (provider == "r2") return "Cloudflare R2";
+        if (provider == "b2") return "Backblaze B2";
+        if (provider == "azure") return "Azure Blob";
+        if (provider == "webdav" || provider == "nextcloud" || provider == "owncloud") return "WebDAV / Nextcloud";
         if (provider == "file" || provider == "local") return "Local Disk";
         return provider;
     }
@@ -115,6 +128,12 @@ public:
         }
         if (provider == "onedrive") {
             return (account_id.empty() || account_id == "default") ? ".utp_onedrive_token.json" : (".utp_onedrive_" + account_id + "_token.json");
+        }
+        if (provider == "dropbox") {
+            return (account_id.empty() || account_id == "default") ? ".utp_dropbox_token.json" : (".utp_dropbox_" + account_id + "_token.json");
+        }
+        if (provider == "icloud") {
+            return (account_id.empty() || account_id == "default") ? ".utp_icloud_token.json" : (".utp_icloud_" + account_id + "_token.json");
         }
         return "";
     }
@@ -271,7 +290,91 @@ private:
                         accounts_.push_back({id, "onedrive", label, id, fname});
                     }
                 }
+
+                // Dropbox: .utp_dropbox_token.json
+                if (fname == ".utp_dropbox_token.json") {
+                    bool found = false;
+                    for (const auto& a : accounts_) {
+                        if (a.provider == "dropbox" && a.id == "default") { found = true; break; }
+                    }
+                    if (!found) {
+                        accounts_.push_back({"default", "dropbox", "Dropbox", "Personal/Team", fname});
+                    }
+                }
+
+                // Dropbox: .utp_dropbox_<id>_token.json
+                if (fname.rfind(".utp_dropbox_", 0) == 0 && fname.length() > 24 && fname.substr(fname.length() - 11) == "_token.json") {
+                    std::string id = fname.substr(13, fname.length() - 13 - 11);
+                    bool found = false;
+                    for (const auto& a : accounts_) {
+                        if (a.provider == "dropbox" && a.id == id) { found = true; break; }
+                    }
+                    if (!found) {
+                        std::string label = (id == "work") ? "Work Dropbox" :
+                                            (id == "personal") ? "Personal Dropbox" :
+                                            ("Dropbox (" + id + ")");
+                        accounts_.push_back({id, "dropbox", label, id, fname});
+                    }
+                }
+
+                // iCloud: .utp_icloud_token.json
+                if (fname == ".utp_icloud_token.json") {
+                    bool found = false;
+                    for (const auto& a : accounts_) {
+                        if (a.provider == "icloud" && a.id == "default") { found = true; break; }
+                    }
+                    if (!found) {
+                        accounts_.push_back({"default", "icloud", "iCloud Drive", "Apple ID Web", fname});
+                    }
+                }
+
+                // iCloud: .utp_icloud_<id>_token.json
+                if (fname.rfind(".utp_icloud_", 0) == 0 && fname.length() > 23 && fname.substr(fname.length() - 11) == "_token.json") {
+                    std::string id = fname.substr(12, fname.length() - 12 - 11);
+                    bool found = false;
+                    for (const auto& a : accounts_) {
+                        if (a.provider == "icloud" && a.id == id) { found = true; break; }
+                    }
+                    if (!found) {
+                        std::string label = (id == "work") ? "Work iCloud" :
+                                            (id == "personal") ? "Personal iCloud" :
+                                            ("iCloud (" + id + ")");
+                        accounts_.push_back({id, "icloud", label, id, fname});
+                    }
+                }
             }
+
+            // Check if local iCloud Drive directory is available on this system
+#ifdef _WIN32
+            const char* user_prof = std::getenv("USERPROFILE");
+            if (user_prof) {
+                fs::path p1 = fs::path(user_prof) / "iCloudDrive";
+                fs::path p2 = fs::path(user_prof) / "Apple" / "iCloudDrive";
+                if ((fs::exists(p1) && fs::is_directory(p1)) || (fs::exists(p2) && fs::is_directory(p2))) {
+                    bool found = false;
+                    for (const auto& a : accounts_) {
+                        if (a.provider == "icloud" && a.id == "local") { found = true; break; }
+                    }
+                    if (!found) {
+                        accounts_.push_back({"local", "icloud", "Local iCloud Drive", "Local Sync Bridge", ""});
+                    }
+                }
+            }
+#else
+            const char* home = std::getenv("HOME");
+            if (home) {
+                fs::path p = fs::path(home) / "Library" / "Mobile Documents" / "com~apple~CloudDocs";
+                if (fs::exists(p) && fs::is_directory(p)) {
+                    bool found = false;
+                    for (const auto& a : accounts_) {
+                        if (a.provider == "icloud" && a.id == "local") { found = true; break; }
+                    }
+                    if (!found) {
+                        accounts_.push_back({"local", "icloud", "Local iCloud Drive", "Local Sync Bridge", ""});
+                    }
+                }
+            }
+#endif
         } catch (...) {}
     }
 

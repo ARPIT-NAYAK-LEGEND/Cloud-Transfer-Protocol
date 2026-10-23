@@ -70,7 +70,7 @@ static std::string extract_xml_tag(const std::string& xml, const std::string& ta
 
 } // namespace
 
-S3Provider::S3Provider(const std::string& access_key, const std::string& secret_key, const std::string& region) {
+S3Provider::S3Provider(const std::string& access_key, const std::string& secret_key, const std::string& region, const std::string& custom_endpoint) {
     access_key_ = access_key.empty() ? "REDACTED_AWS_ACCESS_KEY_ID" : access_key;
     secret_key_ = secret_key.empty() ? "REDACTED_AWS_SECRET_ACCESS_KEY" : secret_key;
 
@@ -88,12 +88,14 @@ S3Provider::S3Provider(const std::string& access_key, const std::string& secret_
     } else if (env_reg && strlen(env_reg) > 0) {
         region_ = env_reg;
     } else {
-        region_ = "ap-south-1"; // Default to India region (user location)
+        region_ = "ap-south-1"; // Default region
     }
 
-    endpoint_ = (region_ == "us-east-1") ? "https://s3.amazonaws.com" : ("https://s3." + region_ + ".amazonaws.com");
-
-    std::string masked = access_key_.size() > 8 ? (access_key_.substr(0, 8) + "..." + access_key_.substr(access_key_.size() - 4)) : access_key_;
+    if (!custom_endpoint.empty()) {
+        endpoint_ = custom_endpoint;
+    } else {
+        endpoint_ = (region_ == "us-east-1") ? "https://s3.amazonaws.com" : ("https://s3." + region_ + ".amazonaws.com");
+    }
 }
 
 S3Provider::~S3Provider() {}

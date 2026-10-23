@@ -198,4 +198,8 @@ HttpResponse HttpClient::del(const std::string& url, const std::vector<std::stri
     return perform_request(url, "DELETE", nullptr, 0, headers);
 }
 
+HttpResponse HttpClient::perform_custom_request(const std::string& method, const std::string& url, const uint8_t* data, size_t size, const std::vector<std::string>& headers) {
+    return perform_request(url, method.c_str(), data, size, headers);
+}
+
 } // namespace utp

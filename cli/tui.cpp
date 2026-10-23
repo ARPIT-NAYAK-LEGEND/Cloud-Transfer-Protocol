@@ -618,16 +618,27 @@ static SelectedEndpoint select_storage_endpoint(const std::string& step_title, i
     AccountManager::instance().reload();
     size_t gdrive_cnt = AccountManager::instance().count_accounts("gdrive");
     size_t onedrive_cnt = AccountManager::instance().count_accounts("onedrive");
+    size_t dropbox_cnt = AccountManager::instance().count_accounts("dropbox");
+    size_t icloud_cnt = AccountManager::instance().count_accounts("icloud");
 
     std::string gdrive_desc = (gdrive_cnt == 0) ? "Google Workspace & Drive files" :
                               (std::to_string(gdrive_cnt) + " account" + (gdrive_cnt > 1 ? "s" : "") + " connected");
     std::string onedrive_desc = (onedrive_cnt == 0) ? "Microsoft 365 & Personal Vault" :
                                 (std::to_string(onedrive_cnt) + " account" + (onedrive_cnt > 1 ? "s" : "") + " connected");
+    std::string dropbox_desc = (dropbox_cnt == 0) ? "Personal & Team Cloud Files" :
+                               (std::to_string(dropbox_cnt) + " account" + (dropbox_cnt > 1 ? "s" : "") + " connected");
+    std::string icloud_desc = (icloud_cnt == 0) ? "Apple iCloud Drive (Web docws & Local Bridge)" :
+                              (std::to_string(icloud_cnt) + " account" + (icloud_cnt > 1 ? "s" : "") + " connected");
 
     std::vector<MenuOption> provider_options = {
         {"Google Drive", "gdrive://", gdrive_desc},
         {"OneDrive", "onedrive://", onedrive_desc},
+        {"Dropbox", "dropbox://", dropbox_desc},
+        {"Apple iCloud Drive", "icloud://", icloud_desc},
         {"Amazon S3", "s3://", "AWS S3 Buckets & Cloud Storage"},
+        {"Cloudflare R2", "r2://", "High-Performance Zero-Egress S3 Storage"},
+        {"Backblaze B2", "b2://", "Cost-Effective S3 Cloud Storage"},
+        {"WebDAV / Nextcloud", "webdav://", "Nextcloud, ownCloud & Private NAS"},
         {"Local Filesystem", "file://", "Local NVMe / SSD & Mounted Disks"}
     };
 
@@ -640,8 +651,13 @@ static SelectedEndpoint select_storage_endpoint(const std::string& step_title, i
 
     if (p_idx == 0) ep.scheme = "gdrive";
     else if (p_idx == 1) ep.scheme = "onedrive";
-    else if (p_idx == 2) ep.scheme = "s3";
-    else if (p_idx == 3) ep.scheme = "file";
+    else if (p_idx == 2) ep.scheme = "dropbox";
+    else if (p_idx == 3) ep.scheme = "icloud";
+    else if (p_idx == 4) ep.scheme = "s3";
+    else if (p_idx == 5) ep.scheme = "r2";
+    else if (p_idx == 6) ep.scheme = "b2";
+    else if (p_idx == 7) ep.scheme = "webdav";
+    else if (p_idx == 8) ep.scheme = "file";
 
     if (ep.scheme == "file") {
         ep.account = "";
@@ -653,17 +669,52 @@ static SelectedEndpoint select_storage_endpoint(const std::string& step_title, i
         ep.display_name = "AWS S3";
         return ep;
     }
+    if (ep.scheme == "r2") {
+        ep.account = "default";
+        ep.display_name = "Cloudflare R2";
+        return ep;
+    }
+    if (ep.scheme == "b2") {
+        ep.account = "default";
+        ep.display_name = "Backblaze B2";
+        return ep;
+    }
+    if (ep.scheme == "webdav") {
+        ep.account = "default";
+        ep.display_name = "WebDAV / Nextcloud";
+        return ep;
+    }
 
-    std::string prov_name = (ep.scheme == "gdrive") ? "Google Drive" : "OneDrive";
+    std::string prov_name = (ep.scheme == "gdrive") ? "Google Drive" :
+                            (ep.scheme == "onedrive") ? "OneDrive" :
+                            (ep.scheme == "dropbox") ? "Dropbox" : "iCloud";
     auto accs = AccountManager::instance().get_accounts(ep.scheme);
 
     if (accs.empty()) {
         std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_CYAN GLYPH_STEP C_RESET " No " << prov_name << " accounts connected.\n";
-        std::cout << C_SPINE GLYPH_SPINE C_RESET "  Enter alias for this account (e.g. personal, work) [personal]: ";
+        std::cout << C_SPINE GLYPH_SPINE C_RESET "  Enter alias for this account (e.g. personal, work, local) [personal]: ";
         std::string alias;
         std::getline(std::cin, alias);
         alias = trim(alias);
         if (alias.empty()) alias = "personal";
+
+        std::string token_file = AccountManager::instance().get_token_file(ep.scheme, alias);
+        if (ep.scheme == "icloud" && alias != "local") {
+            std::cout << C_SPINE GLYPH_SPINE C_RESET "  Enter Apple ID (e.g. name@icloud.com): ";
+            std::string aid;
+            std::getline(std::cin, aid);
+            aid = trim(aid);
+            std::cout << C_SPINE GLYPH_SPINE C_RESET "  Enter Apple session token (dsWebAuthToken) [press Enter for local bridge]: ";
+            std::string tok;
+            std::getline(std::cin, tok);
+            tok = trim(tok);
+            if (!tok.empty()) {
+                std::ofstream of(token_file);
+                if (of.is_open()) {
+                    of << "{\n  \"apple_id\": \"" << aid << "\",\n  \"token\": \"" << tok << "\",\n  \"mode\": \"web\"\n}\n";
+                }
+            }
+        }
 
         std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_CYAN GLYPH_STEP C_RESET " Authorizing new " << prov_name << " (" << alias << ")...\n";
         std::unique_ptr<StorageProvider> test_p;
@@ -676,7 +727,6 @@ static SelectedEndpoint select_storage_endpoint(const std::string& step_title, i
         }
 
         std::string user_email = test_p ? test_p->get_user_identity() : "";
-        std::string token_file = AccountManager::instance().get_token_file(ep.scheme, alias);
         std::string alias_label = alias;
         if (!alias_label.empty()) alias_label[0] = std::toupper(alias_label[0]);
         std::string disp_name = alias_label + " " + prov_name;

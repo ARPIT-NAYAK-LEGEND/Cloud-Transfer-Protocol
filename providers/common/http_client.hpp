@@ -24,6 +24,7 @@ public:
     HttpResponse put(const std::string& url, const uint8_t* data, size_t size, const std::vector<std::string>& headers);
     HttpResponse patch(const std::string& url, const uint8_t* data, size_t size, const std::vector<std::string>& headers);
     HttpResponse del(const std::string& url, const std::vector<std::string>& headers);
+    HttpResponse perform_custom_request(const std::string& method, const std::string& url, const uint8_t* data, size_t size, const std::vector<std::string>& headers);
 
 private:
     HttpResponse perform_request(const std::string& url, const char* method, const uint8_t* data, size_t size, const std::vector<std::string>& headers);

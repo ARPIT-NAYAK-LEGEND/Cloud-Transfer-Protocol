@@ -10,9 +10,10 @@ namespace utp {
 
 class S3Provider : public StorageProvider {
 public:
-    S3Provider(const std::string& access_key = "REDACTED_AWS_ACCESS_KEY_ID", 
-               const std::string& secret_key = "REDACTED_AWS_SECRET_ACCESS_KEY", 
-               const std::string& region = "");
+    S3Provider(const std::string& access_key = "", 
+               const std::string& secret_key = "", 
+               const std::string& region = "",
+               const std::string& custom_endpoint = "");
     ~S3Provider() override;
 
     ProviderCapabilities capabilities() override;
