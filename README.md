@@ -51,30 +51,42 @@
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Installation & Quick Start
 
-### Option 1: Instant Run with `npx` (No installation needed)
+### Option 1: Universal 1-Line Installer (Linux & macOS)
+```bash
+curl -fsSL https://raw.githubusercontent.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol/PROJECTS/install.sh | bash
+```
+
+### Option 2: Instant Run with `npx` (No installation needed)
 ```bash
 npx utp-engine transfer
 ```
 
-### Option 2: Standalone Native Binary (GitHub Releases)
-Download prebuilt standalone executables for your platform from [Releases](https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol/releases):
-- **Windows**: `utp.exe`
-- **Linux**: `utp`
-- **macOS**: `utp`
-
 ### Option 3: Package Managers
 ```bash
-# Windows (Scoop)
-scoop install utp
-
 # macOS / Linux (Homebrew)
-brew install utp
+brew install ARPIT-NAYAK-LEGEND/utp/utp
+# Or directly from the formula URL:
+# brew install https://raw.githubusercontent.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol/PROJECTS/packaging/homebrew/utp.rb
 
 # Arch Linux (AUR / Pacman)
 yay -S utp-bin
+# Or build locally:
+# cd packaging/pacman && makepkg -si
+
+# Windows (Scoop)
+scoop install https://raw.githubusercontent.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol/PROJECTS/packaging/scoop/utp.json
+
+# NPM (Global)
+npm install -g utp-engine
 ```
+
+### Option 4: Standalone Prebuilt Binaries (GitHub Releases)
+Download prebuilt executables directly from [Releases](https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol/releases):
+- **Windows**: `utp-windows-x64.zip` (`utp.exe`)
+- **Linux**: `utp-linux-x64.tar.gz` (`utp`)
+- **macOS**: `utp-macos.tar.gz` (`utp`)
 
 ---
 
@@ -147,22 +159,19 @@ utp resume <transfer_id>
 - C++20 compliant compiler (`g++` >= 11, `clang` >= 13, or MSVC 2022)
 - `libcurl`, `OpenSSL` (libssl & libcrypto), and `sqlite3`
 
-### Windows (MSYS2 UCRT64)
+### Using Build Scripts (Recommended)
 ```bash
-build_cli.bat
+# Windows (MSYS2 UCRT64)
+.\build_cli.bat
+
+# Linux / macOS
+chmod +x ./build.sh && ./build.sh
 ```
 
-### Linux / macOS
+### Using CMake
 ```bash
-g++ -std=c++20 -O3 -I core/include -I . \
-  cli/main.cpp cli/tui.cpp \
-  core/src/chunk_planner.cpp core/src/engine.cpp core/src/state_manager.cpp core/src/uri_parser.cpp \
-  providers/azure/azure_provider.cpp providers/common/http_client.cpp \
-  providers/dropbox/dropbox_provider.cpp providers/google_drive/gdrive_provider.cpp \
-  providers/icloud/icloud_provider.cpp providers/local/local_provider.cpp \
-  providers/onedrive/onedrive_provider.cpp providers/s3/s3_provider.cpp \
-  providers/webdav/webdav_provider.cpp \
-  -o utp -lcurl -lssl -lcrypto -lsqlite3
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release
 ```
 
 ---
