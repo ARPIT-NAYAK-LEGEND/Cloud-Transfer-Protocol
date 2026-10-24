@@ -28,6 +28,7 @@ public:
     void update_transfer_progress(const std::string& transfer_id, uint64_t bytes_completed);
 
     std::optional<Transfer> get_transfer(const std::string& transfer_id);
+    std::vector<Transfer> list_transfers(int limit = 50);
     std::vector<ChunkInfo> get_plan(const std::string& transfer_id);
 
     void save_plan(const std::string& transfer_id, const std::vector<ChunkInfo>& plan);

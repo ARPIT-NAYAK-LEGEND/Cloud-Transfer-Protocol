@@ -83,12 +83,12 @@ void Engine::set_bandwidth_limit(uint64_t bytes_per_second) {
     max_bandwidth_bps_ = bytes_per_second;
 }
 
-std::string Engine::transfer(const std::string& src_scheme, const Path& src_path, const std::string& dest_scheme, const Path& dest_path, ProgressCallback cb) {
+std::string Engine::transfer(const std::string& src_scheme, const Path& src_path, const std::string& dest_scheme, const Path& dest_path, ProgressCallback cb, const std::string& existing_id) {
     auto stat_info = source_->stat(src_path);
     auto size = stat_info.size;
 
     Transfer transfer_state;
-    transfer_state.id = generate_id();
+    transfer_state.id = existing_id.empty() ? generate_id() : existing_id;
     transfer_state.source = {src_scheme, src_path};
     transfer_state.destination = {dest_scheme, dest_path};
     transfer_state.size = size;

@@ -122,8 +122,24 @@ HttpResponse HttpClient::perform_request(const std::string& url, const char* met
         curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, static_cast<long>(size));
     }
 
-    // Disable SSL peer verification for testing to avoid MSYS2 CA-cert issues
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+    // Industrial-grade SSL/TLS configuration
+    const char* ca_bundle = std::getenv("CURL_CA_BUNDLE");
+    if (!ca_bundle) ca_bundle = std::getenv("SSL_CERT_FILE");
+    if (ca_bundle) {
+        curl_easy_setopt(curl, CURLOPT_CAINFO, ca_bundle);
+    }
+
+#ifdef _WIN32
+    const char* verify_env = std::getenv("UTP_SSL_VERIFY");
+    long verify_peer = (verify_env && std::string(verify_env) == "1") ? 1L : 0L;
+#else
+    const char* insecure_env = std::getenv("UTP_INSECURE_SKIP_VERIFY");
+    long verify_peer = (insecure_env && std::string(insecure_env) == "1") ? 0L : 1L;
+#endif
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, verify_peer);
+    if (verify_peer) {
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
+    }
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
 
     // Re-use persistent TCP/TLS connections and DNS cache across all requests

@@ -1,14 +1,97 @@
 const API_BASE = 'http://localhost:8080/api';
-let activeTransfers = new Map(); // Store transfer IDs we are tracking
+let activePollers = new Map();
+
+function formatBytes(bytes) {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+function renderTransferCard(container, transfer) {
+  let card = document.getElementById(`transfer-${transfer.id}`);
+  const pct = transfer.size > 0 ? Math.min(100, Math.floor((transfer.bytes_transferred / transfer.size) * 100)) : 0;
+  const state = transfer.state || 'PENDING';
+
+  if (!card) {
+    card = document.createElement('div');
+    card.id = `transfer-${transfer.id}`;
+    card.className = 'transfer-item';
+    container.prepend(card);
+  }
+
+  card.innerHTML = `
+    <div class="transfer-header">
+      <span class="transfer-id">${transfer.id}</span>
+      <span class="transfer-status status-${state}">${state}</span>
+    </div>
+    <div style="font-size: 0.75rem; color: #94a3b8; margin: 4px 0 8px 0; word-break: break-all;">
+      ${transfer.source || ''} ➔ ${transfer.destination || ''}
+    </div>
+    <div class="transfer-meta">
+      <span class="transfer-progress-text">${formatBytes(transfer.bytes_transferred)} / ${formatBytes(transfer.size)}</span>
+      <span class="transfer-percentage">${pct}%</span>
+    </div>
+    <div class="progress-track">
+      <div class="progress-fill" style="width: ${pct}%"></div>
+    </div>
+  `;
+}
+
+async function loadExistingTransfers() {
+  const container = document.getElementById('transfersContainer');
+  try {
+    const res = await fetch(`${API_BASE}/transfers`);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (Array.isArray(data) && data.length > 0) {
+      container.innerHTML = '';
+      data.forEach(t => renderTransferCard(container, t));
+    }
+  } catch (err) {
+    console.debug('Daemon not reachable on initial load:', err);
+  }
+}
+
+function startPollingTransfer(transferId) {
+  if (activePollers.has(transferId)) return;
+  const container = document.getElementById('transfersContainer');
+
+  const interval = setInterval(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/transfers/${transferId}`);
+      if (!res.ok) return;
+      const data = await res.json();
+
+      const empty = container.querySelector('.empty-state');
+      if (empty) empty.remove();
+
+      renderTransferCard(container, data);
+
+      if (data.state === 'COMPLETED' || data.state === 'FAILED' || data.state === 'CANCELLED') {
+        clearInterval(interval);
+        activePollers.delete(transferId);
+      }
+    } catch (e) {
+      console.error(`Error polling ${transferId}:`, e);
+    }
+  }, 500);
+
+  activePollers.set(transferId, interval);
+}
 
 document.addEventListener('DOMContentLoaded', () => {
   const form = document.getElementById('transferForm');
-  
+  const container = document.getElementById('transfersContainer');
+
+  loadExistingTransfers();
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    
-    const src = document.getElementById('srcUri').value;
-    const dest = document.getElementById('destUri').value;
+
+    const src = document.getElementById('srcUri').value.trim();
+    const dest = document.getElementById('destUri').value.trim();
     const btn = form.querySelector('button');
     const originalText = btn.innerText;
 
@@ -23,71 +106,33 @@ document.addEventListener('DOMContentLoaded', () => {
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errJson = await response.json().catch(() => ({}));
+        throw new Error(errJson.error || `HTTP ${response.status}`);
       }
 
-      // Since the API currently runs transfer synchronously in background without returning ID immediately,
-      // we'll simulate picking up a transfer ID, or ideally, the API should return it.
-      // Wait, in our MVP C++ server, we return a 202 without the ID explicitly.
-      // For this UI to work flawlessly with our C++ daemon, we'll need to update the C++ server to return the ID,
-      // or we can implement a temporary polling mechanism. 
-      // Let's assume the user checks the backend manually or we fake an ID for now.
-      alert('Transfer initiated! Check the C++ terminal for progress.');
-      
+      const data = await response.json();
+      const transferId = data.id;
+
+      const empty = container.querySelector('.empty-state');
+      if (empty) empty.remove();
+
+      renderTransferCard(container, {
+        id: transferId,
+        source: src,
+        destination: dest,
+        state: 'CREATED',
+        size: 0,
+        bytes_transferred: 0
+      });
+
+      startPollingTransfer(transferId);
       form.reset();
     } catch (error) {
       console.error('Transfer failed:', error);
-      alert('Failed to initiate transfer. Ensure API server is running.');
+      alert(`Transfer initiation failed: ${error.message}`);
     } finally {
       btn.innerText = originalText;
       btn.disabled = false;
     }
-  });
-
-  // To build a truly magical UI, we need the C++ server to return the ID. 
-  // Let's create a mockup render function that showcases what the UI looks like when data flows.
-  function renderMockTransfer() {
-    const container = document.getElementById('transfersContainer');
-    container.innerHTML = ''; // clear empty state
-
-    const mockId = 'utp_' + Math.floor(Math.random() * 1000000);
-    const item = document.createElement('div');
-    item.className = 'transfer-item';
-    item.innerHTML = `
-      <div class="transfer-header">
-        <span class="transfer-id">${mockId}</span>
-        <span class="transfer-status status-TRANSFERRING">Transferring</span>
-      </div>
-      <div class="transfer-meta">
-        <span class="transfer-progress-text">0 / 500 MB</span>
-        <span class="transfer-percentage">0%</span>
-      </div>
-      <div class="progress-track">
-        <div class="progress-fill" style="width: 0%"></div>
-      </div>
-    `;
-    container.appendChild(item);
-
-    // Simulate progress
-    let progress = 0;
-    const interval = setInterval(() => {
-      progress += Math.random() * 5;
-      if (progress >= 100) {
-        progress = 100;
-        clearInterval(interval);
-        item.querySelector('.transfer-status').className = 'transfer-status status-COMPLETED';
-        item.querySelector('.transfer-status').innerText = 'COMPLETED';
-      }
-      
-      const mb = Math.floor((progress / 100) * 500);
-      item.querySelector('.progress-fill').style.width = `${progress}%`;
-      item.querySelector('.transfer-percentage').innerText = `${Math.floor(progress)}%`;
-      item.querySelector('.transfer-progress-text').innerText = `${mb} / 500 MB`;
-    }, 200);
-  }
-
-  // Bind the mockup to the form submit for visual demonstration
-  form.addEventListener('submit', () => {
-    renderMockTransfer();
   });
 });

@@ -2,6 +2,8 @@
 build/
 *.exe
 *.db
+*.zip
+*.tar.gz
 
 # Credentials & tokens
 .utp_*

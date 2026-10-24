@@ -236,6 +236,11 @@ void test_state_manager_suite() {
         auto updated_plan = sm.get_plan("utp_eval_001");
         ASSERT_EQ(updated_plan[0].state, utp::ChunkState::COMPLETE);
         ASSERT_EQ(updated_plan[1].state, utp::ChunkState::PENDING);
+
+        auto transfers = sm.list_transfers(10);
+        ASSERT_EQ(transfers.size(), 1ULL);
+        ASSERT_EQ(transfers[0].id, "utp_eval_001");
+        ASSERT_EQ(transfers[0].size, 10485760ULL);
     }
 
     std::error_code ec;

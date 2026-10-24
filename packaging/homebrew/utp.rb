@@ -5,13 +5,8 @@ class Utp < Formula
   license "MIT"
 
   if OS.mac?
-    if Hardware::CPU.arm?
-      url "https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol/releases/download/v2.5.0/utp-macos-arm64.tar.gz"
-      sha256 "SKIP"
-    else
-      url "https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol/releases/download/v2.5.0/utp-macos-x64.tar.gz"
-      sha256 "SKIP"
-    end
+    url "https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol/releases/download/v2.5.0/utp-macos.tar.gz"
+    sha256 "SKIP"
   elsif OS.linux?
     url "https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol/releases/download/v2.5.0/utp-linux-x64.tar.gz"
     sha256 "SKIP"

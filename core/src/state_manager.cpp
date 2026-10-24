@@ -229,6 +229,30 @@ std::optional<Transfer> StateManager::get_transfer(const std::string& transfer_i
     return result;
 }
 
+std::vector<Transfer> StateManager::list_transfers(int limit) {
+    std::lock_guard<std::recursive_mutex> lock(g_db_mutex);
+    std::string sql = "SELECT id, source_uri, destination_uri, state, bytes_total, bytes_completed FROM transfers ORDER BY created_at DESC LIMIT " + std::to_string(limit);
+    sqlite3_stmt* stmt;
+    if (sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+        throw std::runtime_error("Failed to prepare select transfers statement");
+    }
+
+    std::vector<Transfer> list;
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        Transfer t;
+        t.id = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+        t.source = parse_resource_uri(reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1)));
+        t.destination = parse_resource_uri(reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2)));
+        t.state = string_to_state(reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3)));
+        t.size = sqlite3_column_int64(stmt, 4);
+        t.bytes_transferred = sqlite3_column_int64(stmt, 5);
+        list.push_back(t);
+    }
+
+    sqlite3_finalize(stmt);
+    return list;
+}
+
 std::vector<ChunkInfo> StateManager::get_plan(const std::string& transfer_id) {
     std::lock_guard<std::recursive_mutex> lock(g_db_mutex);
     const char* sql = "SELECT offset, size, state FROM chunks WHERE transfer_id = ? ORDER BY chunk_index ASC";
