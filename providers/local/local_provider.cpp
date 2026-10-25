@@ -61,17 +61,39 @@ ReadStream LocalProvider::openRead(Path path) {
     return {id};
 }
 
-WriteSession LocalProvider::openWrite(Path path, uint64_t size) {
+WriteSession LocalProvider::openWrite(Path path, uint64_t size, const std::string& resume_token) {
+    // LocalProvider resumes via the deterministic "<path>.utp.tmp" convention
+    // (Gate 0) — no opaque session token to consume.
+    (void)resume_token;
     std::lock_guard<std::mutex> lock(mutex_);
     std::string id = "write_" + std::to_string(next_id_++);
     auto& state = write_sessions_[id];
     state.path = path;
     state.temp_path = path + ".utp.tmp";
+
+    // If an existing write session is holding this temp_path (e.g. from a paused previous run),
+    // close its stream and erase it so Windows file locks are released.
+    for (auto it = write_sessions_.begin(); it != write_sessions_.end(); ) {
+        if (it->first != id && it->second.temp_path == state.temp_path) {
+            it->second.stream.close();
+            it = write_sessions_.erase(it);
+        } else {
+            ++it;
+        }
+    }
+
     fs::path tp(state.temp_path);
     if (tp.has_parent_path()) {
         fs::create_directories(tp.parent_path());
     }
-    state.stream.open(state.temp_path, std::ios::binary);
+    // If a previous transfer left a partial temp file behind, resume into it
+    // rather than truncating it — otherwise a kill mid-transfer would lose the
+    // already-written chunks on the next resume.
+    if (fs::exists(state.temp_path)) {
+        state.stream.open(state.temp_path, std::ios::binary | std::ios::in | std::ios::out);
+    } else {
+        state.stream.open(state.temp_path, std::ios::binary);
+    }
     if (!state.stream.is_open()) {
         write_sessions_.erase(id);
         throw std::runtime_error("Could not open file for writing: " + state.temp_path);
@@ -84,6 +106,11 @@ size_t LocalProvider::read(ReadStream session, uint64_t offset, uint8_t* buffer,
     auto it = read_streams_.find(session.id);
     if (it == read_streams_.end()) {
         throw std::runtime_error("Invalid read session");
+    }
+    // Honour the requested byte offset — resume and ranged reads depend on it.
+    it->second.stream.seekg(offset);
+    if (!it->second.stream) {
+        throw std::runtime_error("Seek failed for read session");
     }
     it->second.stream.read(reinterpret_cast<char*>(buffer), count);
     return it->second.stream.gcount();
@@ -109,7 +136,14 @@ void LocalProvider::commit(WriteSession session) {
         throw std::runtime_error("Invalid write session");
     }
     it->second.stream.close();
-    fs::rename(it->second.temp_path, it->second.path);
+    std::error_code ec;
+    if (fs::exists(it->second.path, ec)) {
+        fs::remove(it->second.path, ec);
+    }
+    fs::rename(it->second.temp_path, it->second.path, ec);
+    if (ec) {
+        throw std::runtime_error("Commit failed: cannot rename " + it->second.temp_path + " to " + it->second.path + ": " + ec.message());
+    }
     write_sessions_.erase(it);
 }
 
@@ -118,8 +152,9 @@ void LocalProvider::abort(WriteSession session) {
     auto it = write_sessions_.find(session.id);
     if (it != write_sessions_.end()) {
         it->second.stream.close();
-        if (fs::exists(it->second.temp_path)) {
-            fs::remove(it->second.temp_path);
+        std::error_code ec;
+        if (fs::exists(it->second.temp_path, ec)) {
+            fs::remove(it->second.temp_path, ec);
         }
         write_sessions_.erase(it);
     }
@@ -130,10 +165,11 @@ LocalProvider::~LocalProvider() {
     for (auto& pair : read_streams_) {
         pair.second.stream.close();
     }
+    std::error_code ec;
     for (auto& pair : write_sessions_) {
         pair.second.stream.close();
-        if (fs::exists(pair.second.temp_path)) {
-            fs::remove(pair.second.temp_path);
+        if (fs::exists(pair.second.temp_path, ec)) {
+            fs::remove(pair.second.temp_path, ec);
         }
     }
 }

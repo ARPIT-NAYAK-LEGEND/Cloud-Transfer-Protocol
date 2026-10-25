@@ -344,6 +344,59 @@ ProviderCapabilities OneDriveProvider::capabilities() {
     };
 }
 
+std::string OneDriveProvider::token_file_path() const {
+    if (name_context_.empty() || name_context_ == "default" || name_context_ == "src" || name_context_ == "dest") {
+        return ".utp_onedrive_token.json";
+    }
+    return ".utp_onedrive_" + name_context_ + "_token.json";
+}
+
+// P1.1: forced token refresh for mid-transfer 401s. OneDrive access tokens
+// live ~1h; a multi-hour transfer WILL cross the expiry boundary.
+void OneDriveProvider::refresh_auth() {
+    if (refresh_token_.empty()) {
+        throw TransferError(ErrorCategory::FATAL,
+            "OneDrive: no refresh token stored; reconnect this account (delete the .utp_onedrive_*_token.json file and re-run)");
+    }
+    std::string url = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
+    std::string body = "client_id=" + url_encode(client_id_) +
+                       "&grant_type=refresh_token" +
+                       "&refresh_token=" + url_encode(refresh_token_) +
+                       "&scope=offline_access%20Files.ReadWrite.All";
+    if (!client_secret_.empty()) {
+        body += "&client_secret=" + url_encode(client_secret_);
+    }
+    auto r = http_.post(url, body, {"Content-Type: application/x-www-form-urlencoded"});
+    if (r.status_code != 200) {
+        throw TransferError(ErrorCategory::AUTH,
+            "OneDrive token refresh failed (" + std::to_string(r.status_code) + "): " + r.body,
+            r.status_code);
+    }
+    std::string new_access = extract_json_value(r.body, "access_token");
+    std::string new_refresh = extract_json_value(r.body, "refresh_token");
+    if (new_access.empty()) {
+        throw TransferError(ErrorCategory::AUTH,
+            "OneDrive token refresh returned no access_token", r.status_code);
+    }
+    access_token_ = new_access;
+    if (!new_refresh.empty()) refresh_token_ = new_refresh;
+
+    std::string token_file = token_file_path();
+    {
+        std::ofstream outfile(token_file);
+        if (outfile.is_open()) {
+            outfile << "{\"access_token\":\"" << access_token_
+                    << "\",\"refresh_token\":\"" << refresh_token_
+                    << "\",\"email\":\"" << user_email_ << "\"}";
+        }
+    }
+    {
+        std::lock_guard<std::mutex> lock(s_onedrive_cache_mutex);
+        s_onedrive_cache[token_file] = {access_token_, refresh_token_, user_email_,
+                                        std::chrono::steady_clock::now() + std::chrono::minutes(50)};
+    }
+}
+
 FileInfo OneDriveProvider::stat(Path path) {
     std::vector<std::string> headers = {
         "Authorization: Bearer " + access_token_
@@ -378,50 +431,29 @@ FileInfo OneDriveProvider::stat(Path path) {
     return {path, size, is_dir, name_str.empty() ? path : name_str};
 }
 
-std::vector<FileInfo> OneDriveProvider::list(Path path) {
-    std::vector<FileInfo> items;
-    std::string clean_path = path;
-    while (!clean_path.empty() && (clean_path.front() == '/' || clean_path.front() == ' ')) clean_path.erase(0, 1);
-    while (!clean_path.empty() && (clean_path.back() == '/' || clean_path.back() == ' ')) clean_path.pop_back();
-
-    std::string url;
-    if (clean_path.empty() || clean_path == "." || clean_path == "root") {
-        url = "https://graph.microsoft.com/v1.0/me/drive/root/children";
-    } else {
-        url = "https://graph.microsoft.com/v1.0/me/drive/root:/" + url_encode_path(clean_path) + ":/children";
-    }
-
-    std::vector<std::string> headers = {
-        "Authorization: Bearer " + access_token_
-    };
-
-    auto resp = http_.get(url, headers);
-    if (resp.status_code != 200) {
-        std::cerr << "[OneDrive] list failed (" << resp.status_code << "): " << resp.body << "\n";
-        return items;
-    }
-
-    size_t val_pos = resp.body.find("\"value\":");
-    if (val_pos == std::string::npos) return items;
-    size_t arr_start = resp.body.find('[', val_pos);
-    if (arr_start == std::string::npos) return items;
-    size_t arr_end = resp.body.rfind(']');
-    if (arr_end == std::string::npos || arr_end <= arr_start) return items;
+// Parse one page of Graph children into `items`.
+static void parse_onedrive_children_page(const std::string& body, const std::string& clean_path, std::vector<FileInfo>& items) {
+    size_t val_pos = body.find("\"value\":");
+    if (val_pos == std::string::npos) return;
+    size_t arr_start = body.find('[', val_pos);
+    if (arr_start == std::string::npos) return;
+    size_t arr_end = body.rfind(']');
+    if (arr_end == std::string::npos || arr_end <= arr_start) return;
 
     size_t curr = arr_start;
     while (curr < arr_end) {
-        size_t obj_start = resp.body.find('{', curr);
+        size_t obj_start = body.find('{', curr);
         if (obj_start == std::string::npos || obj_start >= arr_end) break;
 
         int depth = 0;
         size_t obj_end = obj_start;
         bool in_str = false;
         for (size_t i = obj_start; i < arr_end; ++i) {
-            if (resp.body[i] == '"' && (i == 0 || resp.body[i - 1] != '\\')) {
+            if (body[i] == '"' && (i == 0 || body[i - 1] != '\\')) {
                 in_str = !in_str;
             } else if (!in_str) {
-                if (resp.body[i] == '{') depth++;
-                else if (resp.body[i] == '}') {
+                if (body[i] == '{') depth++;
+                else if (body[i] == '}') {
                     depth--;
                     if (depth == 0) {
                         obj_end = i;
@@ -432,7 +464,7 @@ std::vector<FileInfo> OneDriveProvider::list(Path path) {
         }
         if (obj_end <= obj_start) break;
 
-        std::string item_json = resp.body.substr(obj_start, obj_end - obj_start + 1);
+        std::string item_json = body.substr(obj_start, obj_end - obj_start + 1);
         std::string id = extract_json_value(item_json, "id");
         std::string name = extract_json_value(item_json, "name");
         std::string size_str = extract_json_value(item_json, "size");
@@ -446,6 +478,46 @@ std::vector<FileInfo> OneDriveProvider::list(Path path) {
 
         curr = obj_end + 1;
     }
+}
+
+std::vector<FileInfo> OneDriveProvider::list(Path path) {
+    std::vector<FileInfo> items;
+    std::string clean_path = path;
+    while (!clean_path.empty() && (clean_path.front() == '/' || clean_path.front() == ' ')) clean_path.erase(0, 1);
+    while (!clean_path.empty() && (clean_path.back() == '/' || clean_path.back() == ' ')) clean_path.pop_back();
+
+    // P1.2: Graph pages children (~200/call); follow @odata.nextLink until
+    // exhausted instead of silently truncating large folders.
+    std::string url;
+    if (clean_path.empty() || clean_path == "." || clean_path == "root") {
+        url = "https://graph.microsoft.com/v1.0/me/drive/root/children";
+    } else {
+        url = "https://graph.microsoft.com/v1.0/me/drive/root:/" + url_encode_path(clean_path) + ":/children";
+    }
+
+    std::vector<std::string> headers = {
+        "Authorization: Bearer " + access_token_
+    };
+
+    int page = 0;
+    const int max_pages = 100; // safety bound against runaway loops
+    while (!url.empty() && page++ < max_pages) {
+        auto resp = http_.get(url, headers);
+        if (resp.status_code != 200) {
+            std::cerr << "[OneDrive] list failed (" << resp.status_code << "): " << resp.body << "\n";
+            return items;
+        }
+
+        parse_onedrive_children_page(resp.body, clean_path, items);
+
+        std::string next_link = extract_json_value(resp.body, "@odata.nextLink");
+        size_t pos = 0;
+        while ((pos = next_link.find("\\/", pos)) != std::string::npos) {
+            next_link.replace(pos, 2, "/");
+            pos += 1;
+        }
+        url = next_link;
+    }
 
     return items;
 }
@@ -457,7 +529,7 @@ ReadStream OneDriveProvider::openRead(Path path) {
     return {id};
 }
 
-WriteSession OneDriveProvider::openWrite(Path path, uint64_t size) {
+WriteSession OneDriveProvider::openWrite(Path path, uint64_t size, const std::string& resume_token) {
     std::string clean_path = path;
     while (!clean_path.empty() && (clean_path.front() == '/' || clean_path.front() == ' ')) clean_path.erase(0, 1);
     while (!clean_path.empty() && (clean_path.back() == '/' || clean_path.back() == ' ')) clean_path.pop_back();
@@ -479,34 +551,48 @@ WriteSession OneDriveProvider::openWrite(Path path, uint64_t size) {
         return {id};
     }
 
-    std::vector<std::string> headers = {
-        "Authorization: Bearer " + access_token_,
-        "Content-Type: application/json"
-    };
+    std::string upload_url;
+    if (!resume_token.empty()) {
+        // P1.3: resume the persisted Graph upload session — the uploadUrl stays
+        // valid and the service already knows nextExpectedRanges.
+        upload_url = resume_token;
+    } else {
+        std::vector<std::string> headers = {
+            "Authorization: Bearer " + access_token_,
+            "Content-Type: application/json"
+        };
 
-    std::string url = "https://graph.microsoft.com/v1.0/me/drive/root:/" + url_encode_path(clean_path) + ":/createUploadSession";
-    auto resp = http_.post(url, "{\"item\": {\"@microsoft.graph.conflictBehavior\": \"replace\"}}", headers);
+        std::string url = "https://graph.microsoft.com/v1.0/me/drive/root:/" + url_encode_path(clean_path) + ":/createUploadSession";
+        auto resp = http_.post(url, "{\"item\": {\"@microsoft.graph.conflictBehavior\": \"replace\"}}", headers);
 
-    if (resp.status_code != 200) {
-        throw TransferError(ErrorCategory::FATAL, "OneDrive upload session init failed (" + std::to_string(resp.status_code) + "): " + resp.body);
-    }
+        if (resp.status_code != 200) {
+            throw TransferError(ErrorCategory::FATAL, "OneDrive upload session init failed (" + std::to_string(resp.status_code) + "): " + resp.body);
+        }
 
-    std::string upload_url = extract_json_value(resp.body, "uploadUrl");
-    if (upload_url.empty()) {
-        throw TransferError(ErrorCategory::FATAL, "OneDrive missing uploadUrl in response");
-    }
+        upload_url = extract_json_value(resp.body, "uploadUrl");
+        if (upload_url.empty()) {
+            throw TransferError(ErrorCategory::FATAL, "OneDrive missing uploadUrl in response");
+        }
 
-    // Fix escaped forward slashes from JSON
-    size_t pos = 0;
-    while ((pos = upload_url.find("\\/", pos)) != std::string::npos) {
-        upload_url.replace(pos, 2, "/");
-        pos += 1;
+        // Fix escaped forward slashes from JSON
+        size_t pos = 0;
+        while ((pos = upload_url.find("\\/", pos)) != std::string::npos) {
+            upload_url.replace(pos, 2, "/");
+            pos += 1;
+        }
     }
 
     std::lock_guard<std::mutex> lock(mutex_);
     std::string id = "onedrive_write_" + std::to_string(next_id_++);
     sessions_[id] = {id, path, upload_url, size};
     return {id};
+}
+
+std::string OneDriveProvider::write_session_token(WriteSession session) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = sessions_.find(session.id);
+    if (it == sessions_.end()) return "";
+    return it->second.upload_uri;
 }
 
 size_t OneDriveProvider::read(ReadStream session, uint64_t offset, uint8_t* buffer, size_t count) {

@@ -322,6 +322,59 @@ ProviderCapabilities GoogleDriveProvider::capabilities() {
     };
 }
 
+std::string GoogleDriveProvider::token_file_path() const {
+    if (name_context_.empty() || name_context_ == "default" || name_context_ == "src" || name_context_ == "dest") {
+        std::string primary = ".utp_gdrive_my_personal_token.json";
+        std::ifstream test(primary);
+        if (test.is_open()) return primary;
+        return ".utp_gdrive_default_token.json";
+    }
+    return ".utp_gdrive_" + name_context_ + "_token.json";
+}
+
+// P1.1: forced token refresh, called by the engine after an AUTH error
+// mid-transfer. Bypasses the 50-minute memory cache on purpose — the cache
+// being "fresh" is exactly what caused the stale-token failure.
+void GoogleDriveProvider::refresh_auth() {
+    if (refresh_token_.empty()) {
+        throw TransferError(ErrorCategory::FATAL,
+            "Google Drive: no refresh token stored; reconnect this account (delete the .utp_gdrive_*_token.json file and re-run)");
+    }
+    std::string body = "client_id=" + client_id_ +
+                       "&client_secret=" + client_secret_ +
+                       "&refresh_token=" + refresh_token_ +
+                       "&grant_type=refresh_token";
+    auto r = http_.post("https://oauth2.googleapis.com/token", body,
+                         {"Content-Type: application/x-www-form-urlencoded"});
+    if (r.status_code != 200) {
+        throw TransferError(ErrorCategory::AUTH,
+            "Google Drive token refresh failed (" + std::to_string(r.status_code) + "): " + r.body,
+            r.status_code);
+    }
+    std::string new_access = extract_json_value(r.body, "access_token");
+    if (new_access.empty()) {
+        throw TransferError(ErrorCategory::AUTH,
+            "Google Drive token refresh returned no access_token", r.status_code);
+    }
+    access_token_ = new_access;
+
+    // Persist + update the in-process cache so the next transfer benefits too.
+    std::string token_file = token_file_path();
+    {
+        std::ofstream outfile(token_file);
+        if (outfile.is_open()) {
+            outfile << "{\"access_token\":\"" << access_token_
+                    << "\",\"refresh_token\":\"" << refresh_token_
+                    << "\",\"email\":\"" << user_email_ << "\"}";
+        }
+    }
+    {
+        std::lock_guard<std::mutex> lock(s_gdrive_cache_mutex);
+        s_gdrive_cache[token_file] = {access_token_, refresh_token_, user_email_,
+                                      std::chrono::steady_clock::now() + std::chrono::minutes(50)};
+    }
+}
+
 static std::string sanitize_gdrive_id(std::string input) {
     while (!input.empty() && (input.front() == ' ' || input.front() == '\t' || input.front() == '"' || input.front() == '\'')) input.erase(0, 1);
     while (!input.empty() && (input.back() == ' ' || input.back() == '\t' || input.back() == '\r' || input.back() == '\n' || input.back() == '"' || input.back() == '\'')) input.pop_back();
@@ -377,46 +430,29 @@ FileInfo GoogleDriveProvider::stat(Path path) {
     return {clean_id, size, is_dir, name_str.empty() ? clean_id : name_str};
 }
 
-std::vector<FileInfo> GoogleDriveProvider::list(Path path) {
-    std::vector<FileInfo> items;
-    std::string parent_id = sanitize_gdrive_id(path);
-    if (parent_id.empty() || parent_id == "/" || parent_id == ".") {
-        parent_id = "root";
-    }
-
-    std::string q = "'" + parent_id + "' in parents and trashed = false";
-    std::string url = "https://www.googleapis.com/drive/v3/files?pageSize=100&fields=files(id,name,mimeType,size)&q=" + url_encode(q);
-    std::vector<std::string> headers = {
-        "Authorization: Bearer " + access_token_
-    };
-
-    auto resp = http_.get(url, headers);
-    if (resp.status_code != 200) {
-        std::cerr << "[GoogleDrive] list failed (" << resp.status_code << "): " << resp.body << "\n";
-        return items;
-    }
-
-    size_t files_pos = resp.body.find("\"files\":");
-    if (files_pos == std::string::npos) return items;
-    size_t arr_start = resp.body.find('[', files_pos);
-    if (arr_start == std::string::npos) return items;
-    size_t arr_end = resp.body.rfind(']');
-    if (arr_end == std::string::npos || arr_end <= arr_start) return items;
+// Parse one page of the drive.files list response into `items`.
+static void parse_gdrive_files_page(const std::string& body, std::vector<FileInfo>& items) {
+    size_t files_pos = body.find("\"files\":");
+    if (files_pos == std::string::npos) return;
+    size_t arr_start = body.find('[', files_pos);
+    if (arr_start == std::string::npos) return;
+    size_t arr_end = body.rfind(']');
+    if (arr_end == std::string::npos || arr_end <= arr_start) return;
 
     size_t curr = arr_start;
     while (curr < arr_end) {
-        size_t obj_start = resp.body.find('{', curr);
+        size_t obj_start = body.find('{', curr);
         if (obj_start == std::string::npos || obj_start >= arr_end) break;
 
         int depth = 0;
         size_t obj_end = obj_start;
         bool in_str = false;
         for (size_t i = obj_start; i < arr_end; ++i) {
-            if (resp.body[i] == '"' && (i == 0 || resp.body[i - 1] != '\\')) {
+            if (body[i] == '"' && (i == 0 || body[i - 1] != '\\')) {
                 in_str = !in_str;
             } else if (!in_str) {
-                if (resp.body[i] == '{') depth++;
-                else if (resp.body[i] == '}') {
+                if (body[i] == '{') depth++;
+                else if (body[i] == '}') {
                     depth--;
                     if (depth == 0) {
                         obj_end = i;
@@ -427,7 +463,7 @@ std::vector<FileInfo> GoogleDriveProvider::list(Path path) {
         }
         if (obj_end <= obj_start) break;
 
-        std::string item_json = resp.body.substr(obj_start, obj_end - obj_start + 1);
+        std::string item_json = body.substr(obj_start, obj_end - obj_start + 1);
         std::string id = extract_json_value(item_json, "id");
         std::string name = extract_json_value(item_json, "name");
         std::string mime = extract_json_value(item_json, "mimeType");
@@ -442,6 +478,41 @@ std::vector<FileInfo> GoogleDriveProvider::list(Path path) {
 
         curr = obj_end + 1;
     }
+}
+
+std::vector<FileInfo> GoogleDriveProvider::list(Path path) {
+    std::vector<FileInfo> items;
+    std::string parent_id = sanitize_gdrive_id(path);
+    if (parent_id.empty() || parent_id == "/" || parent_id == ".") {
+        parent_id = "root";
+    }
+
+    // P1.2: page through the full listing — Drive returns at most `pageSize`
+    // items per call; without the nextPageToken loop any folder over 100
+    // entries was silently truncated.
+    std::string q = "'" + parent_id + "' in parents and trashed = false";
+    std::vector<std::string> headers = {
+        "Authorization: Bearer " + access_token_
+    };
+
+    std::string page_token;
+    int page = 0;
+    const int max_pages = 100; // 100 pages x 100 items — hard stop against runaway loops
+    do {
+        std::string url = "https://www.googleapis.com/drive/v3/files?pageSize=100&fields=nextPageToken,files(id,name,mimeType,size)&q=" + url_encode(q);
+        if (!page_token.empty()) {
+            url += "&pageToken=" + url_encode(page_token);
+        }
+
+        auto resp = http_.get(url, headers);
+        if (resp.status_code != 200) {
+            std::cerr << "[GoogleDrive] list failed (" << resp.status_code << "): " << resp.body << "\n";
+            return items;
+        }
+
+        parse_gdrive_files_page(resp.body, items);
+        page_token = extract_json_value(resp.body, "nextPageToken");
+    } while (!page_token.empty() && ++page < max_pages);
 
     return items;
 }
@@ -514,50 +585,67 @@ std::string GoogleDriveProvider::ensure_folder_path(const std::string& folder_pa
     return current_parent;
 }
 
-WriteSession GoogleDriveProvider::openWrite(Path path, uint64_t size) {
-    std::vector<std::string> headers = {
-        "Authorization: Bearer " + access_token_,
-        "X-Upload-Content-Length: " + std::to_string(size),
-        "Content-Type: application/json"
-    };
-    
-    std::string filename = path;
-    std::string folder_id = "";
-    size_t slash_pos = path.find_last_of('/');
-    if (slash_pos != std::string::npos) {
-        std::string folder_path = path.substr(0, slash_pos);
-        filename = path.substr(slash_pos + 1);
-        try {
-            folder_id = ensure_folder_path(folder_path);
-        } catch (...) {}
-    }
-    
-    std::string url = "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable";
-    std::string body = "{\"name\":\"" + filename + "\"";
-    if (!folder_id.empty()) {
-        body += ",\"parents\":[\"" + folder_id + "\"]";
-    }
-    body += "}";
-    
-    auto resp = http_.post(url, body, headers);
+WriteSession GoogleDriveProvider::openWrite(Path path, uint64_t size, const std::string& resume_token) {
+    std::string upload_uri;
 
-    if (resp.status_code != 200) {
-        throw TransferError(ErrorCategory::FATAL, "Google Drive resumable init failed: " + std::to_string(resp.status_code) + " - " + resp.body);
-    }
+    if (!resume_token.empty()) {
+        // P1.3: resuming a persisted resumable-session URI — the session is
+        // still valid server-side, so continue appending byte ranges to it
+        // instead of creating a fresh (empty) upload.
+        upload_uri = resume_token;
+    } else {
+        std::vector<std::string> headers = {
+            "Authorization: Bearer " + access_token_,
+            "X-Upload-Content-Length: " + std::to_string(size),
+            "Content-Type: application/json"
+        };
 
-    auto loc_it = resp.headers.find("Location");
-    if (loc_it == resp.headers.end()) {
-        loc_it = resp.headers.find("location");
-    }
-    
-    if (loc_it == resp.headers.end()) {
-        throw TransferError(ErrorCategory::FATAL, "Google Drive resumable init missing Location header");
+        std::string filename = path;
+        std::string folder_id = "";
+        size_t slash_pos = path.find_last_of('/');
+        if (slash_pos != std::string::npos) {
+            std::string folder_path = path.substr(0, slash_pos);
+            filename = path.substr(slash_pos + 1);
+            try {
+                folder_id = ensure_folder_path(folder_path);
+            } catch (...) {}
+        }
+
+        std::string url = "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable";
+        std::string body = "{\"name\":\"" + filename + "\"";
+        if (!folder_id.empty()) {
+            body += ",\"parents\":[\"" + folder_id + "\"]";
+        }
+        body += "}";
+
+        auto resp = http_.post(url, body, headers);
+
+        if (resp.status_code != 200) {
+            throw TransferError(ErrorCategory::FATAL, "Google Drive resumable init failed: " + std::to_string(resp.status_code) + " - " + resp.body);
+        }
+
+        auto loc_it = resp.headers.find("Location");
+        if (loc_it == resp.headers.end()) {
+            loc_it = resp.headers.find("location");
+        }
+
+        if (loc_it == resp.headers.end()) {
+            throw TransferError(ErrorCategory::FATAL, "Google Drive resumable init missing Location header");
+        }
+        upload_uri = loc_it->second;
     }
 
     std::lock_guard<std::mutex> lock(mutex_);
     std::string id = "gdrive_write_" + std::to_string(next_id_++);
-    sessions_[id] = {id, path, loc_it->second, size};
+    sessions_[id] = {id, path, upload_uri, size};
     return {id};
+}
+
+std::string GoogleDriveProvider::write_session_token(WriteSession session) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = sessions_.find(session.id);
+    if (it == sessions_.end()) return "";
+    return it->second.upload_uri;
 }
 
 size_t GoogleDriveProvider::read(ReadStream session, uint64_t offset, uint8_t* buffer, size_t count) {

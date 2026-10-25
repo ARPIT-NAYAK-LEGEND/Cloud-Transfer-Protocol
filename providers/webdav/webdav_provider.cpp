@@ -264,7 +264,9 @@ size_t WebDAVProvider::read(ReadStream session, uint64_t offset, uint8_t* buffer
     return bytes_read;
 }
 
-WriteSession WebDAVProvider::openWrite(Path path, uint64_t size) {
+WriteSession WebDAVProvider::openWrite(Path path, uint64_t size, const std::string& resume_token) {
+    (void)resume_token; // WebDAV has no upload-session concept; temp-file staging applies
+
     std::lock_guard<std::mutex> lock(mutex_);
     std::string id = "webdav_write_" + std::to_string(next_id_++);
     Session s;

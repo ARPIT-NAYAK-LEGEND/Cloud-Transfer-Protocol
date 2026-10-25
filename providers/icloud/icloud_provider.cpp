@@ -477,7 +477,9 @@ size_t ICloudProvider::read(ReadStream session, uint64_t offset, uint8_t* buffer
     return bytes_read;
 }
 
-WriteSession ICloudProvider::openWrite(Path path, uint64_t size) {
+WriteSession ICloudProvider::openWrite(Path path, uint64_t size, const std::string& resume_token) {
+    (void)resume_token; // TODO(Phase 3): persist upload session for iCloud web bridge
+
     std::lock_guard<std::mutex> lock(mutex_);
     std::string id = "icloud_write_" + std::to_string(next_id_++);
     std::string clean = normalize_cloud_path(path);

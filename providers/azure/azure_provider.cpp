@@ -63,7 +63,9 @@ ReadStream AzureBlobProvider::openRead(Path path) {
     return {id};
 }
 
-WriteSession AzureBlobProvider::openWrite(Path path, uint64_t size) {
+WriteSession AzureBlobProvider::openWrite(Path path, uint64_t size, const std::string& resume_token) {
+    (void)resume_token; // TODO(Phase 3): persist block-list state for Azure resume
+
     std::lock_guard<std::mutex> lock(mutex_);
     std::string id = "azure_write_" + std::to_string(next_id_++);
     sessions_[id] = {id, path, {}};

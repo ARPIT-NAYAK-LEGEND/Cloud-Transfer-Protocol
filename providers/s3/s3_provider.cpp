@@ -352,7 +352,9 @@ ReadStream S3Provider::openRead(Path path) {
     return {id};
 }
 
-WriteSession S3Provider::openWrite(Path path, uint64_t size) {
+WriteSession S3Provider::openWrite(Path path, uint64_t size, const std::string& resume_token) {
+    (void)resume_token; // TODO(Phase 3): persist multipart UploadId for S3/B2/R2 resume
+
     std::string url = endpoint_ + "/" + path + "?uploads";
     auto req = build_signed_request("POST", url, nullptr, 0, {});
     auto resp = http_.post(req.url, "", req.headers);

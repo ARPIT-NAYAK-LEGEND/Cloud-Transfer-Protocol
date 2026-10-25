@@ -17,7 +17,7 @@ public:
     FileInfo stat(Path path) override;
     std::vector<FileInfo> list(Path path) override;
     ReadStream openRead(Path path) override;
-    WriteSession openWrite(Path path, uint64_t size) override;
+    WriteSession openWrite(Path path, uint64_t size, const std::string& resume_token = "") override;
     size_t read(ReadStream session, uint64_t offset, uint8_t* buffer, size_t count) override;
     void write(WriteSession session, uint64_t offset, const uint8_t* data, size_t size) override;
     void commit(WriteSession session) override;

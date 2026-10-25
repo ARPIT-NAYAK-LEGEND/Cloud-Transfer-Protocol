@@ -377,6 +377,76 @@ ProviderCapabilities DropboxProvider::capabilities() {
     };
 }
 
+std::string DropboxProvider::token_file_path() const {
+    if (name_context_.empty() || name_context_ == "default" || name_context_ == "src" || name_context_ == "dest") {
+        std::ifstream test(".utp_dropbox_token.json");
+        if (test.is_open()) return ".utp_dropbox_token.json";
+        std::ifstream test_personal(".utp_dropbox_personal_token.json");
+        if (test_personal.is_open()) return ".utp_dropbox_personal_token.json";
+        return ".utp_dropbox_token.json";
+    }
+    return ".utp_dropbox_" + name_context_ + "_token.json";
+}
+
+// P1.1: forced token refresh for mid-transfer 401s.
+void DropboxProvider::refresh_auth() {
+    if (refresh_token_.empty()) {
+        throw TransferError(ErrorCategory::FATAL,
+            "Dropbox: no refresh token stored; re-authenticate this account (delete the .utp_dropbox_*_token.json file and re-run)");
+    }
+    if (app_key_.empty() || app_key_ == "utp_dropbox_app") {
+        throw TransferError(ErrorCategory::FATAL,
+            "Dropbox: no app key configured; set DROPBOX_APP_KEY to enable token refresh");
+    }
+    std::string url = "https://api.dropboxapi.com/oauth2/token";
+    std::string body = "grant_type=refresh_token&refresh_token=" + url_encode(refresh_token_) +
+                       "&client_id=" + url_encode(app_key_);
+    if (!app_secret_.empty()) {
+        body += "&client_secret=" + url_encode(app_secret_);
+    }
+    auto r = http_.post(url, body, {"Content-Type: application/x-www-form-urlencoded"});
+    if (r.status_code != 200) {
+        throw TransferError(ErrorCategory::AUTH,
+            "Dropbox token refresh failed (" + std::to_string(r.status_code) + "): " + r.body,
+            r.status_code);
+    }
+    std::string new_access = extract_json_value(r.body, "access_token");
+    if (new_access.empty()) {
+        throw TransferError(ErrorCategory::AUTH,
+            "Dropbox token refresh returned no access_token", r.status_code);
+    }
+    access_token_ = new_access;
+    std::string new_ref = extract_json_value(r.body, "refresh_token");
+    if (!new_ref.empty()) refresh_token_ = new_ref;
+
+    std::string token_file = token_file_path();
+    {
+        std::ofstream outfile(token_file);
+        if (outfile.is_open()) {
+            outfile << "{\"access_token\":\"" << access_token_
+                    << "\",\"refresh_token\":\"" << refresh_token_
+                    << "\",\"email\":\"" << user_email_ << "\"}";
+        }
+    }
+    {
+        std::lock_guard<std::mutex> lock(s_dropbox_cache_mutex);
+        s_dropbox_cache[token_file] = {access_token_, refresh_token_, user_email_,
+                                        std::chrono::steady_clock::now() + std::chrono::minutes(50)};
+    }
+}
+
+bool DropboxProvider::parse_session_token(const std::string& token, std::string& session_id, uint64_t& offset) {
+    size_t sep = token.rfind('|');
+    if (sep == std::string::npos) return false;
+    session_id = token.substr(0, sep);
+    try {
+        offset = std::stoull(token.substr(sep + 1));
+    } catch (...) {
+        return false;
+    }
+    return !session_id.empty();
+}
+
 FileInfo DropboxProvider::stat(Path path) {
     std::string norm_path = normalize_dropbox_path(path);
     if (norm_path.empty()) {
@@ -405,46 +475,29 @@ FileInfo DropboxProvider::stat(Path path) {
     return {norm_path, size, is_dir, name_str.empty() ? path : name_str};
 }
 
-std::vector<FileInfo> DropboxProvider::list(Path path) {
-    std::vector<FileInfo> items;
-    std::string norm_path = normalize_dropbox_path(path);
-
-    std::vector<std::string> headers = {
-        "Authorization: Bearer " + access_token_,
-        "Content-Type: application/json"
-    };
-
-    std::string url = "https://api.dropboxapi.com/2/files/list_folder";
-    // In Dropbox API, root folder path MUST be ""
-    std::string body = "{\"path\": \"" + escape_json_string(norm_path) + "\", \"recursive\": false, \"include_media_info\": false}";
-
-    auto resp = http_.post(url, body, headers);
-    if (resp.status_code != 200) {
-        std::cerr << "[Dropbox] list failed (" << resp.status_code << "): " << resp.body << "\n";
-        return items;
-    }
-
-    size_t val_pos = resp.body.find("\"entries\":");
-    if (val_pos == std::string::npos) return items;
-    size_t arr_start = resp.body.find('[', val_pos);
-    if (arr_start == std::string::npos) return items;
-    size_t arr_end = resp.body.rfind(']');
-    if (arr_end == std::string::npos || arr_end <= arr_start) return items;
+// Parse one page of list_folder / list_folder_continue into `items`.
+static void parse_dropbox_entries_page(const std::string& body, const std::string& norm_path, std::vector<FileInfo>& items) {
+    size_t val_pos = body.find("\"entries\":");
+    if (val_pos == std::string::npos) return;
+    size_t arr_start = body.find('[', val_pos);
+    if (arr_start == std::string::npos) return;
+    size_t arr_end = body.rfind(']');
+    if (arr_end == std::string::npos || arr_end <= arr_start) return;
 
     size_t curr = arr_start;
     while (curr < arr_end) {
-        size_t obj_start = resp.body.find('{', curr);
+        size_t obj_start = body.find('{', curr);
         if (obj_start == std::string::npos || obj_start >= arr_end) break;
 
         int depth = 0;
         size_t obj_end = obj_start;
         bool in_str = false;
         for (size_t i = obj_start; i < arr_end; ++i) {
-            if (resp.body[i] == '"' && (i == 0 || resp.body[i - 1] != '\\')) {
+            if (body[i] == '"' && (i == 0 || body[i - 1] != '\\')) {
                 in_str = !in_str;
             } else if (!in_str) {
-                if (resp.body[i] == '{') depth++;
-                else if (resp.body[i] == '}') {
+                if (body[i] == '{') depth++;
+                else if (body[i] == '}') {
                     depth--;
                     if (depth == 0) {
                         obj_end = i;
@@ -455,7 +508,7 @@ std::vector<FileInfo> DropboxProvider::list(Path path) {
         }
         if (obj_end <= obj_start) break;
 
-        std::string item_json = resp.body.substr(obj_start, obj_end - obj_start + 1);
+        std::string item_json = body.substr(obj_start, obj_end - obj_start + 1);
         std::string tag = extract_json_value(item_json, ".tag");
         std::string name = extract_json_value(item_json, "name");
         std::string path_display = extract_json_value(item_json, "path_display");
@@ -469,6 +522,44 @@ std::vector<FileInfo> DropboxProvider::list(Path path) {
         }
 
         curr = obj_end + 1;
+    }
+}
+
+std::vector<FileInfo> DropboxProvider::list(Path path) {
+    std::vector<FileInfo> items;
+    std::string norm_path = normalize_dropbox_path(path);
+
+    std::vector<std::string> headers = {
+        "Authorization: Bearer " + access_token_,
+        "Content-Type: application/json"
+    };
+
+    // P1.2: page through list_folder → list_folder/continue until has_more is
+    // false — without the cursor loop large folders were silently truncated.
+    std::string url = "https://api.dropboxapi.com/2/files/list_folder";
+    // In Dropbox API, root folder path MUST be ""
+    std::string body = "{\"path\": \"" + escape_json_string(norm_path) + "\", \"recursive\": false, \"include_media_info\": false}";
+
+    std::string cursor;
+    std::string has_more = "false";
+    int page = 0;
+    const int max_pages = 100; // safety bound against runaway loops
+
+    while (page++ < max_pages) {
+        auto resp = http_.post(url, body, headers);
+        if (resp.status_code != 200) {
+            std::cerr << "[Dropbox] list failed (" << resp.status_code << "): " << resp.body << "\n";
+            return items;
+        }
+
+        parse_dropbox_entries_page(resp.body, norm_path, items);
+
+        has_more = extract_json_value(resp.body, "has_more");
+        cursor = extract_json_value(resp.body, "cursor");
+        if (has_more != "true" || cursor.empty()) break;
+
+        url = "https://api.dropboxapi.com/2/files/list_folder/continue";
+        body = "{\"cursor\": \"" + escape_json_string(cursor) + "\"}";
     }
 
     return items;
@@ -524,7 +615,7 @@ size_t DropboxProvider::read(ReadStream session, uint64_t offset, uint8_t* buffe
     return bytes_read;
 }
 
-WriteSession DropboxProvider::openWrite(Path path, uint64_t size) {
+WriteSession DropboxProvider::openWrite(Path path, uint64_t size, const std::string& resume_token) {
     std::string norm_path = normalize_dropbox_path(path);
     if (norm_path.empty()) norm_path = "/transferred_file";
 
@@ -545,27 +636,46 @@ WriteSession DropboxProvider::openWrite(Path path, uint64_t size) {
         return {id};
     }
 
-    // Initialize chunked upload session
-    std::vector<std::string> headers = {
-        "Authorization: Bearer " + access_token_,
-        "Content-Type: application/octet-stream",
-        "Dropbox-API-Arg: {\"close\": false}"
-    };
+    std::string session_id;
+    uint64_t start_offset = 0;
 
-    auto resp = http_.post("https://content.dropboxapi.com/2/files/upload_session/start", "", headers);
-    if (resp.status_code != 200) {
-        throw TransferError(ErrorCategory::FATAL, "Dropbox upload session start failed (" + std::to_string(resp.status_code) + "): " + resp.body);
-    }
+    if (!resume_token.empty()) {
+        // P1.3: resume the persisted upload session ("session_id|offset").
+        // Dropbox upload sessions live ~48h, so a crash + resume continues the
+        // same session instead of uploading from zero.
+        if (!parse_session_token(resume_token, session_id, start_offset)) {
+            throw TransferError(ErrorCategory::FATAL, "Dropbox: malformed resume token");
+        }
+    } else {
+        // Initialize chunked upload session
+        std::vector<std::string> headers = {
+            "Authorization: Bearer " + access_token_,
+            "Content-Type: application/octet-stream",
+            "Dropbox-API-Arg: {\"close\": false}"
+        };
 
-    std::string session_id = extract_json_value(resp.body, "session_id");
-    if (session_id.empty()) {
-        throw TransferError(ErrorCategory::FATAL, "Dropbox missing session_id in upload_session/start response");
+        auto resp = http_.post("https://content.dropboxapi.com/2/files/upload_session/start", "", headers);
+        if (resp.status_code != 200) {
+            throw TransferError(ErrorCategory::FATAL, "Dropbox upload session start failed (" + std::to_string(resp.status_code) + "): " + resp.body);
+        }
+
+        session_id = extract_json_value(resp.body, "session_id");
+        if (session_id.empty()) {
+            throw TransferError(ErrorCategory::FATAL, "Dropbox missing session_id in upload_session/start response");
+        }
     }
 
     std::lock_guard<std::mutex> lock(mutex_);
     std::string id = "dropbox_write_" + std::to_string(next_id_++);
-    sessions_[id] = {id, norm_path, session_id, size, 0};
+    sessions_[id] = {id, norm_path, session_id, size, start_offset};
     return {id};
+}
+
+std::string DropboxProvider::write_session_token(WriteSession session) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    auto it = sessions_.find(session.id);
+    if (it == sessions_.end()) return "";
+    return it->second.session_id + "|" + std::to_string(it->second.current_offset);
 }
 
 void DropboxProvider::write(WriteSession session, uint64_t offset, const uint8_t* data, size_t size) {
