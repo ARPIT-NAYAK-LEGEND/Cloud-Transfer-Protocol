@@ -16,12 +16,13 @@ Dest Stream   ──[EVP_DigestUpdate]──▶ Dest SHA-256   ─┘
 
 To uphold UTP's strict memory discipline (§10 of `CLAUDE.md`), files are **never** loaded into memory to compute a hash. Instead:
 
-1. When a chunk buffer is read from the source provider, `EVP_DigestUpdate` is invoked directly on the in-flight chunk buffer.
-2. When the destination provider processes the chunk write, its corresponding cryptographic context is updated.
-3. Upon reaching the end-of-file, both digests are finalized via `EVP_DigestFinal_ex`.
-4. The transfer transitions to `VERIFYING`:
-   - If both hex digests match identically, the transfer transitions to `COMMITTING` and then `COMPLETED`.
-   - If the hashes mismatch, the transfer is immediately rejected, marked `FAILED`, and the destination write session is aborted.
+1. When a chunk buffer is read from the source provider, `EVP_DigestUpdate` is invoked directly on the in-flight chunk buffer, accumulating the source SHA-256 incrementally.
+2. On resume, already-`COMPLETE` chunks are re-read from the source *solely* to keep the source digest complete — they are hashed but never re-written.
+3. After the destination `commit()`, the engine streams the committed object back through a bounded buffer (another `EVP_DigestUpdate` loop) to compute the destination SHA-256. This verifies what the destination actually stored, not merely what we sent.
+4. The transfer transitions to `VERIFYING`: both digests are finalized via `EVP_DigestFinal_ex` and compared.
+   - If they match, the transfer transitions to `COMPLETED`.
+   - If they differ, the transfer is marked `FAILED` and the error surfaces to the caller.
+   - If the destination cannot be read back, verification is skipped with a warning rather than claiming success.
 
 ## Chunk-Level Checksums in Persistence
 

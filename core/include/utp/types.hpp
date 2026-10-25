@@ -68,6 +68,7 @@ struct ChunkInfo {
     uint64_t offset;
     uint64_t size;
     ChunkState state;
+    uint32_t attempts{0};
 };
 
 // §8 Error classification

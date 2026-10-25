@@ -70,10 +70,12 @@ HttpClient::~HttpClient() {
     // Keep global curl resources alive for application lifetime
 }
 
-} // end namespace utp temporarily
-extern std::atomic<uint64_t> g_bytes_transferred;
-extern std::atomic<uint64_t> g_network_dl_tick;
-extern std::atomic<uint64_t> g_network_ul_tick;
+} // namespace utp // end of per-instance impl
+
+// Per-process byte counters — updated by CURL transfer callbacks, read by CLI HUD
+static std::atomic<uint64_t> s_network_dl_tick{0};
+static std::atomic<uint64_t> s_network_ul_tick{0};
+
 namespace utp { // reopen
 
 static int XferInfoCallback(void* clientp, curl_off_t dltotal, curl_off_t dlnow, curl_off_t ultotal, curl_off_t ulnow) {
@@ -83,13 +85,13 @@ static int XferInfoCallback(void* clientp, curl_off_t dltotal, curl_off_t dlnow,
     
     if (static_cast<uint64_t>(dlnow) > last_dl) {
         uint64_t diff = static_cast<uint64_t>(dlnow) - last_dl;
-        g_network_dl_tick += diff;
+        s_network_dl_tick += diff;
         last_bytes[0] = dlnow;
     }
     
     if (static_cast<uint64_t>(ulnow) > last_ul) {
         uint64_t diff = static_cast<uint64_t>(ulnow) - last_ul;
-        g_network_ul_tick += diff;
+        s_network_ul_tick += diff;
         last_bytes[1] = ulnow;
     }
     
@@ -122,20 +124,16 @@ HttpResponse HttpClient::perform_request(const std::string& url, const char* met
         curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, static_cast<long>(size));
     }
 
-    // Industrial-grade SSL/TLS configuration
+    // Industrial-grade SSL/TLS configuration — verify by default.
+    // Set UTP_INSECURE_SKIP_VERIFY=1 to disable (e.g. self-signed test endpoints).
     const char* ca_bundle = std::getenv("CURL_CA_BUNDLE");
     if (!ca_bundle) ca_bundle = std::getenv("SSL_CERT_FILE");
     if (ca_bundle) {
         curl_easy_setopt(curl, CURLOPT_CAINFO, ca_bundle);
     }
 
-#ifdef _WIN32
-    const char* verify_env = std::getenv("UTP_SSL_VERIFY");
-    long verify_peer = (verify_env && std::string(verify_env) == "1") ? 1L : 0L;
-#else
     const char* insecure_env = std::getenv("UTP_INSECURE_SKIP_VERIFY");
     long verify_peer = (insecure_env && std::string(insecure_env) == "1") ? 0L : 1L;
-#endif
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, verify_peer);
     if (verify_peer) {
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
@@ -217,5 +215,9 @@ HttpResponse HttpClient::del(const std::string& url, const std::vector<std::stri
 HttpResponse HttpClient::perform_custom_request(const std::string& method, const std::string& url, const uint8_t* data, size_t size, const std::vector<std::string>& headers) {
     return perform_request(url, method.c_str(), data, size, headers);
 }
+
+uint64_t HttpClient::network_dl_bytes() { return s_network_dl_tick.load(); }
+uint64_t HttpClient::network_ul_bytes() { return s_network_ul_tick.load(); }
+void     HttpClient::reset_network_bytes() { s_network_dl_tick = 0; s_network_ul_tick = 0; }
 
 } // namespace utp

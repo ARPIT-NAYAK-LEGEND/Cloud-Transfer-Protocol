@@ -26,6 +26,12 @@ public:
     HttpResponse del(const std::string& url, const std::vector<std::string>& headers);
     HttpResponse perform_custom_request(const std::string& method, const std::string& url, const uint8_t* data, size_t size, const std::vector<std::string>& headers);
 
+    // Per-process network byte counters (updated by CURL transfer callbacks).
+    // Used by the CLI HUD for live speed calculation.
+    static uint64_t network_dl_bytes();
+    static uint64_t network_ul_bytes();
+    static void     reset_network_bytes();
+
 private:
     HttpResponse perform_request(const std::string& url, const char* method, const uint8_t* data, size_t size, const std::vector<std::string>& headers);
 };

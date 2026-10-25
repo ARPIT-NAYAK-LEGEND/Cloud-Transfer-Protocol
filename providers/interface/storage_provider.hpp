@@ -23,7 +23,23 @@ public:
     virtual FileInfo stat(Path path) = 0;
     virtual std::vector<FileInfo> list(Path path) = 0;
     virtual ReadStream openRead(Path path) = 0;
-    virtual WriteSession openWrite(Path path, uint64_t size) = 0;
+
+    // Open a write session. `resume_token` is an opaque, provider-generated
+    // string previously returned by write_session_token(); passing it back
+    // resumes the SAME upload session instead of starting a new one
+    // (resumable-session URI, upload URL, multipart id, ...).
+    virtual WriteSession openWrite(Path path, uint64_t size, const std::string& resume_token = "") = 0;
+
+    // Durable, provider-opaque token identifying the open upload session.
+    // Empty string = nothing to persist (e.g. local temp-file conventions).
+    // The engine persists this so a crash + resume continues the same session.
+    virtual std::string write_session_token(WriteSession session) { (void)session; return ""; }
+
+    // Re-authenticate with stored refresh credentials. Called by the engine
+    // after an AUTH-classified failure mid-transfer; default = nothing to do.
+    // Throws on failure (e.g. no refresh token available).
+    virtual void refresh_auth() {}
+
     virtual size_t read(ReadStream session, uint64_t offset, uint8_t* buffer, size_t count) = 0;
     virtual void write(WriteSession session, uint64_t offset, const uint8_t* data, size_t size) = 0;
     virtual void commit(WriteSession session) = 0;

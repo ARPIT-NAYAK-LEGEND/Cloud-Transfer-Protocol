@@ -43,23 +43,32 @@ During the `PLANNING` phase of a transfer, the engine executes dynamic capabilit
                                    std::min(source.max_chunk_size, dest.max_chunk_size));
    ```
 
-4. **Parallelism Allocation**:
-   Worker pool concurrency is bounded by:
+4. **Parallelism Allocation** *(planned; not yet applied by the reference engine)*:
+   The target allocation is bounded by:
    ```cpp
    worker_count = std::min(source.max_parallel_requests, dest.max_parallel_requests);
    ```
+   **Current status:** the reference `Engine` still transfers chunks
+   sequentially (`num_workers = 1`) for correctness first. The negotiated
+   `worker_count` formula is the contract the engine must implement before
+   parallel chunk upload is safe, since several providers require strictly
+   sequential writes.
 
 ## Matrix of Provider Capabilities
 
 | Provider | Ranged Read | Resumable Upload | Multipart | Server Copy | Checksum | Max Chunk | Parallel |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Local File** | Yes | Yes | Yes | Yes | SHA-256 | 64 MB | 16 |
-| **Google Drive** | Yes | Yes | No | Yes | MD5 / SHA-256 | 40 MB | 8 |
+| **Local File** | Yes | Yes | No | No | SHA-256 | 1024 MB | 1 |
+| **Google Drive** | Yes | Yes | No | Yes | MD5 / SHA-256 | 1024 MB | 4 |
 | **OneDrive** | Yes | Yes | No | Yes | QuickXor / SHA-256 | 60 MB | 4 |
-| **Dropbox** | Yes | Yes | Yes | Yes | Dropbox Content Hash | 150 MB | 8 |
-| **Apple iCloud** | Yes | Yes | No | Yes | SHA-256 | 32 MB | 4 |
+| **Dropbox** | Yes | Yes | No | Yes | Dropbox Content Hash | 150 MB | 4 |
+| **Apple iCloud** | Yes | Yes | No | No | SHA-256 | 50 MB | 4 |
 | **Amazon S3** | Yes | Yes | Yes | Yes | MD5 / SHA-256 | 5 GB | 16 |
 | **Cloudflare R2** | Yes | Yes | Yes | Yes | MD5 / SHA-256 | 5 GB | 16 |
 | **Backblaze B2** | Yes | Yes | Yes | Yes | SHA-1 / SHA-256 | 5 GB | 16 |
-| **Azure Blob** | Yes | Yes | Yes | Yes | MD5 / SHA-256 | 100 MB | 8 |
-| **WebDAV / Nextcloud** | Yes | Yes | No | Yes | SHA-256 | 64 MB | 4 |
+| **Azure Blob** | Yes | Yes | Yes | Yes | MD5 / SHA-256 | 4000 MB | 16 |
+| **WebDAV / Nextcloud** | Yes | Yes | No | No | SHA-256 | 50 MB | 4 |
+
+> The "Max Chunk" and "Parallel" columns reflect the reference
+> implementations at `providers/*/​*_provider.cpp`; treat them as the source of
+> truth over this document.

@@ -34,6 +34,14 @@ std::vector<ChunkInfo> ChunkPlanner::plan(uint64_t file_size, const ProviderCapa
     if (file_size <= chunk_size) {
         chunk_size = file_size;
     } else {
+        // P1.6: honor the capability matrix — a provider without ranged reads
+        // cannot serve byte ranges, so chunking a file beyond one chunk would
+        // silently produce wrong data. Fail fast with a clear error instead.
+        if (!source_caps.ranged_read) {
+            throw TransferError(ErrorCategory::FATAL,
+                "Source provider does not support ranged reads; cannot chunk a " +
+                std::to_string(file_size) + "-byte file. Transfer whole files only.");
+        }
         if (source_caps.max_chunk_size > 0 && chunk_size > source_caps.max_chunk_size) {
             chunk_size = source_caps.max_chunk_size;
         }
