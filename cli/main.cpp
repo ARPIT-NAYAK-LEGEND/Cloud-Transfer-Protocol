@@ -11,7 +11,10 @@
 #include "providers/azure/azure_provider.hpp"
 #include "providers/webdav/webdav_provider.hpp"
 #include "providers/icloud/icloud_provider.hpp"
+#include "providers/common/http_client.hpp"
+#include "utp/events.hpp"
 #include <iostream>
+#include <ctime>
 #include <memory>
 #include <string>
 #include <thread>
@@ -107,29 +110,15 @@ std::unique_ptr<StorageProvider> create_provider(const std::string& scheme, cons
     if (base_scheme == "gdrive") {
         const char* env_id = std::getenv("GDRIVE_CLIENT_ID");
         const char* env_sec = std::getenv("GDRIVE_CLIENT_SECRET");
-        static const char redacted_g[] = "REDACTED_XOR_SECRET";
         std::string cid = env_id ? env_id : "617211477359-8a1s4v0aamr860vrs2k9bn9h6lou534u.apps.googleusercontent.com";
-        std::string csec;
-        if (env_sec) {
-            csec = env_sec;
-        } else {
-            csec.resize(sizeof(redacted_g) - 1);
-            for (size_t i = 0; i < sizeof(redacted_g) - 1; ++i) csec[i] = static_cast<char>(static_cast<uint8_t>(redacted_g[i]) ^ 0x42);
-        }
+        std::string csec = env_sec ? env_sec : "";
         return std::make_unique<GoogleDriveProvider>(cid, csec, effective_context);
     }
     if (base_scheme == "onedrive") {
         const char* env_id = std::getenv("ONEDRIVE_CLIENT_ID");
         const char* env_sec = std::getenv("ONEDRIVE_CLIENT_SECRET");
-        static const char redacted_o[] = "REDACTED_XOR_SECRET";
         std::string cid = env_id ? env_id : "5091c9e9-674d-466c-849a-e1bf7d6badee";
-        std::string csec;
-        if (env_sec) {
-            csec = env_sec;
-        } else {
-            csec.resize(sizeof(redacted_o) - 1);
-            for (size_t i = 0; i < sizeof(redacted_o) - 1; ++i) csec[i] = static_cast<char>(static_cast<uint8_t>(redacted_o[i]) ^ 0x42);
-        }
+        std::string csec = env_sec ? env_sec : "";
         return std::make_unique<OneDriveProvider>(cid, csec, effective_context);
     }
     if (base_scheme == "dropbox") return std::make_unique<DropboxProvider>("", "", effective_context);
@@ -193,13 +182,29 @@ std::atomic<uint64_t> g_bytes_transferred{0};
 std::atomic<uint64_t> g_total_size{0};
 std::atomic<bool> g_transferring{false};
 
-std::atomic<uint64_t> g_network_dl_tick{0};
-std::atomic<uint64_t> g_network_ul_tick{0};
-
 static std::string trim(std::string s) {
     while (!s.empty() && (s.front() == ' ' || s.front() == '\t')) s.erase(0, 1);
     while (!s.empty() && (s.back() == ' ' || s.back() == '\t' || s.back() == '\r' || s.back() == '\n')) s.pop_back();
     return s;
+}
+
+static const char* transfer_state_to_string(TransferState s) {
+    switch (s) {
+        case TransferState::CREATED: return "CREATED";
+        case TransferState::AUTHENTICATING: return "AUTHENTICATING";
+        case TransferState::DISCOVERING: return "DISCOVERING";
+        case TransferState::NEGOTIATING: return "NEGOTIATING";
+        case TransferState::PLANNING: return "PLANNING";
+        case TransferState::TRANSFERRING: return "TRANSFERRING";
+        case TransferState::VERIFYING: return "VERIFYING";
+        case TransferState::COMMITTING: return "COMMITTING";
+        case TransferState::COMPLETED: return "COMPLETED";
+        case TransferState::PAUSED: return "PAUSED";
+        case TransferState::RETRYING: return "RETRYING";
+        case TransferState::REPAIRING: return "REPAIRING";
+        case TransferState::CANCELLED: return "CANCELLED";
+        default: return "FAILED";
+    }
 }
 
 static std::string format_bytes(uint64_t bytes) {
@@ -223,7 +228,11 @@ void print_usage() {
     std::cout << C_VIOLET GLYPH_STEP C_RESET "  " C_WHITE C_BOLD "Commands & Usage:" C_RESET "\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "utp transfer" C_RESET "                     Launch interactive visual TUI mode\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "utp transfer" C_RESET " <src> <dest>       Direct cloud-to-cloud pipeline\n";
-    std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "utp resume" C_RESET "   <transfer_id>      Resume paused transfer state\n";
+    std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "utp resume" C_RESET "   <transfer_id>      Resume paused/failed transfer state\n";
+    std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "utp pause" C_RESET "    <transfer_id>      Stop between chunks, keep all progress\n";
+    std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "utp cancel" C_RESET "   <transfer_id>      Abandon transfer, discard partial state\n";
+    std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "utp status" C_RESET "  <transfer_id>      State, chunks and event history\n";
+    std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "utp list" C_RESET "                      Show recent transfers from the ledger\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "\n";
     std::cout << C_VIOLET GLYPH_STEP C_RESET "  " C_WHITE C_BOLD "Supported Protocols:" C_RESET "\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "gdrive://" C_RESET "<file_id>          Google Drive files & shared folders\n";
@@ -362,8 +371,7 @@ void run_batch_transfer_pool(std::shared_ptr<StorageProvider> src_provider,
     Resource first_dest = parse_uri(transfers[0].dest_uri);
     bool dest_is_cloud = (first_dest.scheme != "local" && first_dest.scheme != "file");
 
-    g_network_dl_tick = 0;
-    g_network_ul_tick = 0;
+    HttpClient::reset_network_bytes();
     g_transferring = true;
     auto batch_start = std::chrono::steady_clock::now();
 
@@ -401,7 +409,7 @@ void run_batch_transfer_pool(std::shared_ptr<StorageProvider> src_provider,
                 if (ws.active) active_bytes += ws.bytes;
             }
             uint64_t chunk_bytes = finished_bytes.load() + active_bytes;
-            uint64_t net_bytes = dest_is_cloud ? g_network_ul_tick.load() : g_network_dl_tick.load();
+            uint64_t net_bytes = dest_is_cloud ? HttpClient::network_ul_bytes() : HttpClient::network_dl_bytes();
             uint64_t total_transferred = std::max(chunk_bytes, net_bytes);
             if (total_batch_bytes > 0 && total_transferred > total_batch_bytes) {
                 total_transferred = total_batch_bytes;
@@ -471,8 +479,21 @@ void run_batch_transfer_pool(std::shared_ptr<StorageProvider> src_provider,
                 Resource s_res = parse_uri(item.src_uri);
                 Resource d_res = parse_uri(item.dest_uri);
 
-                std::string s_p = s_res.path.empty() ? s_res.host_or_bucket : (s_res.host_or_bucket + "/" + s_res.path);
-                std::string d_p = d_res.path.empty() ? d_res.host_or_bucket : (d_res.host_or_bucket + "/" + d_res.path);
+                // Empty host (e.g. file:///rel/path) previously produced a
+                // bogus leading slash ("/rel/path") — keep host-relative or
+                // plain-relative forms intact.
+                std::string s_p = s_res.path.empty() ? s_res.host_or_bucket
+                    : (s_res.host_or_bucket.empty() ? s_res.path : s_res.host_or_bucket + "/" + s_res.path);
+                std::string d_p = d_res.path.empty() ? d_res.host_or_bucket
+                    : (d_res.host_or_bucket.empty() ? d_res.path : d_res.host_or_bucket + "/" + d_res.path);
+
+                // P1.4: pass scheme WITH account context so the engine persists
+                // the full provider identity — `utp resume` then reconstructs
+                // the correct account instead of silently falling to default.
+                std::string src_account = s_res.account.empty() ? item.src_account : s_res.account;
+                std::string dest_account = d_res.account.empty() ? item.dest_account : d_res.account;
+                std::string s_scheme_ctx = s_res.scheme + (src_account.empty() ? "" : ":" + src_account);
+                std::string d_scheme_ctx = d_res.scheme + (dest_account.empty() ? "" : ":" + dest_account);
 
                 {
                     std::lock_guard<std::mutex> lock(slots_mutex);
@@ -491,7 +512,7 @@ void run_batch_transfer_pool(std::shared_ptr<StorageProvider> src_provider,
                 try {
                     Engine engine(src_provider, dest_provider, "utp.db");
                     if (bandwidth_limit > 0) engine.set_bandwidth_limit(bandwidth_limit);
-                    engine.transfer(s_res.scheme, s_p, d_res.scheme, d_p, worker_progress);
+                    engine.transfer(s_scheme_ctx, s_p, d_scheme_ctx, d_p, worker_progress);
                     success_count.fetch_add(1);
 
                     {
@@ -694,6 +715,118 @@ int main(int argc, char* argv[]) {
                 std::cout.flush();
             });
             std::cout << "\n\n  " C_GREEN GLYPH_CHECK " Transfer resumed and completed successfully!" C_RESET "\n\n";
+        } else if (cmd == "pause" || cmd == "cancel") {
+            if (argc < 3) {
+                print_usage();
+                return 1;
+            }
+            std::string transfer_id = argv[2];
+            StateManager sm("utp.db");
+            auto opt_transfer = sm.get_transfer(transfer_id);
+            if (!opt_transfer) throw std::runtime_error("Transfer not found: " + transfer_id);
+
+            if (opt_transfer->state == TransferState::COMPLETED) {
+                std::cout << "  " C_YELLOW GLYPH_STEP C_RESET " " C_WHITE << transfer_id << C_RESET C_MUTED " is already COMPLETED — nothing to " << cmd << ".\n\n" C_RESET;
+                return 0;
+            }
+            if (opt_transfer->state == TransferState::CANCELLED) {
+                std::cout << "  " C_YELLOW GLYPH_STEP C_RESET " " C_WHITE << transfer_id << C_RESET C_MUTED " is already CANCELLED.\n\n" C_RESET;
+                return 0;
+            }
+
+            sm.request_control(transfer_id, cmd);
+            if (cmd == "pause") {
+                std::cout << "  " C_VIOLET GLYPH_STEP C_RESET " " C_WHITE << (cmd == "pause" ? "Pause" : "Cancel") << " requested" C_RESET C_MUTED " for " C_RESET C_CYAN << transfer_id << C_RESET "\n";
+                std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "The engine stops between chunks and keeps all completed progress.\n";
+                std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Continue later with: " C_CYAN "utp resume " << transfer_id << C_RESET "\n\n";
+            } else {
+                std::cout << "  " C_VIOLET GLYPH_STEP C_RESET " " C_WHITE << (cmd == "pause" ? "Pause" : "Cancel") << " requested" C_RESET C_MUTED " for " C_RESET C_CYAN << transfer_id << C_RESET "\n";
+                std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "The engine will abort the upload and discard partial state.\n\n";
+            }
+        } else if (cmd == "status") {
+            if (argc < 3) {
+                print_usage();
+                return 1;
+            }
+            std::string transfer_id = argv[2];
+            StateManager sm("utp.db");
+            auto opt_transfer = sm.get_transfer(transfer_id);
+            if (!opt_transfer) throw std::runtime_error("Transfer not found: " + transfer_id);
+            auto plan = sm.get_plan(transfer_id);
+
+            size_t complete = 0, pending = 0, failed = 0, in_progress = 0;
+            for (const auto& c : plan) {
+                switch (c.state) {
+                    case ChunkState::COMPLETE: complete++; break;
+                    case ChunkState::IN_PROGRESS: in_progress++; break;
+                    case ChunkState::FAILED: failed++; break;
+                    default: pending++; break;
+                }
+            }
+
+            auto state_color = [&](TransferState s) -> const char* {
+                switch (s) {
+                    case TransferState::COMPLETED: return C_GREEN;
+                    case TransferState::FAILED: return C_RED;
+                    case TransferState::PAUSED: return C_YELLOW;
+                    case TransferState::CANCELLED: return C_RED;
+                    case TransferState::TRANSFERRING: return C_CYAN;
+                    default: return C_MUTED;
+                }
+            };
+
+            std::cout << "\n" C_VIOLET GLYPH_TOP C_RESET "  " C_WHITE C_BOLD "UTP Transfer Status" C_RESET " " C_MUTED << transfer_id << C_RESET "\n";
+            std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Pipeline: " C_RESET << opt_transfer->source.provider << "://" << opt_transfer->source.path
+                      << C_MUTED " ──▶ " C_RESET << opt_transfer->destination.provider << "://" << opt_transfer->destination.path << "\n";
+            std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "State:    " C_RESET
+                      << state_color(opt_transfer->state) << transfer_state_to_string(opt_transfer->state) << C_RESET "\n";
+            std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Progress: " C_RESET << format_bytes(opt_transfer->bytes_transferred) << " / " << format_bytes(opt_transfer->size)
+                      << C_MUTED " · chunk " << (opt_transfer->chunk_size ? format_bytes(opt_transfer->chunk_size) : std::string("n/a")) << C_RESET "\n";
+            if (!plan.empty()) {
+                std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Chunks:   " C_RESET
+                          << C_GREEN << complete << " complete" << C_RESET C_MUTED ", "
+                          << C_CYAN << in_progress << " active" << C_RESET C_MUTED ", "
+                          << C_YELLOW << pending << " pending" << C_RESET C_MUTED ", "
+                          << C_RED << failed << " failed" << C_RESET C_MUTED " (" << plan.size() << " total)" C_RESET "\n";
+            }
+            {
+                auto events = sm.get_events(transfer_id, 12);
+                if (!events.empty()) {
+                    std::cout << C_VIOLET GLYPH_STEP C_RESET "  " C_WHITE C_BOLD "Recent events" C_RESET "\n";
+                    for (const auto& ev : events) {
+                        std::time_t secs = static_cast<std::time_t>(ev.timestamp / 1000000000);
+                        std::tm tmv{};
+#ifdef _WIN32
+                        localtime_s(&tmv, &secs);
+#else
+                        localtime_r(&secs, &tmv);
+#endif
+                        char tbuf[16];
+                        std::strftime(tbuf, sizeof(tbuf), "%H:%M:%S", &tmv);
+                        std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED << tbuf << "  " C_CYAN
+                                  << event_type_to_string(ev.type) << C_RESET;
+                        if (!ev.payload.empty()) {
+                            std::cout << C_MUTED "  " << truncate_visible(ev.payload, 48) << C_RESET;
+                        }
+                        std::cout << "\n";
+                    }
+                }
+            }
+            std::cout << C_GREEN GLYPH_END C_RESET "\n";
+        } else if (cmd == "list") {
+            StateManager sm("utp.db");
+            auto transfers = sm.list_transfers(20);
+            std::cout << "\n" C_VIOLET GLYPH_TOP C_RESET "  " C_WHITE C_BOLD "Recent transfers" C_RESET "\n";
+            if (transfers.empty()) {
+                std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "(none — the ledger is empty)" C_RESET "\n";
+            }
+            for (const auto& t : transfers) {
+                std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_CYAN << t.id << C_RESET C_MUTED "  "
+                          << transfer_state_to_string(t.state) << "  " << format_bytes(t.bytes_transferred) << "/" << format_bytes(t.size) << "\n"
+                          << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED << truncate_visible(t.source.provider + "://" + t.source.path, 48)
+                          << " ──▶ " << truncate_visible(t.destination.provider + "://" + t.destination.path, 48) << C_RESET "\n";
+            }
+            std::cout << C_GREEN GLYPH_END C_RESET "\n";
         } else {
             std::cerr << "  " C_RED "Unknown command: " << cmd << C_RESET "\n";
             print_usage();

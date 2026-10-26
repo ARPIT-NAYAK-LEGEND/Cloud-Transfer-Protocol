@@ -131,7 +131,7 @@ utp resume <transfer_id>
    │                       UTP Core Engine                       │
    │  ┌───────────────────────┐       ┌───────────────────────┐  │
    │  │   Memory RAM Ring     │◀─────▶│    Chunk Planner      │  │
-   │  │   (Zero Local Disk)   │       │    (Adaptive 8-64MB)  │  │
+   │  │   (Zero Local Disk)   │   │   (Adaptive 2.5–40MB)   │   │
    │  └───────────────────────┘       └───────────────────────┘  │
    │                             │                               │
    │             ┌───────────────┴───────────────┐               │
