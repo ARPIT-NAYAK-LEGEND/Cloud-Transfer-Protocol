@@ -34,12 +34,36 @@
 
 ---
 
+## ⚖️ Surface Maturity & Status Matrix
+
+UTP adheres to strict MVP scope discipline (§12 of `CLAUDE.md`). Surfaces are explicitly classified into **Core Production MVP** (which undergo automated CI PR gates including `kill -9` → resume → SHA-256 verification) and **Experimental Post-MVP Extensions**:
+
+| Surface | Component / Scope | Maturity Status | Verification Gate |
+| :--- | :--- | :--- | :--- |
+| **Local Storage** | `file://` provider | **Core MVP (Production)** | Automated CI + DoD Resume Verified |
+| **Google Drive** | `gdrive://` provider | **Core MVP (Production)** | OAuth2 PKCE + Token Refresh + DoD Verified |
+| **OneDrive** | `onedrive://` provider | **Core MVP (Production)** | OAuth2 + Large Upload Session Verified |
+| **CLI & TUI Engine** | `utp transfer`, `resume`, `pause`, `status` | **Core MVP (Production)** | End-to-End Terminal UI & SHA-256 Match |
+| **State Persistence** | SQLite WAL ledger (`utp.db`) | **Core MVP (Production)** | Crash-Resilient Upsert & Event Stream |
+| **Daemon Server (`utpd`)** | REST API (`/api/transfers`) | *Experimental (Post-MVP)* | Marked `X-UTP-Surface: experimental` |
+| **Web Dashboard** | Browser UI (`web/`) | *Experimental (Post-MVP)* | Preview UI for Daemon API |
+| **Python SDK** | `utp-client` (`sdk/python/`) | *Experimental (Post-MVP)* | PyPI Beta Client Library |
+| **Extended Clouds** | `s3://`, `r2://`, `b2://`, `azure://`, `dropbox://`, `icloud://`, `webdav://` | *Experimental (Post-MVP)* | Pending Automated Multi-Cloud DoD Gates |
+
+---
+
 ## 🌐 Supported Protocols
 
+### Core Production MVP
 | Storage Provider | URI Scheme | Features |
 | :--- | :--- | :--- |
+| **Local Storage** | `file://<path>` | Local NVMe, SSD, and mounted network drives |
 | **Google Drive** | `gdrive://<id>` | Multi-account OAuth2, resumable uploads, server-side copy |
 | **Microsoft OneDrive** | `onedrive://<path>` | Personal OneDrive, Microsoft 365 & SharePoint |
+
+### Extended Cloud Adapters (Experimental Post-MVP)
+| Storage Provider | URI Scheme | Features |
+| :--- | :--- | :--- |
 | **Dropbox** | `dropbox://<path>` | Dropbox v2 API, chunked upload sessions (`files/copy_v2`) |
 | **Apple iCloud** | `icloud://<path>` | Dual-Mode: Direct Web (`docws.icloud.com`) + Local Sync Bridge |
 | **Amazon S3** | `s3://<bucket>/<key>` | Multipart uploads, SigV4 signing, all AWS regions |
@@ -47,7 +71,6 @@
 | **Backblaze B2** | `b2://<bucket>/<key>` | Cost-effective B2 cloud storage endpoints |
 | **Azure Blob** | `azure://<container>/<blob>` | Microsoft Azure block blobs & containers |
 | **WebDAV / Nextcloud** | `webdav://<path>` | RFC 4918 compliant: Nextcloud, ownCloud, TrueNAS, Synology |
-| **Local Storage** | `file://<path>` | Local NVMe, SSD, and mounted network drives |
 
 ---
 

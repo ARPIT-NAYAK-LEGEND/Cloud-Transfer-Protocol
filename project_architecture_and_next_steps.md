@@ -30,6 +30,26 @@ The Universal Cloud Transfer Protocol (UTP) reference engine and client ecosyste
 
 ---
 
+## ⚖️ Surface Maturity & Classification Matrix (Phases 1–5 Validated)
+
+In accordance with strict MVP discipline (§12 of `CLAUDE.md`), UTP surfaces are explicitly separated into verified **Core Production MVP** and **Experimental Post-MVP Extensions**:
+
+| Surface | Scope / Component | Maturity Status | Verification Gate |
+| :--- | :--- | :--- | :--- |
+| **Local Storage** | `file://` provider | **Core MVP (Production)** | Phase 4 Automated DoD `kill -9` → resume → SHA-256 Verified |
+| **Google Drive** | `gdrive://` provider | **Core MVP (Production)** | Phase 1 Forced Token Expiry + >100-item recursive upload |
+| **OneDrive** | `onedrive://` provider | **Core MVP (Production)** | Phase 1 Large Session Upload + Resume continuation |
+| **CLI / TUI Engine** | `utp transfer`, `resume`, `pause`, `cancel` | **Core MVP (Production)** | Phase 2 Lifecycle Events + Persistent Control Signals |
+| **State Persistence** | SQLite WAL ledger (`utp.db`) | **Core MVP (Production)** | Phase 2 Upsert semantics + SHA-256 Chunk Verification |
+| **Security Hygiene** | Secret scanning & token isolation | **Core MVP (Production)** | Phase 3 Zero client secret leakage (`rg "g_sec\|o_sec"` = 0) |
+| **CI / CD Pipeline** | GitHub Actions & Docker build | **Core MVP (Production)** | Phase 4 16-suite test suite + automated DoD on every PR |
+| **REST Daemon (`utpd`)** | REST API (`/api/transfers`) | *Experimental (Post-MVP)* | Phase 5 Marked with `X-UTP-Surface: experimental` |
+| **Web Dashboard** | Browser UI (`web/`) | *Experimental (Post-MVP)* | Phase 5 Marked with `[EXPERIMENTAL PREVIEW]` |
+| **Python SDK** | `utp-client` (`sdk/python/`) | *Experimental (Post-MVP)* | Phase 5 Beta package targeting experimental daemon API |
+| **Extended Clouds** | `s3://`, `r2://`, `b2://`, `azure://`, `dropbox://`, `icloud://`, `webdav://` | *Experimental (Post-MVP)* | Phase 5 Marked experimental pending multi-cloud DoD gates |
+
+---
+
 ## Active Status & Next Roadmap: v2.6.0
 
 With the foundational protocol, providers, and multi-platform packaging solidly in place, the immediate focus areas for **v2.6.0** are:

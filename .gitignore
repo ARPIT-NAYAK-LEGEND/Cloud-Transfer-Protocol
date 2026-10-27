@@ -25,5 +25,6 @@ Thumbs.db
 
 # Runtime & scratch
 scratch/
+scratch_*/
 node_modules/
 *.log
