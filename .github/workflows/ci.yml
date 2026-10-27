@@ -1,0 +1,72 @@
+name: CI & Definition of Done
+
+on:
+  push:
+    branches: [ main, PROJECTS ]
+  pull_request:
+    branches: [ main, PROJECTS ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-and-definition-of-done:
+    name: Build, Test & Definition-of-Done
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libcurl4-openssl-dev libssl-dev libsqlite3-dev sqlite3
+
+      - name: Compile UTP CLI
+        run: |
+          chmod +x build.sh
+          ./build.sh
+
+      - name: Phase 3 Secret Hygiene Scan
+        run: |
+          # Assert zero hardcoded secret variables in code/protocol files
+          if grep -E -rn "g_sec|o_sec" core/ cli/ server/ providers/ protocol/; then
+            echo "Security violation: hardcoded client secret pattern detected!"
+            exit 1
+          fi
+          echo "Secret hygiene scan: 0 hardcoded secrets detected."
+
+      - name: Compile & Run Full Test Battery
+        run: |
+          g++ -std=c++20 -O3 -I core/include -I . \
+            tests/test_runner.cpp \
+            core/src/chunk_planner.cpp core/src/engine.cpp core/src/state_manager.cpp core/src/uri_parser.cpp \
+            providers/common/http_client.cpp providers/local/local_provider.cpp \
+            -o test_runner -lcurl -lssl -lcrypto -lpthread -lsqlite3
+          ./test_runner
+
+      - name: Phase 4 Definition-of-Done (kill -9 -> resume -> SHA-256 match)
+        run: |
+          chmod +x tests/e2e_resume_dod.sh
+          ./tests/e2e_resume_dod.sh
+
+  docker-build:
+    name: Docker Build & Verification
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker Image
+        run: |
+          docker build -t utp-engine:latest .
+
+      - name: Verify Docker Container Execution
+        run: |
+          docker run --rm utp-engine:latest ./build/cli/utp --help
