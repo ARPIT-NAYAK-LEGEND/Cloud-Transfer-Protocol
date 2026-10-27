@@ -3,8 +3,74 @@
 #include <iostream>
 #include <atomic>
 #include <mutex>
+#include <filesystem>
+#include <vector>
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
+namespace fs = std::filesystem;
 
 namespace utp {
+
+static const char* get_ca_bundle_path() {
+    static std::string s_ca_path;
+    static std::once_flag s_ca_once;
+    std::call_once(s_ca_once, []() {
+        const char* env_ca = std::getenv("CURL_CA_BUNDLE");
+        if (!env_ca) env_ca = std::getenv("SSL_CERT_FILE");
+        if (env_ca) {
+            std::error_code ec;
+            if (fs::exists(env_ca, ec)) {
+                s_ca_path = env_ca;
+                return;
+            }
+        }
+
+#ifdef _WIN32
+        char exe_path[MAX_PATH] = {0};
+        if (GetModuleFileNameA(NULL, exe_path, MAX_PATH)) {
+            std::error_code ec;
+            fs::path exe_dir = fs::path(exe_path).parent_path();
+            fs::path local_bundle = exe_dir / "ca-bundle.crt";
+            if (fs::exists(local_bundle, ec)) {
+                s_ca_path = local_bundle.string();
+                return;
+            }
+            fs::path local_pem = exe_dir / "cacert.pem";
+            if (fs::exists(local_pem, ec)) {
+                s_ca_path = local_pem.string();
+                return;
+            }
+        }
+#endif
+
+        const char* candidates[] = {
+            "ca-bundle.crt",
+            "cacert.pem",
+            "C:\\Program Files\\Git\\ucrt64\\etc\\ssl\\certs\\ca-bundle.crt",
+            "C:\\Program Files\\Git\\mingw64\\etc\\ssl\\certs\\ca-bundle.crt",
+            "C:\\Program Files\\Git\\usr\\ssl\\certs\\ca-bundle.crt",
+            "C:\\Program Files\\Git\\mingw64\\ssl\\certs\\ca-bundle.crt",
+            "C:\\msys64\\ucrt64\\etc\\ssl\\certs\\ca-bundle.crt",
+            "C:\\msys64\\etc\\ssl\\certs\\ca-bundle.crt",
+            "C:\\msys64\\usr\\ssl\\certs\\ca-bundle.crt",
+            "/etc/ssl/certs/ca-certificates.crt",
+            "/etc/pki/tls/certs/ca-bundle.crt",
+            "/etc/ssl/ca-bundle.pem",
+            "/etc/ssl/cert.pem"
+        };
+
+        for (const char* path : candidates) {
+            std::error_code ec;
+            if (fs::exists(path, ec)) {
+                s_ca_path = path;
+                return;
+            }
+        }
+    });
+    return s_ca_path.empty() ? nullptr : s_ca_path.c_str();
+}
 
 static size_t WriteCallback(void* contents, size_t size, size_t nmemb, void* userp) {
     size_t realsize = size * nmemb;
@@ -126,8 +192,7 @@ HttpResponse HttpClient::perform_request(const std::string& url, const char* met
 
     // Industrial-grade SSL/TLS configuration — verify by default.
     // Set UTP_INSECURE_SKIP_VERIFY=1 to disable (e.g. self-signed test endpoints).
-    const char* ca_bundle = std::getenv("CURL_CA_BUNDLE");
-    if (!ca_bundle) ca_bundle = std::getenv("SSL_CERT_FILE");
+    const char* ca_bundle = get_ca_bundle_path();
     if (ca_bundle) {
         curl_easy_setopt(curl, CURLOPT_CAINFO, ca_bundle);
     }

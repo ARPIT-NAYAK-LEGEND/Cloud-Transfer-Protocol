@@ -6,6 +6,8 @@ build/
 *.db-wal
 *.zip
 *.tar.gz
+*.crt
+*.pem
 
 # Credentials & tokens
 .utp_*
