@@ -3461,7 +3461,7 @@ private:
 namespace detail {
 
 template <typename T, typename U>
-inline void duration_to_sec_and_usec(const T &duration, U callback) {
+inline void split_duration(const T &duration, U callback) {
   auto sec = std::chrono::duration_cast<std::chrono::seconds>(duration).count();
   auto usec = std::chrono::duration_cast<std::chrono::microseconds>(
                   duration - std::chrono::seconds(sec))
@@ -3517,7 +3517,7 @@ inline size_t get_header_value_u64(const Headers &headers,
 template <class Rep, class Period>
 inline Server &
 Server::set_read_timeout(const std::chrono::duration<Rep, Period> &duration) {
-  detail::duration_to_sec_and_usec(
+  detail::split_duration(
       duration, [&](time_t sec, time_t usec) { set_read_timeout(sec, usec); });
   return *this;
 }
@@ -3525,7 +3525,7 @@ Server::set_read_timeout(const std::chrono::duration<Rep, Period> &duration) {
 template <class Rep, class Period>
 inline Server &
 Server::set_write_timeout(const std::chrono::duration<Rep, Period> &duration) {
-  detail::duration_to_sec_and_usec(
+  detail::split_duration(
       duration, [&](time_t sec, time_t usec) { set_write_timeout(sec, usec); });
   return *this;
 }
@@ -3533,7 +3533,7 @@ Server::set_write_timeout(const std::chrono::duration<Rep, Period> &duration) {
 template <class Rep, class Period>
 inline Server &
 Server::set_idle_interval(const std::chrono::duration<Rep, Period> &duration) {
-  detail::duration_to_sec_and_usec(
+  detail::split_duration(
       duration, [&](time_t sec, time_t usec) { set_idle_interval(sec, usec); });
   return *this;
 }
@@ -3541,7 +3541,7 @@ Server::set_idle_interval(const std::chrono::duration<Rep, Period> &duration) {
 template <class Rep, class Period>
 inline void ClientImpl::set_connection_timeout(
     const std::chrono::duration<Rep, Period> &duration) {
-  detail::duration_to_sec_and_usec(duration, [&](time_t sec, time_t usec) {
+  detail::split_duration(duration, [&](time_t sec, time_t usec) {
     set_connection_timeout(sec, usec);
   });
 }
@@ -3549,14 +3549,14 @@ inline void ClientImpl::set_connection_timeout(
 template <class Rep, class Period>
 inline void ClientImpl::set_read_timeout(
     const std::chrono::duration<Rep, Period> &duration) {
-  detail::duration_to_sec_and_usec(
+  detail::split_duration(
       duration, [&](time_t sec, time_t usec) { set_read_timeout(sec, usec); });
 }
 
 template <class Rep, class Period>
 inline void ClientImpl::set_write_timeout(
     const std::chrono::duration<Rep, Period> &duration) {
-  detail::duration_to_sec_and_usec(
+  detail::split_duration(
       duration, [&](time_t sec, time_t usec) { set_write_timeout(sec, usec); });
 }
 
@@ -4674,28 +4674,28 @@ private:
 template <class Rep, class Period>
 inline void WebSocket::set_read_timeout(
     const std::chrono::duration<Rep, Period> &duration) {
-  detail::duration_to_sec_and_usec(
+  detail::split_duration(
       duration, [&](time_t sec, time_t usec) { set_read_timeout(sec, usec); });
 }
 
 template <class Rep, class Period>
 inline void WebSocketClient::set_read_timeout(
     const std::chrono::duration<Rep, Period> &duration) {
-  detail::duration_to_sec_and_usec(
+  detail::split_duration(
       duration, [&](time_t sec, time_t usec) { set_read_timeout(sec, usec); });
 }
 
 template <class Rep, class Period>
 inline void WebSocketClient::set_write_timeout(
     const std::chrono::duration<Rep, Period> &duration) {
-  detail::duration_to_sec_and_usec(
+  detail::split_duration(
       duration, [&](time_t sec, time_t usec) { set_write_timeout(sec, usec); });
 }
 
 template <class Rep, class Period>
 inline void WebSocketClient::set_connection_timeout(
     const std::chrono::duration<Rep, Period> &duration) {
-  detail::duration_to_sec_and_usec(duration, [&](time_t sec, time_t usec) {
+  detail::split_duration(duration, [&](time_t sec, time_t usec) {
     set_connection_timeout(sec, usec);
   });
 }
@@ -13288,7 +13288,7 @@ inline Server &Server::set_keep_alive_timeout(time_t sec) {
 template <class Rep, class Period>
 inline Server &Server::set_keep_alive_timeout(
     const std::chrono::duration<Rep, Period> &duration) {
-  detail::duration_to_sec_and_usec(duration, [&](time_t sec, time_t /*usec*/) {
+  detail::split_duration(duration, [&](time_t sec, time_t /*usec*/) {
     set_keep_alive_timeout(sec);
   });
   return *this;
@@ -13345,7 +13345,7 @@ inline Server &Server::set_websocket_ping_interval(time_t sec) {
 template <class Rep, class Period>
 inline Server &Server::set_websocket_ping_interval(
     const std::chrono::duration<Rep, Period> &duration) {
-  detail::duration_to_sec_and_usec(duration, [&](time_t sec, time_t /*usec*/) {
+  detail::split_duration(duration, [&](time_t sec, time_t /*usec*/) {
     set_websocket_ping_interval(sec);
   });
   return *this;

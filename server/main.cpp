@@ -17,6 +17,10 @@
 #include <mutex>
 #include <sstream>
 #include <cstdlib>
+#include <random>
+#include <iomanip>
+#include <fstream>
+#include <cstring>
 
 using namespace httplib;
 using namespace utp;
@@ -34,29 +38,15 @@ std::unique_ptr<StorageProvider> create_provider(const std::string& scheme) {
     if (base_scheme == "gdrive") {
         const char* env_id = std::getenv("GDRIVE_CLIENT_ID");
         const char* env_sec = std::getenv("GDRIVE_CLIENT_SECRET");
-        static const char redacted_g[] = "REDACTED_XOR_SECRET";
         std::string cid = env_id ? env_id : "617211477359-8a1s4v0aamr860vrs2k9bn9h6lou534u.apps.googleusercontent.com";
-        std::string csec;
-        if (env_sec) {
-            csec = env_sec;
-        } else {
-            csec.resize(sizeof(redacted_g) - 1);
-            for (size_t i = 0; i < sizeof(redacted_g) - 1; ++i) csec[i] = static_cast<char>(static_cast<uint8_t>(redacted_g[i]) ^ 0x42);
-        }
+        std::string csec = env_sec ? env_sec : "";
         return std::make_unique<GoogleDriveProvider>(cid, csec, effective_context);
     }
     if (base_scheme == "onedrive") {
         const char* env_id = std::getenv("ONEDRIVE_CLIENT_ID");
         const char* env_sec = std::getenv("ONEDRIVE_CLIENT_SECRET");
-        static const char redacted_o[] = "REDACTED_XOR_SECRET";
         std::string cid = env_id ? env_id : "5091c9e9-674d-466c-849a-e1bf7d6badee";
-        std::string csec;
-        if (env_sec) {
-            csec = env_sec;
-        } else {
-            csec.resize(sizeof(redacted_o) - 1);
-            for (size_t i = 0; i < sizeof(redacted_o) - 1; ++i) csec[i] = static_cast<char>(static_cast<uint8_t>(redacted_o[i]) ^ 0x42);
-        }
+        std::string csec = env_sec ? env_sec : "";
         return std::make_unique<OneDriveProvider>(cid, csec, effective_context);
     }
     if (base_scheme == "dropbox") return std::make_unique<DropboxProvider>("", "", effective_context);
@@ -133,12 +123,79 @@ std::string state_to_string(TransferState s) {
     }
 }
 
+static std::string get_or_create_api_token() {
+    const char* env_token = std::getenv("UTP_API_TOKEN");
+    if (env_token && std::strlen(env_token) > 0) {
+        std::string s(env_token);
+        while (!s.empty() && (s.back() == ' ' || s.back() == '\t' || s.back() == '\r' || s.back() == '\n')) s.pop_back();
+        while (!s.empty() && (s.front() == ' ' || s.front() == '\t')) s.erase(0, 1);
+        if (!s.empty()) return s;
+    }
+
+    const std::string token_file = ".utp_api_token";
+    std::ifstream infile(token_file);
+    if (infile.is_open()) {
+        std::string token;
+        if (std::getline(infile, token)) {
+            while (!token.empty() && (token.back() == '\r' || token.back() == '\n' || token.back() == ' ')) token.pop_back();
+            if (!token.empty()) return token;
+        }
+    }
+
+    std::random_device rd;
+    std::uniform_int_distribution<uint32_t> dist(0, 0xFFFFFFFF);
+    std::stringstream ss;
+    for (int i = 0; i < 4; ++i) {
+        ss << std::hex << std::setw(8) << std::setfill('0') << dist(rd);
+    }
+    std::string new_token = ss.str();
+
+    std::ofstream outfile(token_file);
+    if (outfile.is_open()) {
+        outfile << new_token << "\n";
+    }
+    return new_token;
+}
+
 int main() {
     Server svr;
     StateManager sm("utp.db");
     
     // Global mutex to protect engine execution
     std::mutex engine_mutex;
+
+    std::string api_token = get_or_create_api_token();
+    std::cout << "[UTP Daemon] API Token: " << api_token << "\n";
+    std::cout << "[UTP Daemon] Bearer authentication required on all /api/* routes\n";
+
+    // P3: Reject unauthenticated API calls
+    svr.set_pre_routing_handler([api_token](const Request& req, Response& res) {
+        if (req.method == "OPTIONS") {
+            return Server::HandlerResponse::Unhandled;
+        }
+
+        if (req.path.rfind("/api/", 0) == 0) {
+            std::string auth_header = req.get_header_value("Authorization");
+            std::string provided_token;
+            if (auth_header.rfind("Bearer ", 0) == 0) {
+                provided_token = auth_header.substr(7);
+            } else if (req.has_header("X-API-Key")) {
+                provided_token = req.get_header_value("X-API-Key");
+            }
+            while (!provided_token.empty() && (provided_token.back() == ' ' || provided_token.back() == '\r' || provided_token.back() == '\n')) provided_token.pop_back();
+            while (!provided_token.empty() && (provided_token.front() == ' ' || provided_token.front() == '\t')) provided_token.erase(0, 1);
+
+            if (provided_token.empty() || provided_token != api_token) {
+                res.status = 401;
+                res.set_header("WWW-Authenticate", "Bearer realm=\"utp\"");
+                res.set_header("Access-Control-Allow-Origin", "*");
+                res.set_content("{\"error\": \"Unauthorized: missing or invalid API token\"}", "application/json");
+                return Server::HandlerResponse::Handled;
+            }
+        }
+
+        return Server::HandlerResponse::Unhandled;
+    });
 
     // POST /api/transfers
     svr.Post("/api/transfers", [&](const Request& req, Response& res) {
@@ -156,9 +213,14 @@ int main() {
         
         std::string src_scheme = src_res.scheme;
         if (src_scheme == "https" && src_res.host_or_bucket.find("drive.google.com") != std::string::npos) src_scheme = "gdrive";
-        
+
         std::string dest_scheme = dest_res.scheme;
         if (dest_scheme == "https" && dest_res.host_or_bucket.find("drive.google.com") != std::string::npos) dest_scheme = "gdrive";
+
+        // P1.4: keep the account alias with the scheme so the engine persists
+        // the full provider identity and `utp resume` finds the right account.
+        if (!src_res.account.empty()) src_scheme += ":" + src_res.account;
+        if (!dest_res.account.empty()) dest_scheme += ":" + dest_res.account;
         
         std::string src_path = (src_res.host_or_bucket.empty() ? "" : (src_res.host_or_bucket + "/")) + src_res.path;
         std::string dest_path = (dest_res.host_or_bucket.empty() ? "" : (dest_res.host_or_bucket + "/")) + dest_res.path;
@@ -244,10 +306,60 @@ int main() {
         res.set_content(ss.str(), "application/json");
     });
 
+    // GET /api/transfers/:id/events — the §7 lifecycle event stream from the
+    // ledger; CLI and Web consume the same stream instead of ad-hoc state.
+    svr.Get(R"(/api/transfers/([a-zA-Z0-9_-]+)/events)", [&](const Request& req, Response& res) {
+        std::string id = req.matches[1];
+        auto opt_t = sm.get_transfer(id);
+        if (!opt_t) {
+            res.status = 404;
+            res.set_content("{\"error\": \"Transfer not found\"}", "application/json");
+            return;
+        }
+        auto events = sm.get_events(id, 200);
+        std::stringstream ss;
+        ss << "[";
+        for (size_t i = 0; i < events.size(); ++i) {
+            if (i > 0) ss << ",";
+            ss << "{";
+            ss << "\"transfer_id\": \"" << events[i].transfer_id << "\",";
+            ss << "\"type\": \"" << event_type_to_string(events[i].type) << "\",";
+            ss << "\"payload\": \"" << events[i].payload << "\",";
+            ss << "\"timestamp\": " << events[i].timestamp;
+            ss << "}";
+        }
+        ss << "]";
+        res.set_content(ss.str(), "application/json");
+    });
+
+    // POST /api/transfers/:id/pause | /cancel — writes the ledger control flag
+    // a running engine polls between chunks (P2.3).
+    svr.Post(R"(/api/transfers/([a-zA-Z0-9_-]+)/(pause|cancel))", [&](const Request& req, Response& res) {
+        std::string id = req.matches[1];
+        std::string action = req.matches[2];
+        auto opt_t = sm.get_transfer(id);
+        if (!opt_t) {
+            res.status = 404;
+            res.set_content("{\"error\": \"Transfer not found\"}", "application/json");
+            return;
+        }
+        if (opt_t->state == TransferState::COMPLETED || opt_t->state == TransferState::CANCELLED) {
+            res.status = 409;
+            res.set_content("{\"error\": \"Transfer already in terminal state: " + state_to_string(opt_t->state) + "\"}", "application/json");
+            return;
+        }
+        sm.request_control(id, action);
+        res.status = 202;
+        std::stringstream ss;
+        ss << "{\"status\": \"requested\", \"action\": \"" << action << "\", \"id\": \"" << id << "\"}";
+        res.set_content(ss.str(), "application/json");
+    });
+
     // Enable CORS for Web UI
-    svr.Options("/api/transfers", [](const Request& /*req*/, Response& res) {
+    svr.Options(R"(/api/.*)", [](const Request& /*req*/, Response& res) {
+        res.set_header("Access-Control-Allow-Origin", "*");
         res.set_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-        res.set_header("Access-Control-Allow-Headers", "Content-Type");
+        res.set_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key");
         res.status = 200;
     });
 

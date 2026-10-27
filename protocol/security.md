@@ -2,6 +2,8 @@
 
 The Universal Cloud Transfer Protocol is designed with zero-trust and client-side privacy as core tenets.
 
+---
+
 ## 1. Zero-Disk Memory Footprint (Privacy Guarantee)
 
 UTP streams bytes directly from cloud-to-cloud through volatile RAM ring buffers.
@@ -9,22 +11,41 @@ UTP streams bytes directly from cloud-to-cloud through volatile RAM ring buffers
 - **Transient Memory Scrubber**: Buffer memory is overwritten and freed immediately after each chunk commit.
 - **Sensitive Payload Immunity**: Moving sensitive financial records, private photos, or trade secrets leaves no recoverable trace on the host file system.
 
+---
+
 ## 2. In-Transit Encryption
 
 - All provider adapters communicate strictly via HTTPS with TLS 1.3 or TLS 1.2.
 - Mutual verification of remote server certificates using platform root certificate bundles.
 - Perfect Forward Secrecy (PFS) cipher suites prioritized for all data plane sockets.
 
-## 3. Credential Hygiene & Token Storage
+---
 
-Cloud tokens are sensitive credentials:
+## 3. Credential Hygiene & Zero Hardcoded Secrets (Phase 3)
+
+Cloud tokens and API secrets are sensitive credentials:
+- **No Hardcoded Secrets**: Client secrets are never embedded, compiled into binaries, or XOR-masked in source files. Hardcoded secret arrays have been eliminated entirely.
+- **Environment & Keyring Integration**: OAuth client secrets must be supplied via environment variables (`GDRIVE_CLIENT_SECRET`, `ONEDRIVE_CLIENT_SECRET`, `AWS_SECRET_ACCESS_KEY`, etc.) or secure local configuration.
 - **Local Isolation**: Tokens are stored exclusively in user-scoped files (`.utp_*_token.json`) located in the application directory.
 - **Narrow API Scopes**: OAuth authorization requests ask only for storage and file operations (`drive.file`, `Files.ReadWrite.All`), avoiding broad profile or identity permissions.
-- **Obfuscation & Encryption**: Hardcoded client IDs and secrets utilize XOR-masked byte arrays to prevent casual string extraction in binaries.
 - **Never Logged**: Auth tokens, bearer headers, and refresh secrets are strictly excluded from console logs, test output, and SQLite transaction traces.
+
+---
 
 ## 4. Multi-Account Isolation
 
 Account configurations in `.utp_accounts.json` maintain discrete isolation:
 - Separate token files are maintained for each connected account (`.utp_gdrive_work_token.json`, `.utp_gdrive_personal_token.json`).
 - Concurrent transfers across different accounts operate on distinct HTTP client sessions and connection pools.
+
+---
+
+## 5. API Server Authentication Guard (Phase 3)
+
+The UTP background daemon (`utp server` on port 8999/8080) enforces zero-trust access control across all HTTP endpoints:
+- **Mandatory Authentication**: All `/api/*` endpoints require authentication using a Bearer token or API key:
+  - Header `Authorization: Bearer <token>`
+  - Header `X-API-Key: <token>`
+- **Rejection of Unauthenticated Calls**: Any call missing valid credentials is unconditionally rejected with HTTP `401 Unauthorized` and `WWW-Authenticate: Bearer realm="utp"`.
+- **Token Provisioning**: The server acquires its secret key from the `UTP_API_TOKEN` environment variable. If unset, it generates a cryptographically random 32-character hexadecimal token on startup and writes it to `.utp_api_token`.
+- **CORS Preflight Exemption**: HTTP `OPTIONS` requests are routed without authentication to allow cross-origin web user interfaces to negotiate CORS headers safely.
