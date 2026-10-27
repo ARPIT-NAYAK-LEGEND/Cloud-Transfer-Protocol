@@ -7,6 +7,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y \
     build-essential \
     cmake \
+    ca-certificates \
     libssl-dev \
     libcurl4-openssl-dev \
     sqlite3 \
@@ -19,9 +20,9 @@ WORKDIR /app
 # Copy source code
 COPY . .
 
-# Build the C++ Engine and API Server
+# Build the C++ Engine, CLI and API Server
 RUN mkdir -p build && cd build && \
-    cmake .. && \
+    cmake -DBUILD_TESTS=OFF .. && \
     make -j$(nproc)
 
 # Expose the API server port

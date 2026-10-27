@@ -16,4 +16,4 @@ target_include_directories(utp_core
 )
 
 target_compile_features(utp_core PUBLIC cxx_std_20)
-target_link_libraries(utp_core PUBLIC SQLite::SQLite3 OpenSSL::Crypto)
+target_link_libraries(utp_core PUBLIC SQLite::SQLite3 OpenSSL::Crypto Threads::Threads)

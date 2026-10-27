@@ -4,6 +4,8 @@ project(utp VERSION 2.5.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
+find_package(Threads REQUIRED)
+
 # Add core library
 add_subdirectory(core)
 
@@ -17,5 +19,8 @@ add_subdirectory(cli)
 add_subdirectory(server)
 
 # Testing setup
-enable_testing()
-add_subdirectory(tests/unit)
+option(BUILD_TESTS "Build unit tests" ON)
+if(BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(tests/unit)
+endif()
