@@ -248,6 +248,7 @@ void print_usage() {
     std::cout << C_SPINE GLYPH_SPINE C_RESET "\n";
     std::cout << C_VIOLET GLYPH_STEP C_RESET "  " C_WHITE C_BOLD "Options:" C_RESET "\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED "--bandwidth" C_RESET " <bps>           Limit transfer speed (0 = unlimited)\n";
+    std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED "--id" C_RESET " <transfer_id>       Assign deterministic ID for tracking/resumption\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED "--verbose" C_RESET "                   Enable verbose diagnostic logging\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "\n";
     std::cout << C_GREEN GLYPH_END C_RESET "  " C_MUTED "Standing by." C_RESET "\n\n";
@@ -512,7 +513,7 @@ void run_batch_transfer_pool(std::shared_ptr<StorageProvider> src_provider,
                 try {
                     Engine engine(src_provider, dest_provider, "utp.db");
                     if (bandwidth_limit > 0) engine.set_bandwidth_limit(bandwidth_limit);
-                    engine.transfer(s_scheme_ctx, s_p, d_scheme_ctx, d_p, worker_progress);
+                    engine.transfer(s_scheme_ctx, s_p, d_scheme_ctx, d_p, worker_progress, item.custom_id);
                     success_count.fetch_add(1);
 
                     {
@@ -605,20 +606,26 @@ int main(int argc, char* argv[]) {
         return 0;
     }
     uint64_t bandwidth_limit = 0;
+    std::string custom_id;
     bool verbose = false;
+    std::vector<std::string> pos_args;
 
     for (int i = 2; i < argc; ++i) {
         std::string arg = argv[i];
         if (arg == "--bandwidth" && i + 1 < argc) {
             bandwidth_limit = std::stoull(argv[++i]);
+        } else if (arg == "--id" && i + 1 < argc) {
+            custom_id = argv[++i];
         } else if (arg == "--verbose") {
             verbose = true;
+        } else if (!arg.empty() && arg[0] != '-') {
+            pos_args.push_back(arg);
         }
     }
 
     try {
         if (cmd == "transfer") {
-            if (argc < 4) {
+            if (pos_args.size() < 2) {
                 // Interactive TUI Mode
                 bool is_initial_launch = true;
                 while (true) {
@@ -671,8 +678,8 @@ int main(int argc, char* argv[]) {
                 return 0;
             } else {
                 // Non-interactive CLI mode with arguments
-                std::string src_str = argv[2];
-                std::string dest_str = argv[3];
+                std::string src_str = pos_args[0];
+                std::string dest_str = pos_args[1];
 
                 Resource src_res = parse_uri(src_str);
                 Resource dest_res = parse_uri(dest_str);
@@ -680,22 +687,25 @@ int main(int argc, char* argv[]) {
                 std::string src_label = AccountManager::instance().get_display_name(src_res.scheme, src_res.account);
                 std::string dest_label = AccountManager::instance().get_display_name(dest_res.scheme, dest_res.account);
 
-                std::cout << "\n  " C_VIOLET C_BOLD GLYPH_BOLT " UTP Transfer: " C_WHITE << src_label << C_MUTED " ➔ " C_WHITE << dest_label << C_RESET "\n\n";
+                std::string transfer_id = custom_id.empty() ? Engine::generate_id() : custom_id;
+
+                std::cout << "\n  " C_VIOLET C_BOLD GLYPH_BOLT " UTP Transfer: " C_WHITE << src_label << C_MUTED " ➔ " C_WHITE << dest_label << C_RESET "\n";
+                std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Transfer ID: " C_CYAN << transfer_id << C_RESET "\n\n";
 
                 auto src_provider = std::shared_ptr<StorageProvider>(create_provider(src_res.scheme, src_res.account));
                 auto dest_provider = std::shared_ptr<StorageProvider>(create_provider(dest_res.scheme, dest_res.account));
 
                 std::string item_name = src_res.path.empty() ? src_res.host_or_bucket : src_res.path;
-                std::vector<TransferItem> transfers = {{src_str, dest_str, item_name, src_res.account, dest_res.account}};
+                std::vector<TransferItem> transfers = {{src_str, dest_str, item_name, src_res.account, dest_res.account, transfer_id}};
                 run_batch_transfer_pool(src_provider, dest_provider, transfers, 1, src_label, dest_label, bandwidth_limit);
                 return 0;
             }
         } else if (cmd == "resume") {
-            if (argc < 3) {
+            if (pos_args.empty()) {
                 print_usage();
                 return 1;
             }
-            std::string transfer_id = argv[2];
+            std::string transfer_id = pos_args[0];
             StateManager sm("utp.db");
             auto opt_transfer = sm.get_transfer(transfer_id);
             if (!opt_transfer) throw std::runtime_error("Transfer not found: " + transfer_id);
@@ -716,11 +726,11 @@ int main(int argc, char* argv[]) {
             });
             std::cout << "\n\n  " C_GREEN GLYPH_CHECK " Transfer resumed and completed successfully!" C_RESET "\n\n";
         } else if (cmd == "pause" || cmd == "cancel") {
-            if (argc < 3) {
+            if (pos_args.empty()) {
                 print_usage();
                 return 1;
             }
-            std::string transfer_id = argv[2];
+            std::string transfer_id = pos_args[0];
             StateManager sm("utp.db");
             auto opt_transfer = sm.get_transfer(transfer_id);
             if (!opt_transfer) throw std::runtime_error("Transfer not found: " + transfer_id);
@@ -744,11 +754,11 @@ int main(int argc, char* argv[]) {
                 std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "The engine will abort the upload and discard partial state.\n\n";
             }
         } else if (cmd == "status") {
-            if (argc < 3) {
+            if (pos_args.empty()) {
                 print_usage();
                 return 1;
             }
-            std::string transfer_id = argv[2];
+            std::string transfer_id = pos_args[0];
             StateManager sm("utp.db");
             auto opt_transfer = sm.get_transfer(transfer_id);
             if (!opt_transfer) throw std::runtime_error("Transfer not found: " + transfer_id);

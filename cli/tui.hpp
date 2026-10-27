@@ -12,6 +12,7 @@ struct TransferItem {
     std::string filename;
     std::string src_account{""};
     std::string dest_account{""};
+    std::string custom_id{""};
 };
 
 struct TuiTransferParams {

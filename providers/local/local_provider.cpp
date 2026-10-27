@@ -92,7 +92,7 @@ WriteSession LocalProvider::openWrite(Path path, uint64_t size, const std::strin
     if (fs::exists(state.temp_path)) {
         state.stream.open(state.temp_path, std::ios::binary | std::ios::in | std::ios::out);
     } else {
-        state.stream.open(state.temp_path, std::ios::binary);
+        state.stream.open(state.temp_path, std::ios::binary | std::ios::out | std::ios::trunc);
     }
     if (!state.stream.is_open()) {
         write_sessions_.erase(id);
@@ -165,12 +165,8 @@ LocalProvider::~LocalProvider() {
     for (auto& pair : read_streams_) {
         pair.second.stream.close();
     }
-    std::error_code ec;
     for (auto& pair : write_sessions_) {
         pair.second.stream.close();
-        if (fs::exists(pair.second.temp_path, ec)) {
-            fs::remove(pair.second.temp_path, ec);
-        }
     }
 }
 
