@@ -1,4 +1,9 @@
 #pragma once
+// ═══════════════════════════════════════════════════════════════════════════════
+//  SURFACE STATUS: POST-MVP EXPERIMENTAL EXTENSION (s3://, r2://, b2://)
+//  This provider adapter is an experimental post-MVP surface pending multi-cloud
+//  DoD automation. Core MVP verification gates apply to local://, gdrive://, and onedrive://.
+// ═══════════════════════════════════════════════════════════════════════════════
 #include "providers/interface/storage_provider.hpp"
 #include "providers/common/http_client.hpp"
 #include <string>
