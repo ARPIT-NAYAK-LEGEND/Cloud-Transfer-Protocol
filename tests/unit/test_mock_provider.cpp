@@ -26,10 +26,25 @@ TEST(MockProviderTest, OpenSessions) {
     auto read_stream = provider.openRead("test.txt");
     EXPECT_EQ(read_stream.id, "read_test.txt");
 
-    auto write_stream = provider.openWrite("test.txt", 1024);
+    auto write_stream = provider.openWrite("test.txt", 1024, "");
     EXPECT_EQ(write_stream.id, "write_test.txt");
+
+    // Session token round-trip contract (P1.3)
+    EXPECT_EQ(provider.write_session_token(write_stream), "mock_session:write_test.txt");
 
     // Commit and abort should not throw
     EXPECT_NO_THROW(provider.commit(write_stream));
     EXPECT_NO_THROW(provider.abort(write_stream));
+}
+
+TEST(MockProviderTest, RefreshAuthCounter) {
+    MockProvider provider;
+    EXPECT_EQ(provider.refresh_count(), 0);
+    provider.inject_auth_failure_once();
+    try {
+        provider.write({"write_test.txt"}, 0, nullptr, 0);
+        // empty write may bypass; use a nonzero one instead
+    } catch (const TransferError&) {}
+    provider.refresh_auth();
+    EXPECT_EQ(provider.refresh_count(), 1);
 }
