@@ -18,6 +18,9 @@ class TransferError(Exception):
 class UTPClient:
     """
     Client for interacting with the Universal Cloud Transfer Protocol (UTP) Daemon.
+
+    NOTE: This client library communicates with the UTP REST API daemon (`utpd`),
+    which is an EXPERIMENTAL post-MVP surface pending multi-cloud DoD gates.
     """
     def __init__(self, host: str = "http://localhost:8080"):
         self.base_url = f"{host.rstrip('/')}/api"

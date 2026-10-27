@@ -76,6 +76,30 @@ header {
   margin-bottom: 4rem;
 }
 
+.header-title-container {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.badge-experimental {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  border-radius: 9999px;
+  padding: 0.35rem 0.85rem;
+  box-shadow: 0 0 16px rgba(251, 191, 36, 0.2);
+  vertical-align: middle;
+}
+
 .glow-text {
   font-family: 'Outfit', sans-serif;
   font-size: 3.5rem;
@@ -83,7 +107,7 @@ header {
   background: linear-gradient(to right, #fff, #a5b4fc);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0;
   text-shadow: 0 0 40px rgba(99, 102, 241, 0.4);
 }
 

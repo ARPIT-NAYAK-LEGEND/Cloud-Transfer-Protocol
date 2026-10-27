@@ -1,3 +1,9 @@
+// ═══════════════════════════════════════════════════════════════════════════════
+//  SURFACE STATUS: POST-MVP EXPERIMENTAL DAEMON (utpd)
+//  This REST API server is an experimental post-MVP surface pending multi-cloud
+//  DoD automation. Production MVP transfers should run through the direct CLI / TUI.
+// ═══════════════════════════════════════════════════════════════════════════════
+
 #include "httplib.h"
 #include "utp/uri_parser.hpp"
 #include "utp/engine.hpp"
@@ -365,9 +371,10 @@ int main() {
 
     svr.set_post_routing_handler([](const Request& /*req*/, Response& res) {
         res.set_header("Access-Control-Allow-Origin", "*");
+        res.set_header("X-UTP-Surface", "experimental");
     });
 
-    std::cout << "[UTP Daemon] API Server running on http://0.0.0.0:8080\n";
+    std::cout << "[UTP Daemon] API Server running on http://0.0.0.0:8080 (EXPERIMENTAL: Post-MVP surface pending Phase 4 gate verification)\n";
     svr.listen("0.0.0.0", 8080);
     return 0;
 }
