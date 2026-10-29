@@ -145,6 +145,36 @@ void StateManager::init_schema() {
             created_at INTEGER NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_events_transfer ON events(transfer_id, id);
+        CREATE TABLE IF NOT EXISTS sync_sessions (
+            id TEXT PRIMARY KEY,
+            source_uri TEXT NOT NULL,
+            destination_uri TEXT NOT NULL,
+            direction TEXT NOT NULL,
+            policy TEXT NOT NULL,
+            status TEXT NOT NULL,
+            files_total INTEGER NOT NULL DEFAULT 0,
+            files_transferred INTEGER NOT NULL DEFAULT 0,
+            files_skipped INTEGER NOT NULL DEFAULT 0,
+            conflicts_resolved INTEGER NOT NULL DEFAULT 0,
+            bytes_total INTEGER NOT NULL DEFAULT 0,
+            bytes_transferred INTEGER NOT NULL DEFAULT 0,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS sync_items (
+            sync_id TEXT NOT NULL,
+            rel_path TEXT NOT NULL,
+            src_path TEXT NOT NULL,
+            dest_path TEXT NOT NULL,
+            src_size INTEGER NOT NULL,
+            dest_size INTEGER NOT NULL,
+            src_mtime INTEGER NOT NULL,
+            dest_mtime INTEGER NOT NULL,
+            action TEXT NOT NULL,
+            status TEXT NOT NULL,
+            error TEXT DEFAULT '',
+            PRIMARY KEY (sync_id, rel_path)
+        );
     )";
     execute(schema);
 
@@ -621,6 +651,90 @@ void StateManager::clear_control(const std::string& transfer_id) {
         return;
     }
     sqlite3_bind_text(stmt, 1, transfer_id.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+}
+
+void StateManager::save_sync_plan(const SyncPlan& plan) {
+    std::lock_guard<std::recursive_mutex> lock(g_db_mutex);
+    execute("BEGIN TRANSACTION;");
+    try {
+        int64_t now = std::chrono::system_clock::now().time_since_epoch().count();
+        const char* s_sql = "INSERT OR REPLACE INTO sync_sessions "
+                            "(id, source_uri, destination_uri, direction, policy, status, files_total, bytes_total, created_at, updated_at) "
+                            "VALUES (?, ?, ?, ?, ?, 'PLANNING', ?, ?, ?, ?);";
+        sqlite3_stmt* stmt;
+        if (sqlite3_prepare_v2(db_, s_sql, -1, &stmt, nullptr) == SQLITE_OK) {
+            std::string src_uri = plan.src_scheme + "://" + plan.src_root;
+            std::string dst_uri = plan.dest_scheme + "://" + plan.dest_root;
+            sqlite3_bind_text(stmt, 1, plan.id.c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(stmt, 2, src_uri.c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(stmt, 3, dst_uri.c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(stmt, 4, plan.direction == SyncDirection::BIDIRECTIONAL ? "BIDIRECTIONAL" : "UNIDIRECTIONAL", -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(stmt, 5, conflict_policy_to_string(plan.policy), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_int64(stmt, 6, plan.items.size());
+            sqlite3_bind_int64(stmt, 7, plan.total_bytes_to_transfer);
+            sqlite3_bind_int64(stmt, 8, now);
+            sqlite3_bind_int64(stmt, 9, now);
+            sqlite3_step(stmt);
+            sqlite3_finalize(stmt);
+        }
+
+        const char* i_sql = "INSERT OR REPLACE INTO sync_items "
+                            "(sync_id, rel_path, src_path, dest_path, src_size, dest_size, src_mtime, dest_mtime, action, status, error) "
+                            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);";
+        sqlite3_stmt* istmt;
+        if (sqlite3_prepare_v2(db_, i_sql, -1, &istmt, nullptr) == SQLITE_OK) {
+            for (const auto& item : plan.items) {
+                sqlite3_reset(istmt);
+                sqlite3_bind_text(istmt, 1, plan.id.c_str(), -1, SQLITE_TRANSIENT);
+                sqlite3_bind_text(istmt, 2, item.rel_path.c_str(), -1, SQLITE_TRANSIENT);
+                sqlite3_bind_text(istmt, 3, item.src_path.c_str(), -1, SQLITE_TRANSIENT);
+                sqlite3_bind_text(istmt, 4, item.dest_path.c_str(), -1, SQLITE_TRANSIENT);
+                sqlite3_bind_int64(istmt, 5, item.src_size);
+                sqlite3_bind_int64(istmt, 6, item.dest_size);
+                sqlite3_bind_int64(istmt, 7, item.src_mtime);
+                sqlite3_bind_int64(istmt, 8, item.dest_mtime);
+                sqlite3_bind_text(istmt, 9, sync_action_to_string(item.action), -1, SQLITE_TRANSIENT);
+                sqlite3_bind_text(istmt, 10, item.status.c_str(), -1, SQLITE_TRANSIENT);
+                sqlite3_bind_text(istmt, 11, item.error_message.c_str(), -1, SQLITE_TRANSIENT);
+                sqlite3_step(istmt);
+            }
+            sqlite3_finalize(istmt);
+        }
+        execute("COMMIT;");
+    } catch (...) {
+        execute("ROLLBACK;");
+        throw;
+    }
+}
+
+void StateManager::update_sync_item_status(const std::string& sync_id, const std::string& rel_path, const std::string& status, const std::string& error) {
+    std::lock_guard<std::recursive_mutex> lock(g_db_mutex);
+    const char* sql = "UPDATE sync_items SET status = ?, error = ? WHERE sync_id = ? AND rel_path = ?;";
+    sqlite3_stmt* stmt;
+    if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) return;
+    sqlite3_bind_text(stmt, 1, status.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, error.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, sync_id.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 4, rel_path.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+}
+
+void StateManager::complete_sync(const std::string& sync_id, uint64_t transferred_count, uint64_t skipped_count, uint64_t conflicts_count, uint64_t bytes_transferred) {
+    std::lock_guard<std::recursive_mutex> lock(g_db_mutex);
+    int64_t now = std::chrono::system_clock::now().time_since_epoch().count();
+    const char* sql = "UPDATE sync_sessions SET status = 'COMPLETED', files_transferred = ?, files_skipped = ?, "
+                      "conflicts_resolved = ?, bytes_transferred = ?, updated_at = ? WHERE id = ?;";
+    sqlite3_stmt* stmt;
+    if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) return;
+    sqlite3_bind_int64(stmt, 1, transferred_count);
+    sqlite3_bind_int64(stmt, 2, skipped_count);
+    sqlite3_bind_int64(stmt, 3, conflicts_count);
+    sqlite3_bind_int64(stmt, 4, bytes_transferred);
+    sqlite3_bind_int64(stmt, 5, now);
+    sqlite3_bind_text(stmt, 6, sync_id.c_str(), -1, SQLITE_TRANSIENT);
     sqlite3_step(stmt);
     sqlite3_finalize(stmt);
 }

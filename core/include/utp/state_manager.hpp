@@ -2,6 +2,7 @@
 
 #include "utp/types.hpp"
 #include "utp/events.hpp"
+#include "utp/sync_types.hpp"
 #include <string>
 #include <vector>
 #include <memory>
@@ -53,6 +54,11 @@ public:
     void request_control(const std::string& transfer_id, const std::string& action);
     std::string get_control(const std::string& transfer_id);
     void clear_control(const std::string& transfer_id);
+
+    // Phase 6: Sync session & item persistence
+    void save_sync_plan(const SyncPlan& plan);
+    void update_sync_item_status(const std::string& sync_id, const std::string& rel_path, const std::string& status, const std::string& error = "");
+    void complete_sync(const std::string& sync_id, uint64_t transferred_count, uint64_t skipped_count, uint64_t conflicts_count, uint64_t bytes_transferred);
 
 private:
     sqlite3* db_{nullptr};

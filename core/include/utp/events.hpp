@@ -21,6 +21,12 @@ enum class EventType {
     OBJECT_STARTED,
     OBJECT_COMPLETED,
     CHUNK_COMPLETED,
+    SYNC_STARTED,
+    SYNC_PLAN_READY,
+    SYNC_ITEM_COMPLETED,
+    SYNC_CONFLICT_RESOLVED,
+    SYNC_COMPLETED,
+    SYNC_FAILED,
 };
 
 struct Event {
@@ -43,6 +49,12 @@ inline const char* event_type_to_string(EventType type) {
         case EventType::OBJECT_STARTED:     return "OBJECT_STARTED";
         case EventType::OBJECT_COMPLETED:   return "OBJECT_COMPLETED";
         case EventType::CHUNK_COMPLETED:     return "CHUNK_COMPLETED";
+        case EventType::SYNC_STARTED:        return "SYNC_STARTED";
+        case EventType::SYNC_PLAN_READY:     return "SYNC_PLAN_READY";
+        case EventType::SYNC_ITEM_COMPLETED: return "SYNC_ITEM_COMPLETED";
+        case EventType::SYNC_CONFLICT_RESOLVED: return "SYNC_CONFLICT_RESOLVED";
+        case EventType::SYNC_COMPLETED:      return "SYNC_COMPLETED";
+        case EventType::SYNC_FAILED:         return "SYNC_FAILED";
     }
     return "UNKNOWN";
 }
@@ -59,6 +71,12 @@ inline EventType event_type_from_string(const std::string& str) {
     if (str == "OBJECT_STARTED")    return EventType::OBJECT_STARTED;
     if (str == "OBJECT_COMPLETED")  return EventType::OBJECT_COMPLETED;
     if (str == "CHUNK_COMPLETED")   return EventType::CHUNK_COMPLETED;
+    if (str == "SYNC_STARTED")      return EventType::SYNC_STARTED;
+    if (str == "SYNC_PLAN_READY")   return EventType::SYNC_PLAN_READY;
+    if (str == "SYNC_ITEM_COMPLETED") return EventType::SYNC_ITEM_COMPLETED;
+    if (str == "SYNC_CONFLICT_RESOLVED") return EventType::SYNC_CONFLICT_RESOLVED;
+    if (str == "SYNC_COMPLETED")    return EventType::SYNC_COMPLETED;
+    if (str == "SYNC_FAILED")       return EventType::SYNC_FAILED;
     return EventType::TRANSFER_FAILED; // unknown strings must never read as success
 }
 

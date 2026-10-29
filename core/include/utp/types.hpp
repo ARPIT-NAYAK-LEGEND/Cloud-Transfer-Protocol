@@ -62,6 +62,8 @@ struct FileInfo {
     uint64_t size;
     bool is_directory;
     std::string name = "";
+    uint64_t mtime{0};
+    std::string hash = "";
 };
 
 struct ChunkInfo {

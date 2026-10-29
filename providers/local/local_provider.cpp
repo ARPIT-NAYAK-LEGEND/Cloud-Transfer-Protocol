@@ -2,10 +2,22 @@
 #include <filesystem>
 #include <stdexcept>
 #include <iostream>
+#include <chrono>
 
 namespace fs = std::filesystem;
 
 namespace utp {
+
+static uint64_t get_local_file_mtime(const fs::path& p) {
+    try {
+        if (!fs::exists(p)) return 0;
+        auto ftime = fs::last_write_time(p);
+        auto sctp = std::chrono::file_clock::to_sys(ftime);
+        return std::chrono::duration_cast<std::chrono::seconds>(sctp.time_since_epoch()).count();
+    } catch (...) {
+        return 0;
+    }
+}
 
 ProviderCapabilities LocalProvider::capabilities() {
     return {
@@ -29,7 +41,8 @@ FileInfo LocalProvider::stat(Path path) {
         path,
         fs::is_directory(path) ? 0 : fs::file_size(path),
         fs::is_directory(path),
-        fs::path(path).filename().string()
+        fs::path(path).filename().string(),
+        get_local_file_mtime(path)
     };
 }
 
@@ -42,7 +55,8 @@ std::vector<FileInfo> LocalProvider::list(Path path) {
                 entry.path().string(),
                 entry.is_regular_file() ? entry.file_size() : 0,
                 entry.is_directory(),
-                entry.path().filename().string()
+                entry.path().filename().string(),
+                get_local_file_mtime(entry.path())
             });
         }
     }
@@ -80,6 +94,11 @@ WriteSession LocalProvider::openWrite(Path path, uint64_t size, const std::strin
         } else {
             ++it;
         }
+    }
+    // Also release any lingering read streams so Windows file locks are released
+    for (auto rit = read_streams_.begin(); rit != read_streams_.end(); ) {
+        rit->second.stream.close();
+        rit = read_streams_.erase(rit);
     }
 
     fs::path tp(state.temp_path);
@@ -136,6 +155,13 @@ void LocalProvider::commit(WriteSession session) {
         throw std::runtime_error("Invalid write session");
     }
     it->second.stream.close();
+
+    // Close any open read streams on this path so Windows does not lock the file during rename/remove
+    for (auto rit = read_streams_.begin(); rit != read_streams_.end(); ) {
+        rit->second.stream.close();
+        rit = read_streams_.erase(rit);
+    }
+
     std::error_code ec;
     if (fs::exists(it->second.path, ec)) {
         fs::remove(it->second.path, ec);
