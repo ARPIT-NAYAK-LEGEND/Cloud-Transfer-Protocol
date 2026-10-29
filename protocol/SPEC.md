@@ -31,3 +31,22 @@ UTP mandates a durable state machine (e.g., stored in SQLite) to persist the tra
 3. **Execution**: Chunks are read from the source and dispatched concurrently to the destination.
 4. **Verification**: An overarching cryptographic hash (e.g., SHA-256) ensures end-to-end integrity.
 5. **Commitment**: The destination provider commits the transfer, finalizing the remote file.
+
+## 4. Advanced Folder Synchronization & Delta Sync
+
+### 4.1 Sync Architecture
+The `SyncEngine` extends UTP with directory-level synchronization across any two heterogeneous storage providers:
+- **Delta Change Detection**: Compares source and destination trees by relative paths, file sizes, modification timestamps (`mtime`), and cryptographic hashes (`hash`). Unchanged files result in 0 bytes transferred (`SyncActionType::SKIP`).
+- **Sync Directions**:
+  - `UNIDIRECTIONAL` (Mirror/Push): Synchronizes changes from source to destination.
+  - `BIDIRECTIONAL` (Two-way merge): Reconciles changes bidirectionally between source and destination endpoints.
+- **Conflict Resolution Matrix**:
+  - `FAIL`: Aborts synchronization immediately upon detecting any concurrent or conflicting modifications.
+  - `OVERWRITE`: Source file unconditionally supersedes destination file.
+  - `RENAME`: Preserves both files by renaming the colliding file with a `.conflict.<timestamp>` suffix.
+  - `SKIP`: Retains the existing destination file without modification.
+  - `NEWER_WINS`: Compares modification timestamps (`mtime`); the file with the more recent timestamp takes precedence.
+
+### 4.2 Sync Ledger Schema
+Synchronization sessions and item-level progression are tracked in SQLite via `sync_sessions` and `sync_items` tables with full WAL-mode crash resilience.
+

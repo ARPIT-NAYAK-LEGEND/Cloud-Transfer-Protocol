@@ -80,7 +80,13 @@ enum class EventType {
     TRANSFER_COMPLETED,
     TRANSFER_PAUSED,
     TRANSFER_CANCELLED,
-    TRANSFER_FAILED
+    TRANSFER_FAILED,
+    SYNC_STARTED,
+    SYNC_PLAN_READY,
+    SYNC_ITEM_COMPLETED,
+    SYNC_CONFLICT_RESOLVED,
+    SYNC_COMPLETED,
+    SYNC_FAILED
 };
 ```
 
@@ -114,3 +120,44 @@ UTP supports concurrent, cross-process control through the SQLite ledger:
 3. **Engine Polling**: Between chunk writes, `Engine::worker_loop()` checks its atomic flags (`pause_requested_`, `cancel_requested_`) AND queries `state_mgr_.get_control(transfer_id)`.
 4. **Pause Invariant**: Pausing gracefully yields the worker threads, flushes committed chunks to the DB, marks the transfer `PAUSED`, and leaves `.utp.tmp` files and session tokens intact for seamless resumption.
 5. **Cancel Invariant**: Cancelling immediately calls `dest_->abort()`, removes temporary files, deletes session tokens from the ledger, sets the transfer state to `CANCELLED`, and emits `TRANSFER_CANCELLED`. Resuming a cancelled transfer is strictly rejected.
+
+---
+
+## 5. Sync Session & Item Lifecycle
+
+Folder synchronization operations are coordinated by `SyncEngine` and recorded in dedicated SQLite ledger tables:
+
+### Sync Ledger Schema
+
+```sql
+CREATE TABLE IF NOT EXISTS sync_sessions (
+    sync_id TEXT PRIMARY KEY,
+    src_uri TEXT NOT NULL,
+    dst_uri TEXT NOT NULL,
+    direction TEXT NOT NULL,
+    conflict_policy TEXT NOT NULL,
+    status TEXT NOT NULL,
+    total_items INTEGER DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    completed_at INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS sync_items (
+    sync_id TEXT NOT NULL,
+    rel_path TEXT NOT NULL,
+    action TEXT NOT NULL,
+    status TEXT NOT NULL,
+    bytes INTEGER DEFAULT 0,
+    PRIMARY KEY (sync_id, rel_path)
+);
+```
+
+### Sync Lifecycle Flow
+1. **`SYNC_STARTED`**: Session initialized with source/dest URIs, direction (`UNIDIRECTIONAL` or `BIDIRECTIONAL`), and `ConflictPolicy`.
+2. **Tree Discovery**: Recursive tree traversal reads metadata (`size`, `mtime`, `hash`) on both sides.
+3. **Delta Planning**: Files evaluated against Delta rules; unchanged files set to `SKIP` (0 bytes). Conflicts resolved according to policy.
+4. **`SYNC_PLAN_READY`**: Plan saved to `sync_sessions` and `sync_items`.
+5. **Item Execution**: Each non-skipped file streamed via memory pipeline (`utp::Engine`).
+6. **`SYNC_ITEM_COMPLETED`**: Item status updated in ledger.
+7. **`SYNC_COMPLETED` / `SYNC_FAILED`**: Session status finalized in `sync_sessions` and emitted to event ledger.
+

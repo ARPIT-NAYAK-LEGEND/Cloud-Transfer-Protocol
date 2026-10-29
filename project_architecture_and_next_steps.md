@@ -43,6 +43,7 @@ In accordance with strict MVP discipline (§12 of `CLAUDE.md`), UTP surfaces are
 | **State Persistence** | SQLite WAL ledger (`utp.db`) | **Core MVP (Production)** | Phase 2 Upsert semantics + SHA-256 Chunk Verification |
 | **Security Hygiene** | Secret scanning & token isolation | **Core MVP (Production)** | Phase 3 Zero client secret leakage (`rg "g_sec\|o_sec"` = 0) |
 | **CI / CD Pipeline** | GitHub Actions & Docker build | **Core MVP (Production)** | Phase 4 16-suite test suite + automated DoD on every PR |
+| **Folder Sync Engine** | `utp sync <src> <dest>` | **Core MVP (Production)** | Phase 6 Delta Change Detection (0-byte skip) + 5 Conflict Policies + Bidirectional |
 | **REST Daemon (`utpd`)** | REST API (`/api/transfers`) | *Experimental (Post-MVP)* | Phase 5 Marked with `X-UTP-Surface: experimental` |
 | **Web Dashboard** | Browser UI (`web/`) | *Experimental (Post-MVP)* | Phase 5 Marked with `[EXPERIMENTAL PREVIEW]` |
 | **Python SDK** | `utp-client` (`sdk/python/`) | *Experimental (Post-MVP)* | Phase 5 Beta package targeting experimental daemon API |
@@ -50,19 +51,45 @@ In accordance with strict MVP discipline (§12 of `CLAUDE.md`), UTP surfaces are
 
 ---
 
+## 🚀 Phase 6: Advanced Folder Synchronization & Delta Sync (Accomplished)
+
+Delivered in v2.6.0:
+1. **Delta Change Detection**:
+   - Compares directory trees across endpoints using relative path hierarchies, file sizes, modification timestamps (`mtime`), and cryptographic hashes (`hash`).
+   - Identical files are classified as `SKIP`, guaranteeing **0 bytes transferred** across networks for unchanged files.
+2. **Conflict Resolution Matrix**:
+   - 5 configurable policies: `FAIL`, `OVERWRITE`, `RENAME`, `SKIP`, `NEWER_WINS`.
+   - Handles colliding files cleanly, including timestamp comparison and collision renaming (`.conflict.<timestamp>`).
+3. **Reconciliation Modes**:
+   - `UNIDIRECTIONAL`: One-way push/mirror synchronization from source to destination.
+   - `BIDIRECTIONAL`: Two-way reconciliation synchronizing new and updated files between both endpoints.
+4. **Resilience & State Persistence**:
+   - SQLite tables `sync_sessions` and `sync_items` track sync sessions and item states in WAL mode.
+   - §7 Event Stream emissions: `SYNC_STARTED`, `SYNC_PLAN_READY`, `SYNC_ITEM_COMPLETED`, `SYNC_CONFLICT_RESOLVED`, `SYNC_COMPLETED`, `SYNC_FAILED`.
+5. **CLI Integration**:
+   - `utp sync <src> <dest> [--policy <policy>] [-b|--bidirectional] [-n|--dry-run]`
+   - Visual terminal UI reporting sync plans, item breakdown, and progress bars.
+6. **Automated Test Coverage**:
+   - 3 dedicated test suites added to `tests/test_runner.cpp`:
+     - `test_sync_delta_detection_suite` (delta detection & unchanged skip)
+     - `test_sync_conflict_policies_suite` (FAIL, OVERWRITE, SKIP policy validation)
+     - `test_sync_bidirectional_suite` (two-way merge & event lifecycle verification)
+   - Total test suites: **19/19 passing (100% green)**.
+
+---
+
 ## Active Status & Next Roadmap: v2.6.0
 
-With the foundational protocol, providers, and multi-platform packaging solidly in place, the immediate focus areas for **v2.6.0** are:
+With Phase 6 complete, the remaining focus areas for **v2.6.0** are:
 
-### 1. Advanced Folder Synchronization & Delta Sync
-- **Bidirectional Sync**: Implement rsync-style delta algorithms to synchronize directories between disparate clouds without re-transferring unchanged files.
-- **Conflict Resolution Matrix**: User-configurable policies (`FAIL`, `OVERWRITE`, `RENAME`, `SKIP`, `NEWER_WINS`).
-
-### 2. Multi-Destination Routing
+### 1. Multi-Destination Routing (Next Up)
 - Stream a single source file to multiple cloud destinations simultaneously via shared memory fan-out buffers (e.g., S3 ➔ Google Drive + OneDrive in a single pass).
+- Shared memory buffer ring broadcasting chunks to N destination worker threads.
 
-### 3. Native TypeScript SDK
+### 2. Native TypeScript SDK
 - Publish `@utp/client` on npm to accompany `utp-client` on PyPI for Node.js and browser integration.
+- TypeScript definitions, event streaming, and native promises.
 
-### 4. Background Transfer Daemon Mode
+### 3. Background Transfer Daemon Mode
 - `utp daemon start / stop / status` to run the daemon server natively as a system service (Windows Service / systemd unit / launchd).
+

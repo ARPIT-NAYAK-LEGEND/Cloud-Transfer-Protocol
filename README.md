@@ -44,6 +44,7 @@ UTP adheres to strict MVP scope discipline (§12 of `CLAUDE.md`). Surfaces are e
 | **Google Drive** | `gdrive://` provider | **Core MVP (Production)** | OAuth2 PKCE + Token Refresh + DoD Verified |
 | **OneDrive** | `onedrive://` provider | **Core MVP (Production)** | OAuth2 + Large Upload Session Verified |
 | **CLI & TUI Engine** | `utp transfer`, `resume`, `pause`, `status` | **Core MVP (Production)** | End-to-End Terminal UI & SHA-256 Match |
+| **Folder Sync Engine** | `utp sync <src> <dest>` | **Core MVP (Production)** | Phase 6 Delta Change Detection (0 bytes skip) + 5 Conflict Policies |
 | **State Persistence** | SQLite WAL ledger (`utp.db`) | **Core MVP (Production)** | Crash-Resilient Upsert & Event Stream |
 | **Daemon Server (`utpd`)** | REST API (`/api/transfers`) | *Experimental (Post-MVP)* | Marked `X-UTP-Surface: experimental` |
 | **Web Dashboard** | Browser UI (`web/`) | *Experimental (Post-MVP)* | Preview UI for Daemon API |
@@ -139,7 +140,23 @@ utp transfer r2://assets/video.mp4 file://D:/video.mp4 --bandwidth 20971520
 utp transfer icloud://Documents/Report.pdf webdav://Shared/Report.pdf
 ```
 
-### 3. Resume Paused Transfers
+### 3. Folder Synchronization & Delta Sync
+Synchronize directory trees recursively between any two providers with delta change detection (unchanged files transfer 0 bytes):
+```bash
+# Unidirectional mirror from local directory to Google Drive
+utp sync file://my_project gdrive://backups/my_project
+
+# Bidirectional two-way synchronization
+utp sync file://docs onedrive://Documents -b
+
+# Dry-run preview of planned sync actions without modifying destination
+utp sync file://data s3://bucket/data -n
+
+# Specify conflict policy: fail, overwrite, rename, skip, or newer_wins
+utp sync file://data s3://bucket/data --policy newer_wins
+```
+
+### 4. Resume Paused Transfers
 If a transfer is interrupted by network failure or reboot:
 ```bash
 utp resume <transfer_id>
