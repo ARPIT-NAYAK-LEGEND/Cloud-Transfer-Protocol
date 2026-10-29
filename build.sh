@@ -41,6 +41,7 @@ fi
 $CXX -std=c++20 -O3 -I core/include -I . $EXTRA_INCLUDES \
     cli/main.cpp cli/tui.cpp \
     core/src/chunk_planner.cpp core/src/engine.cpp core/src/state_manager.cpp core/src/uri_parser.cpp \
+    core/src/sync_engine.cpp \
     providers/azure/azure_provider.cpp providers/common/http_client.cpp \
     providers/dropbox/dropbox_provider.cpp providers/google_drive/gdrive_provider.cpp \
     providers/icloud/icloud_provider.cpp providers/local/local_provider.cpp \

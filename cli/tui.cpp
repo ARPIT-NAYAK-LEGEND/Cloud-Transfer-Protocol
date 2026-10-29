@@ -201,7 +201,7 @@ static void clear_screen() {
 
 void print_modern_header(bool animated = false) {
     clear_screen();
-    std::cout << C_VIOLET GLYPH_TOP C_RESET "  " C_WHITE C_BOLD "utp-engine" C_RESET " " C_MUTED "v2.5.0-pro" C_RESET "\n";
+    std::cout << C_VIOLET GLYPH_TOP C_RESET "  " C_WHITE C_BOLD "utp-engine" C_RESET " " C_MUTED "v2.6.0-pro" C_RESET "\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "direct cloud-to-cloud memory pipeline · tls 1.3 · 0-disk" C_RESET "\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "\n";
 

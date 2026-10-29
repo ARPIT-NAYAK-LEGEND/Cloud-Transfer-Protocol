@@ -13,6 +13,8 @@
 #include "providers/icloud/icloud_provider.hpp"
 #include "providers/common/http_client.hpp"
 #include "utp/events.hpp"
+#include "utp/sync_engine.hpp"
+#include "utp/sync_types.hpp"
 #include <iostream>
 #include <ctime>
 #include <memory>
@@ -222,12 +224,13 @@ static std::string format_bytes(uint64_t bytes) {
 }
 
 void print_usage() {
-    std::cout << "\n" C_VIOLET GLYPH_TOP C_RESET "  " C_WHITE C_BOLD "utp-engine" C_RESET " " C_MUTED "v2.5.0-pro" C_RESET "\n";
+    std::cout << "\n" C_VIOLET GLYPH_TOP C_RESET "  " C_WHITE C_BOLD "utp-engine" C_RESET " " C_MUTED "v2.6.0-pro" C_RESET "\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "universal cloud transfer protocol · direct memory pipeline" C_RESET "\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "\n";
     std::cout << C_VIOLET GLYPH_STEP C_RESET "  " C_WHITE C_BOLD "Commands & Usage:" C_RESET "\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "utp transfer" C_RESET "                     Launch interactive visual TUI mode\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "utp transfer" C_RESET " <src> <dest>       Direct cloud-to-cloud pipeline\n";
+    std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "utp sync" C_RESET "     <src> <dest>       Delta folder synchronization & conflict policies\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "utp resume" C_RESET "   <transfer_id>      Resume paused/failed transfer state\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "utp pause" C_RESET "    <transfer_id>      Stop between chunks, keep all progress\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "utp cancel" C_RESET "   <transfer_id>      Abandon transfer, discard partial state\n";
@@ -249,6 +252,9 @@ void print_usage() {
     std::cout << C_SPINE GLYPH_SPINE C_RESET "      " C_VIOLET "webdav://" C_RESET "<path>          Nextcloud, ownCloud & WebDAV NAS\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "\n";
     std::cout << C_VIOLET GLYPH_STEP C_RESET "  " C_WHITE C_BOLD "Options:" C_RESET "\n";
+    std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED "--policy" C_RESET " <policy>           Conflict policy (FAIL, OVERWRITE, RENAME, SKIP, NEWER_WINS)\n";
+    std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED "--bidirectional" C_RESET ", -b           Bidirectional two-way folder synchronization\n";
+    std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED "--dry-run" C_RESET ", -n                 Preview delta sync plan without transferring bytes\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED "--bandwidth" C_RESET " <bps>           Limit transfer speed (0 = unlimited)\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED "--id" C_RESET " <transfer_id>       Assign deterministic ID for tracking/resumption\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED "--verbose" C_RESET "                   Enable verbose diagnostic logging\n";
@@ -610,6 +616,9 @@ int main(int argc, char* argv[]) {
     uint64_t bandwidth_limit = 0;
     std::string custom_id;
     bool verbose = false;
+    std::string sync_policy = "OVERWRITE";
+    bool sync_bidirectional = false;
+    bool sync_dry_run = false;
     std::vector<std::string> pos_args;
 
     for (int i = 2; i < argc; ++i) {
@@ -618,6 +627,12 @@ int main(int argc, char* argv[]) {
             bandwidth_limit = std::stoull(argv[++i]);
         } else if (arg == "--id" && i + 1 < argc) {
             custom_id = argv[++i];
+        } else if (arg == "--policy" && i + 1 < argc) {
+            sync_policy = argv[++i];
+        } else if (arg == "--bidirectional" || arg == "-b") {
+            sync_bidirectional = true;
+        } else if (arg == "--dry-run" || arg == "-n") {
+            sync_dry_run = true;
         } else if (arg == "--verbose") {
             verbose = true;
         } else if (!arg.empty() && arg[0] != '-') {
@@ -701,6 +716,94 @@ int main(int argc, char* argv[]) {
                 std::vector<TransferItem> transfers = {{src_str, dest_str, item_name, src_res.account, dest_res.account, transfer_id}};
                 run_batch_transfer_pool(src_provider, dest_provider, transfers, 1, src_label, dest_label, bandwidth_limit);
                 return 0;
+            }
+        } else if (cmd == "sync") {
+            if (pos_args.size() < 2) {
+                std::cerr << "\n  " C_RED "✗ Error: 'utp sync' requires <source_uri> and <dest_uri>" C_RESET "\n\n";
+                print_usage();
+                return 1;
+            }
+            std::string src_str = pos_args[0];
+            std::string dest_str = pos_args[1];
+
+            Resource src_res = parse_uri(src_str);
+            Resource dest_res = parse_uri(dest_str);
+
+            std::string src_path = src_res.path;
+            if (src_res.scheme == "file" || src_res.scheme == "local") {
+                if (src_path.empty()) src_path = src_res.host_or_bucket;
+                else if (!src_res.host_or_bucket.empty()) src_path = src_res.host_or_bucket + "/" + src_path;
+            }
+            std::string dest_path = dest_res.path;
+            if (dest_res.scheme == "file" || dest_res.scheme == "local") {
+                if (dest_path.empty()) dest_path = dest_res.host_or_bucket;
+                else if (!dest_res.host_or_bucket.empty()) dest_path = dest_res.host_or_bucket + "/" + dest_path;
+            }
+
+            auto src_provider = std::shared_ptr<StorageProvider>(create_provider(src_res.scheme, src_res.account));
+            auto dest_provider = std::shared_ptr<StorageProvider>(create_provider(dest_res.scheme, dest_res.account));
+
+            ConflictPolicy policy = conflict_policy_from_string(sync_policy);
+            SyncDirection dir = sync_bidirectional ? SyncDirection::BIDIRECTIONAL : SyncDirection::UNIDIRECTIONAL;
+
+            SyncEngine sync_engine(src_provider, dest_provider, src_res.scheme, dest_res.scheme, "utp.db");
+
+            std::cout << "\n" C_VIOLET GLYPH_TOP C_RESET "  " C_WHITE C_BOLD "UTP Delta Folder Sync Engine" C_RESET "\n";
+            std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Pipeline:    " C_RESET C_CYAN << src_str << C_RESET C_MUTED " ──▶ " C_RESET C_VIOLET << dest_str << C_RESET "\n";
+            std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Direction:   " C_RESET << (sync_bidirectional ? C_YELLOW "Bidirectional (Two-way Reconciliation)" : C_CYAN "Unidirectional (Mirror)") << C_RESET "\n";
+            std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Policy:      " C_RESET C_WHITE << conflict_policy_to_string(policy) << C_RESET "\n";
+            std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Scanning directory trees..." C_RESET "\n";
+
+            SyncPlan plan = sync_engine.plan_sync(src_path, dest_path, dir, policy);
+
+            std::cout << C_VIOLET GLYPH_STEP C_RESET "  " C_WHITE C_BOLD "Sync Plan (" C_CYAN << plan.id << C_WHITE "):" C_RESET "\n";
+            std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_GREEN "+ " << plan.files_to_create << " to create" C_RESET "\n";
+            std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "~ " << plan.files_to_update << " to update" C_RESET "\n";
+            std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED "= " << plan.files_to_skip << " unchanged (skipped, 0 bytes)" C_RESET "\n";
+            if (plan.conflicts_detected > 0) {
+                std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_YELLOW "! " << plan.conflicts_detected << " conflicts resolved via " << conflict_policy_to_string(policy) << C_RESET "\n";
+            }
+            std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_WHITE "Total delta transfer: " << format_bytes(plan.total_bytes_to_transfer) << C_RESET "\n";
+
+            if (sync_dry_run) {
+                std::cout << "\n" C_YELLOW GLYPH_END C_RESET "  " C_YELLOW "Dry-run complete: No files modified." C_RESET "\n\n";
+                return 0;
+            }
+
+            if (plan.files_to_create == 0 && plan.files_to_update == 0) {
+                std::cout << "\n" C_GREEN GLYPH_END C_RESET "  " C_GREEN GLYPH_CHECK " Directories are already 100% in sync! (0 bytes transferred)" C_RESET "\n\n";
+                return 0;
+            }
+
+            std::cout << C_SPINE GLYPH_SPINE C_RESET "\n";
+            std::cout << C_VIOLET GLYPH_STEP C_RESET "  " C_WHITE C_BOLD "Executing Delta Synchronization:" C_RESET "\n";
+
+            SyncResult result = sync_engine.execute_sync(plan, [&](const SyncItem& item, size_t idx, size_t total, uint64_t bytes, uint64_t item_total) {
+                float p = (item_total > 0) ? static_cast<float>(bytes) / item_total : 1.0f;
+                std::cout << "\r" C_SPINE GLYPH_SPINE C_RESET "  [" << (idx + 1) << "/" << total << "] "
+                          << truncate_visible(item.rel_path, 28) << " ";
+                std::cout << render_block_bar(p, 20);
+                std::cout << " " << static_cast<int>(p * 100) << "% (" << format_bytes(bytes) << "/" << format_bytes(item_total) << ")";
+                std::cout.flush();
+            });
+
+            std::cout << "\n";
+            if (result.success) {
+                std::cout << "\n" C_GREEN GLYPH_END C_RESET "  " C_GREEN C_BOLD GLYPH_CHECK " Delta Sync Completed Successfully!" C_RESET "\n";
+                std::cout << "     " C_MUTED "Transferred: " C_WHITE << result.files_transferred << " files (" << format_bytes(result.bytes_transferred) << ")" C_RESET "\n";
+                std::cout << "     " C_MUTED "Skipped:     " C_WHITE << result.files_skipped << " files (unchanged)" C_RESET "\n";
+                if (result.conflicts_resolved > 0) {
+                    std::cout << "     " C_MUTED "Conflicts:   " C_WHITE << result.conflicts_resolved << " resolved" C_RESET "\n";
+                }
+                std::cout << "\n";
+                return 0;
+            } else {
+                std::cout << "\n" C_RED GLYPH_END C_RESET "  " C_RED C_BOLD "✗ Delta Sync Encountered Errors!" C_RESET "\n";
+                for (const auto& err : result.errors) {
+                    std::cout << "     " C_RED "• " << err << C_RESET "\n";
+                }
+                std::cout << "\n";
+                return 1;
             }
         } else if (cmd == "resume") {
             if (pos_args.empty()) {
