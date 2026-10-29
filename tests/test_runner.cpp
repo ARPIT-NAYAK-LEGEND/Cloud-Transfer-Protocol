@@ -26,6 +26,8 @@
 #include "utp/chunk_planner.hpp"
 #include "utp/state_manager.hpp"
 #include "utp/engine.hpp"
+#include "utp/sync_engine.hpp"
+#include "utp/sync_types.hpp"
 #include "mock_provider.hpp"
 #include "providers/local/local_provider.hpp"
 
@@ -71,6 +73,12 @@ void run_test(const std::string& suite_name, const std::string& test_name, std::
 #define ASSERT_TRUE(c) do { \
     if (!(c)) { \
         throw std::runtime_error("Assertion failed: " #c " is true (at line " + std::to_string(__LINE__) + ")"); \
+    } \
+} while(0)
+
+#define ASSERT_FALSE(c) do { \
+    if (c) { \
+        throw std::runtime_error("Assertion failed: " #c " is false (at line " + std::to_string(__LINE__) + ")"); \
     } \
 } while(0)
 
@@ -977,6 +985,163 @@ void test_definition_of_done_suite() {
     fs::remove_all(dir, ec);
 }
 
+void test_sync_delta_detection_suite() {
+    std::string test_dir = "scratch_test_sync_delta_" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
+    std::string src_dir = test_dir + "/src";
+    std::string dst_dir = test_dir + "/dst";
+    std::string db_file = test_dir + "/sync.db";
+    fs::create_directories(src_dir + "/nested");
+    fs::create_directories(dst_dir);
+
+    auto write_file = [](const std::string& p, const std::string& data) {
+        std::ofstream f(p, std::ios::binary);
+        f.write(data.data(), data.size());
+    };
+
+    write_file(src_dir + "/file1.txt", "Alpha data 12345");
+    write_file(src_dir + "/file2.txt", "Beta data 67890");
+    write_file(src_dir + "/nested/file3.txt", "Gamma nested data");
+
+    auto src_prov = std::make_shared<utp::LocalProvider>();
+    auto dst_prov = std::make_shared<utp::LocalProvider>();
+    utp::SyncEngine engine(src_prov, dst_prov, "local", "local", db_file);
+
+    // Initial sync: all 3 files should be planned as CREATE
+    auto plan1 = engine.plan_sync(src_dir, dst_dir, utp::SyncDirection::UNIDIRECTIONAL, utp::ConflictPolicy::OVERWRITE);
+    ASSERT_EQ(plan1.files_to_create, 3);
+    ASSERT_EQ(plan1.files_to_update, 0);
+    ASSERT_EQ(plan1.files_to_skip, 0);
+
+    auto res1 = engine.execute_sync(plan1);
+    ASSERT_TRUE(res1.success);
+    ASSERT_EQ(res1.files_transferred, 3);
+    ASSERT_EQ(res1.files_skipped, 0);
+
+    // Verify all files exist in destination and match
+    ASSERT_TRUE(fs::exists(dst_dir + "/file1.txt"));
+    ASSERT_TRUE(fs::exists(dst_dir + "/file2.txt"));
+    ASSERT_TRUE(fs::exists(dst_dir + "/nested/file3.txt"));
+
+    // Second sync immediately after: all 3 files should be identical and SKIPPED!
+    auto plan2 = engine.plan_sync(src_dir, dst_dir, utp::SyncDirection::UNIDIRECTIONAL, utp::ConflictPolicy::OVERWRITE);
+    ASSERT_EQ(plan2.files_to_create, 0);
+    ASSERT_EQ(plan2.files_to_update, 0);
+    ASSERT_EQ(plan2.files_to_skip, 3);
+    ASSERT_EQ(plan2.total_bytes_to_transfer, 0);
+
+    auto res2 = engine.execute_sync(plan2);
+    ASSERT_TRUE(res2.success);
+    ASSERT_EQ(res2.files_transferred, 0);
+    ASSERT_EQ(res2.files_skipped, 3);
+    ASSERT_EQ(res2.bytes_transferred, 0);
+
+    // Delta update: modify file1 in source
+    std::this_thread::sleep_for(std::chrono::seconds(1)); // Ensure mtime differs
+    write_file(src_dir + "/file1.txt", "Alpha data MODIFIED!!");
+
+    auto plan3 = engine.plan_sync(src_dir, dst_dir, utp::SyncDirection::UNIDIRECTIONAL, utp::ConflictPolicy::OVERWRITE);
+    ASSERT_EQ(plan3.files_to_create, 0);
+    ASSERT_EQ(plan3.files_to_update, 1);
+    ASSERT_EQ(plan3.files_to_skip, 2);
+
+    auto res3 = engine.execute_sync(plan3);
+    ASSERT_TRUE(res3.success);
+    ASSERT_EQ(res3.files_transferred, 1);
+    ASSERT_EQ(res3.files_skipped, 2);
+
+    std::error_code ec;
+    fs::remove_all(test_dir, ec);
+}
+
+void test_sync_conflict_policies_suite() {
+    std::string test_dir = "scratch_test_sync_conflicts_" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
+    std::string src_dir = test_dir + "/src";
+    std::string dst_dir = test_dir + "/dst";
+    std::string db_file = test_dir + "/sync.db";
+    fs::create_directories(src_dir);
+    fs::create_directories(dst_dir);
+
+    auto write_file = [](const std::string& p, const std::string& data) {
+        std::ofstream f(p, std::ios::binary);
+        f.write(data.data(), data.size());
+    };
+
+    auto src_prov = std::make_shared<utp::LocalProvider>();
+    auto dst_prov = std::make_shared<utp::LocalProvider>();
+    utp::SyncEngine engine(src_prov, dst_prov, "local", "local", db_file);
+
+    // Policy FAIL: conflict must abort without writing
+    write_file(src_dir + "/conf.txt", "Source content AAA");
+    write_file(dst_dir + "/conf.txt", "Destination content BBB");
+
+    auto plan_fail = engine.plan_sync(src_dir, dst_dir, utp::SyncDirection::UNIDIRECTIONAL, utp::ConflictPolicy::FAIL);
+    ASSERT_TRUE(plan_fail.conflicts_detected > 0);
+    auto res_fail = engine.execute_sync(plan_fail);
+    ASSERT_FALSE(res_fail.success);
+    ASSERT_TRUE(res_fail.errors.size() > 0);
+
+    // Policy SKIP: conflict is skipped, destination unchanged
+    auto plan_skip = engine.plan_sync(src_dir, dst_dir, utp::SyncDirection::UNIDIRECTIONAL, utp::ConflictPolicy::SKIP);
+    auto res_skip = engine.execute_sync(plan_skip);
+    ASSERT_TRUE(res_skip.success);
+    ASSERT_EQ(res_skip.files_skipped, 1);
+    ASSERT_EQ(res_skip.files_transferred, 0);
+
+    // Policy OVERWRITE: source replaces destination
+    auto plan_ow = engine.plan_sync(src_dir, dst_dir, utp::SyncDirection::UNIDIRECTIONAL, utp::ConflictPolicy::OVERWRITE);
+    auto res_ow = engine.execute_sync(plan_ow);
+    ASSERT_TRUE(res_ow.success);
+    ASSERT_EQ(res_ow.files_transferred, 1);
+    ASSERT_EQ(res_ow.conflicts_resolved, 1);
+
+    std::error_code ec;
+    fs::remove_all(test_dir, ec);
+}
+
+void test_sync_bidirectional_suite() {
+    std::string test_dir = "scratch_test_sync_bidi_" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
+    std::string src_dir = test_dir + "/src";
+    std::string dst_dir = test_dir + "/dst";
+    std::string db_file = test_dir + "/sync.db";
+    fs::create_directories(src_dir);
+    fs::create_directories(dst_dir);
+
+    auto write_file = [](const std::string& p, const std::string& data) {
+        std::ofstream f(p, std::ios::binary);
+        f.write(data.data(), data.size());
+    };
+
+    write_file(src_dir + "/file_from_src.txt", "Hello from Source");
+    write_file(dst_dir + "/file_from_dst.txt", "Greetings from Destination");
+
+    auto src_prov = std::make_shared<utp::LocalProvider>();
+    auto dst_prov = std::make_shared<utp::LocalProvider>();
+    utp::SyncEngine engine(src_prov, dst_prov, "local", "local", db_file);
+
+    auto plan = engine.plan_sync(src_dir, dst_dir, utp::SyncDirection::BIDIRECTIONAL, utp::ConflictPolicy::OVERWRITE);
+    ASSERT_EQ(plan.files_to_create, 2);
+
+    auto res = engine.execute_sync(plan);
+    ASSERT_TRUE(res.success);
+    ASSERT_EQ(res.files_transferred, 2);
+
+    // Both directories must now contain both files!
+    ASSERT_TRUE(fs::exists(src_dir + "/file_from_src.txt"));
+    ASSERT_TRUE(fs::exists(src_dir + "/file_from_dst.txt"));
+    ASSERT_TRUE(fs::exists(dst_dir + "/file_from_src.txt"));
+    ASSERT_TRUE(fs::exists(dst_dir + "/file_from_dst.txt"));
+
+    // Check events in SQLite ledger
+    utp::StateManager sm(db_file);
+    auto events = sm.get_events(plan.id, 50);
+    ASSERT_TRUE(has_event_(events, utp::EventType::SYNC_STARTED));
+    ASSERT_TRUE(has_event_(events, utp::EventType::SYNC_PLAN_READY));
+    ASSERT_TRUE(has_event_(events, utp::EventType::SYNC_COMPLETED));
+
+    std::error_code ec;
+    fs::remove_all(test_dir, ec);
+}
+
 int main() {
     std::cout << "\n" T_BOLD T_CYAN "╔════════════════════════════════════════════════════════════════╗\n";
     std::cout << "║       Universal Cloud Transfer Protocol (UTP) Test Suite       ║\n";
@@ -998,6 +1163,9 @@ int main() {
     run_test("Definition-of-Done (P4)", "kill -9 → resume → SHA-256 match", test_definition_of_done_suite);
     run_test("Pipeline Performance", "100MB Zero-Disk In-Memory Streaming Throughput", test_performance_pipeline_suite);
     run_test("Phase 3 Security", "Secret Hygiene & API Auth Guard", test_phase3_security_and_api_auth_suite);
+    run_test("Phase 6 Delta Sync", "Delta Change Detection & Unchanged Skip (0 bytes)", test_sync_delta_detection_suite);
+    run_test("Phase 6 Conflict Matrix", "Resolution Policies (FAIL, OVERWRITE, SKIP)", test_sync_conflict_policies_suite);
+    run_test("Phase 6 Bidirectional", "Two-way Reconciliation & Ledger Events", test_sync_bidirectional_suite);
 
     std::cout << "\n" T_BOLD "─── Evaluation Summary ───" T_RESET "\n";
     std::cout << "  Passed: " T_GREEN << g_tests_passed << T_RESET "\n";
