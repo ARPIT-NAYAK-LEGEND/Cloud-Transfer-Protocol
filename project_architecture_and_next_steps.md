@@ -44,6 +44,7 @@ In accordance with strict MVP discipline (§12 of `CLAUDE.md`), UTP surfaces are
 | **Security Hygiene** | Secret scanning & token isolation | **Core MVP (Production)** | Phase 3 Zero client secret leakage (`rg "g_sec\|o_sec"` = 0) |
 | **CI / CD Pipeline** | GitHub Actions & Docker build | **Core MVP (Production)** | Phase 4 16-suite test suite + automated DoD on every PR |
 | **Folder Sync Engine** | `utp sync <src> <dest>` | **Core MVP (Production)** | Phase 6 Delta Change Detection (0-byte skip) + 5 Conflict Policies + Bidirectional |
+| **Multi-Destination Fan-Out** | `utp route <src> <d1> <d2>...` | **Core MVP (Production)** | Phase 7 Zero-Disk Fan-Out Streaming + ALL_OR_NOTHING & BEST_EFFORT Policies |
 | **REST Daemon (`utpd`)** | REST API (`/api/transfers`) | *Experimental (Post-MVP)* | Phase 5 Marked with `X-UTP-Surface: experimental` |
 | **Web Dashboard** | Browser UI (`web/`) | *Experimental (Post-MVP)* | Phase 5 Marked with `[EXPERIMENTAL PREVIEW]` |
 | **Python SDK** | `utp-client` (`sdk/python/`) | *Experimental (Post-MVP)* | Phase 5 Beta package targeting experimental daemon API |
@@ -54,42 +55,49 @@ In accordance with strict MVP discipline (§12 of `CLAUDE.md`), UTP surfaces are
 ## 🚀 Phase 6: Advanced Folder Synchronization & Delta Sync (Accomplished)
 
 Delivered in v2.6.0:
-1. **Delta Change Detection**:
-   - Compares directory trees across endpoints using relative path hierarchies, file sizes, modification timestamps (`mtime`), and cryptographic hashes (`hash`).
-   - Identical files are classified as `SKIP`, guaranteeing **0 bytes transferred** across networks for unchanged files.
-2. **Conflict Resolution Matrix**:
-   - 5 configurable policies: `FAIL`, `OVERWRITE`, `RENAME`, `SKIP`, `NEWER_WINS`.
-   - Handles colliding files cleanly, including timestamp comparison and collision renaming (`.conflict.<timestamp>`).
-3. **Reconciliation Modes**:
-   - `UNIDIRECTIONAL`: One-way push/mirror synchronization from source to destination.
-   - `BIDIRECTIONAL`: Two-way reconciliation synchronizing new and updated files between both endpoints.
-4. **Resilience & State Persistence**:
-   - SQLite tables `sync_sessions` and `sync_items` track sync sessions and item states in WAL mode.
-   - §7 Event Stream emissions: `SYNC_STARTED`, `SYNC_PLAN_READY`, `SYNC_ITEM_COMPLETED`, `SYNC_CONFLICT_RESOLVED`, `SYNC_COMPLETED`, `SYNC_FAILED`.
-5. **CLI Integration**:
-   - `utp sync <src> <dest> [--policy <policy>] [-b|--bidirectional] [-n|--dry-run]`
-   - Visual terminal UI reporting sync plans, item breakdown, and progress bars.
-6. **Automated Test Coverage**:
+1. **Delta Change Detection**: Compares trees by relative path hierarchies, file sizes, modification timestamps (`mtime`), and cryptographic hashes (`hash`). Unchanged files skip with 0 bytes transferred.
+2. **Conflict Resolution Matrix**: 5 configurable policies: `FAIL`, `OVERWRITE`, `RENAME`, `SKIP`, `NEWER_WINS`.
+3. **Reconciliation Modes**: `UNIDIRECTIONAL` (mirror/push) and `BIDIRECTIONAL` (two-way merge).
+4. **Resilience & State Persistence**: SQLite `sync_sessions` and `sync_items` tables in WAL mode with §7 event stream.
+5. **CLI Integration**: `utp sync <src> <dest> [--policy <policy>] [-b|--bidirectional] [-n|--dry-run]`.
+6. **Automated Test Coverage**: 3 dedicated test suites added in `tests/test_runner.cpp`.
+
+---
+
+## 🚀 Phase 7: Multi-Destination Routing & Fan-Out Streaming (Accomplished)
+
+Delivered in v2.6.0:
+1. **Zero-Disk Shared Memory Fan-Out**:
+   - Single-source read: bytes are read once from the source endpoint into volatile RAM ring buffers and broadcast in parallel across TLS 1.3 socket streams to $N$ destination cloud targets.
+   - Strict memory discipline (§10): No disk staging; buffers are reclaimed as destination workers commit chunks.
+2. **Configurable Fault-Tolerance Policies**:
+   - `ALL_OR_NOTHING`: If any target fails, all destination upload sessions are aborted (`abort()`) and changes rolled back.
+   - `BEST_EFFORT`: Surviving destinations continue streaming to completion and commit even if one target encounters quota or network errors.
+3. **Multi-Destination SQLite Persistence**:
+   - Dedicated `multi_transfers` and `multi_destinations` tables track multi-target progression, per-destination byte counters, and independent SHA-256 hashes.
+   - §7 Event stream: `MULTI_TRANSFER_STARTED`, `MULTI_DEST_CHUNK_COMPLETED`, `MULTI_DEST_COMPLETED`, `MULTI_DEST_FAILED`, `MULTI_TRANSFER_COMPLETED`, `MULTI_TRANSFER_FAILED`.
+4. **CLI Integration**:
+   - `utp route <src> <d1> <d2> [d3...] [--policy <ALL_OR_NOTHING|BEST_EFFORT>]`
+   - Also supported directly via `utp transfer <src> <d1> <d2>...`
+   - Visual terminal UI with per-destination verification reporting.
+5. **Automated Test Coverage**:
    - 3 dedicated test suites added to `tests/test_runner.cpp`:
-     - `test_sync_delta_detection_suite` (delta detection & unchanged skip)
-     - `test_sync_conflict_policies_suite` (FAIL, OVERWRITE, SKIP policy validation)
-     - `test_sync_bidirectional_suite` (two-way merge & event lifecycle verification)
-   - Total test suites: **19/19 passing (100% green)**.
+     - `test_multi_dest_fanout_suite` (1 source -> 3 destinations simultaneous broadcast + SHA-256 validation)
+     - `test_multi_dest_all_or_nothing_policy_suite` (Simulated destination failure -> automatic rollback of peer target)
+     - `test_multi_dest_best_effort_policy_suite` (Partial failure -> surviving target commits successfully)
+   - Total test suites: **22/22 passing (100% green)**.
 
 ---
 
 ## Active Status & Next Roadmap: v2.6.0
 
-With Phase 6 complete, the remaining focus areas for **v2.6.0** are:
+With Phases 6 & 7 complete, the remaining focus areas for **v2.6.0** are:
 
-### 1. Multi-Destination Routing (Next Up)
-- Stream a single source file to multiple cloud destinations simultaneously via shared memory fan-out buffers (e.g., S3 ➔ Google Drive + OneDrive in a single pass).
-- Shared memory buffer ring broadcasting chunks to N destination worker threads.
-
-### 2. Native TypeScript SDK
+### 1. Native TypeScript SDK (Next Up)
 - Publish `@utp/client` on npm to accompany `utp-client` on PyPI for Node.js and browser integration.
 - TypeScript definitions, event streaming, and native promises.
 
-### 3. Background Transfer Daemon Mode
+### 2. Background Transfer Daemon Mode
 - `utp daemon start / stop / status` to run the daemon server natively as a system service (Windows Service / systemd unit / launchd).
+
 

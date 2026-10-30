@@ -50,3 +50,17 @@ The `SyncEngine` extends UTP with directory-level synchronization across any two
 ### 4.2 Sync Ledger Schema
 Synchronization sessions and item-level progression are tracked in SQLite via `sync_sessions` and `sync_items` tables with full WAL-mode crash resilience.
 
+## 5. Multi-Destination Routing & Fan-Out Streaming Pipeline
+
+### 5.1 Architecture
+The `MultiEngine` provides zero-disk concurrent fan-out streaming:
+- **Single Source Read**: Bytes are fetched once from the source provider into a shared volatile RAM buffer ring.
+- **Concurrent Broadcast**: Chunks are dispatched in parallel to $N$ destination storage providers simultaneously across TLS 1.3 socket streams.
+- **Strict Memory Bounding (§10)**: Memory consumption is strictly bounded to in-flight chunks (no disk staging). Buffers are released as soon as all active destination workers finish writing.
+- **Fault-Tolerance Policies**:
+  - `ALL_OR_NOTHING`: If any destination fails, all active destination upload sessions are aborted (`abort()`) and partial state is rolled back.
+  - `BEST_EFFORT`: If a destination encounters an unrecoverable failure (e.g. quota, network), surviving destinations continue streaming to completion and commit.
+
+### 5.2 Ledger Schema
+Multi-destination sessions and target progression are persisted in SQLite via `multi_transfers` and `multi_destinations` tables.
+

@@ -45,6 +45,7 @@ UTP adheres to strict MVP scope discipline (§12 of `CLAUDE.md`). Surfaces are e
 | **OneDrive** | `onedrive://` provider | **Core MVP (Production)** | OAuth2 + Large Upload Session Verified |
 | **CLI & TUI Engine** | `utp transfer`, `resume`, `pause`, `status` | **Core MVP (Production)** | End-to-End Terminal UI & SHA-256 Match |
 | **Folder Sync Engine** | `utp sync <src> <dest>` | **Core MVP (Production)** | Phase 6 Delta Change Detection (0 bytes skip) + 5 Conflict Policies |
+| **Multi-Destination Fan-Out** | `utp route <src> <d1> <d2>...` | **Core MVP (Production)** | Phase 7 Zero-Disk Fan-Out Streaming + Concurrent Broadcast |
 | **State Persistence** | SQLite WAL ledger (`utp.db`) | **Core MVP (Production)** | Crash-Resilient Upsert & Event Stream |
 | **Daemon Server (`utpd`)** | REST API (`/api/transfers`) | *Experimental (Post-MVP)* | Marked `X-UTP-Surface: experimental` |
 | **Web Dashboard** | Browser UI (`web/`) | *Experimental (Post-MVP)* | Preview UI for Daemon API |
@@ -156,7 +157,17 @@ utp sync file://data s3://bucket/data -n
 utp sync file://data s3://bucket/data --policy newer_wins
 ```
 
-### 4. Resume Paused Transfers
+### 4. Multi-Destination Routing & Fan-Out Streaming
+Stream a single source file to multiple cloud destinations simultaneously via shared memory fan-out buffers in a single read pass:
+```bash
+# Stream from AWS S3 simultaneously to Google Drive AND OneDrive
+utp route s3://bucket/dataset.tar.gz gdrive://backups/dataset.tar.gz onedrive://archives/dataset.tar.gz
+
+# Fault-tolerant fan-out: surviving destinations continue even if one fails
+utp route file://firmware.bin s3://primary/firmware.bin b2://backup/firmware.bin --policy best_effort
+```
+
+### 5. Resume Paused Transfers
 If a transfer is interrupted by network failure or reboot:
 ```bash
 utp resume <transfer_id>

@@ -161,3 +161,44 @@ CREATE TABLE IF NOT EXISTS sync_items (
 6. **`SYNC_ITEM_COMPLETED`**: Item status updated in ledger.
 7. **`SYNC_COMPLETED` / `SYNC_FAILED`**: Session status finalized in `sync_sessions` and emitted to event ledger.
 
+---
+
+## 6. Multi-Destination Fan-Out Lifecycle
+
+Multi-destination streaming broadcasts chunks from one source to multiple destinations simultaneously via `MultiEngine`:
+
+### Multi-Destination Ledger Schema
+
+```sql
+CREATE TABLE IF NOT EXISTS multi_transfers (
+    id TEXT PRIMARY KEY,
+    source_uri TEXT NOT NULL,
+    policy TEXT NOT NULL,
+    status TEXT NOT NULL,
+    target_count INTEGER NOT NULL,
+    total_bytes INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS multi_destinations (
+    multi_id TEXT NOT NULL,
+    dest_index INTEGER NOT NULL,
+    dest_uri TEXT NOT NULL,
+    status TEXT NOT NULL,
+    bytes_transferred INTEGER DEFAULT 0,
+    error TEXT DEFAULT '',
+    sha256 TEXT DEFAULT '',
+    PRIMARY KEY (multi_id, dest_index)
+);
+```
+
+### Event Lifecycle Flow
+1. **`MULTI_TRANSFER_STARTED`**: Initialized with target count, total size, and policy (`ALL_OR_NOTHING` or `BEST_EFFORT`).
+2. **Session Negotiation**: Write sessions opened concurrently across all target providers.
+3. **Bounded Fan-Out Streaming**: Each chunk is read once into RAM and written in parallel to all active targets.
+4. **`MULTI_DEST_CHUNK_COMPLETED`**: Emitted as each chunk is committed across destination sockets.
+5. **`MULTI_DEST_COMPLETED` / `MULTI_DEST_FAILED`**: Individual destination outcomes recorded with SHA-256 and commit status.
+6. **`MULTI_TRANSFER_COMPLETED` / `MULTI_TRANSFER_FAILED`**: Overall transfer marked completed or failed according to selected policy.
+
+
