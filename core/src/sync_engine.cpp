@@ -5,6 +5,7 @@
 #include <sstream>
 #include <iomanip>
 #include <iostream>
+#include <filesystem>
 
 namespace utp {
 
@@ -207,7 +208,8 @@ SyncPlan SyncEngine::plan_sync(const std::string& src_root,
             const auto& df = dest_map[rel];
 
             bool size_equal = (sf.size == df.size);
-            bool mtime_equal = (sf.mtime != 0 && df.mtime != 0 && sf.mtime == df.mtime);
+            bool mtime_equal = (sf.mtime != 0 && df.mtime != 0 &&
+                                std::abs(static_cast<int64_t>(sf.mtime) - static_cast<int64_t>(df.mtime)) <= 1);
 
             if (size_equal && (mtime_equal || (sf.mtime == 0 && df.mtime == 0))) {
                 // Identical file: SKIP (zero byte transfer!)
@@ -367,6 +369,11 @@ SyncResult SyncEngine::execute_sync(const SyncPlan& plan,
                     });
                 result.files_transferred++;
                 result.bytes_transferred += item.dest_size;
+                if ((src_scheme_ == "file" || src_scheme_ == "local") && item.dest_mtime > 0) {
+                    std::error_code ec;
+                    auto sctp = std::chrono::system_clock::from_time_t(item.dest_mtime);
+                    std::filesystem::last_write_time(item.target_path, std::chrono::file_clock::from_sys(sctp), ec);
+                }
             } else {
                 // Standard direction: Source -> Destination
                 Engine engine(source_, dest_, db_path_);
@@ -376,6 +383,11 @@ SyncResult SyncEngine::execute_sync(const SyncPlan& plan,
                     });
                 result.files_transferred++;
                 result.bytes_transferred += item.src_size;
+                if ((dest_scheme_ == "file" || dest_scheme_ == "local") && item.src_mtime > 0) {
+                    std::error_code ec;
+                    auto sctp = std::chrono::system_clock::from_time_t(item.src_mtime);
+                    std::filesystem::last_write_time(item.target_path, std::chrono::file_clock::from_sys(sctp), ec);
+                }
             }
 
             if (item.action == SyncActionType::UPDATE) {

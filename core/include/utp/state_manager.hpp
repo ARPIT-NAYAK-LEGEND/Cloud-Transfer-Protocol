@@ -3,6 +3,7 @@
 #include "utp/types.hpp"
 #include "utp/events.hpp"
 #include "utp/sync_types.hpp"
+#include "utp/multi_types.hpp"
 #include <string>
 #include <vector>
 #include <memory>
@@ -59,6 +60,11 @@ public:
     void save_sync_plan(const SyncPlan& plan);
     void update_sync_item_status(const std::string& sync_id, const std::string& rel_path, const std::string& status, const std::string& error = "");
     void complete_sync(const std::string& sync_id, uint64_t transferred_count, uint64_t skipped_count, uint64_t conflicts_count, uint64_t bytes_transferred);
+
+    // Phase 7: Multi-destination fan-out persistence
+    void create_multi_transfer(const std::string& multi_id, const std::string& source_uri, MultiTransferPolicy policy, const std::vector<DestinationTarget>& targets, uint64_t total_bytes);
+    void update_multi_dest_progress(const std::string& multi_id, size_t dest_index, uint64_t bytes_transferred, const std::string& status, const std::string& error = "", const std::string& sha256 = "");
+    void complete_multi_transfer(const std::string& multi_id, bool overall_success);
 
 private:
     sqlite3* db_{nullptr};

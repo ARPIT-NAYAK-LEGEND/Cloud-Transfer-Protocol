@@ -27,6 +27,12 @@ enum class EventType {
     SYNC_CONFLICT_RESOLVED,
     SYNC_COMPLETED,
     SYNC_FAILED,
+    MULTI_TRANSFER_STARTED,
+    MULTI_DEST_CHUNK_COMPLETED,
+    MULTI_DEST_COMPLETED,
+    MULTI_DEST_FAILED,
+    MULTI_TRANSFER_COMPLETED,
+    MULTI_TRANSFER_FAILED
 };
 
 struct Event {
@@ -55,6 +61,12 @@ inline const char* event_type_to_string(EventType type) {
         case EventType::SYNC_CONFLICT_RESOLVED: return "SYNC_CONFLICT_RESOLVED";
         case EventType::SYNC_COMPLETED:      return "SYNC_COMPLETED";
         case EventType::SYNC_FAILED:         return "SYNC_FAILED";
+        case EventType::MULTI_TRANSFER_STARTED: return "MULTI_TRANSFER_STARTED";
+        case EventType::MULTI_DEST_CHUNK_COMPLETED: return "MULTI_DEST_CHUNK_COMPLETED";
+        case EventType::MULTI_DEST_COMPLETED: return "MULTI_DEST_COMPLETED";
+        case EventType::MULTI_DEST_FAILED:   return "MULTI_DEST_FAILED";
+        case EventType::MULTI_TRANSFER_COMPLETED: return "MULTI_TRANSFER_COMPLETED";
+        case EventType::MULTI_TRANSFER_FAILED: return "MULTI_TRANSFER_FAILED";
     }
     return "UNKNOWN";
 }
@@ -77,6 +89,12 @@ inline EventType event_type_from_string(const std::string& str) {
     if (str == "SYNC_CONFLICT_RESOLVED") return EventType::SYNC_CONFLICT_RESOLVED;
     if (str == "SYNC_COMPLETED")    return EventType::SYNC_COMPLETED;
     if (str == "SYNC_FAILED")       return EventType::SYNC_FAILED;
+    if (str == "MULTI_TRANSFER_STARTED") return EventType::MULTI_TRANSFER_STARTED;
+    if (str == "MULTI_DEST_CHUNK_COMPLETED") return EventType::MULTI_DEST_CHUNK_COMPLETED;
+    if (str == "MULTI_DEST_COMPLETED") return EventType::MULTI_DEST_COMPLETED;
+    if (str == "MULTI_DEST_FAILED")   return EventType::MULTI_DEST_FAILED;
+    if (str == "MULTI_TRANSFER_COMPLETED") return EventType::MULTI_TRANSFER_COMPLETED;
+    if (str == "MULTI_TRANSFER_FAILED") return EventType::MULTI_TRANSFER_FAILED;
     return EventType::TRANSFER_FAILED; // unknown strings must never read as success
 }
 

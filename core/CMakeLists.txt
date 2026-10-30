@@ -7,6 +7,7 @@ add_library(utp_core STATIC
     src/chunk_planner.cpp
     src/state_manager.cpp
     src/sync_engine.cpp
+    src/multi_engine.cpp
 )
 
 target_include_directories(utp_core

@@ -175,6 +175,26 @@ void StateManager::init_schema() {
             error TEXT DEFAULT '',
             PRIMARY KEY (sync_id, rel_path)
         );
+        CREATE TABLE IF NOT EXISTS multi_transfers (
+            id TEXT PRIMARY KEY,
+            source_uri TEXT NOT NULL,
+            policy TEXT NOT NULL,
+            status TEXT NOT NULL,
+            target_count INTEGER NOT NULL,
+            total_bytes INTEGER NOT NULL,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS multi_destinations (
+            multi_id TEXT NOT NULL,
+            dest_index INTEGER NOT NULL,
+            dest_uri TEXT NOT NULL,
+            status TEXT NOT NULL,
+            bytes_transferred INTEGER DEFAULT 0,
+            error TEXT DEFAULT '',
+            sha256 TEXT DEFAULT '',
+            PRIMARY KEY (multi_id, dest_index)
+        );
     )";
     execute(schema);
 
@@ -735,6 +755,78 @@ void StateManager::complete_sync(const std::string& sync_id, uint64_t transferre
     sqlite3_bind_int64(stmt, 4, bytes_transferred);
     sqlite3_bind_int64(stmt, 5, now);
     sqlite3_bind_text(stmt, 6, sync_id.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+}
+
+void StateManager::create_multi_transfer(const std::string& multi_id, const std::string& source_uri, MultiTransferPolicy policy, const std::vector<DestinationTarget>& targets, uint64_t total_bytes) {
+    std::lock_guard<std::recursive_mutex> lock(g_db_mutex);
+    execute("BEGIN TRANSACTION;");
+    try {
+        int64_t now = std::chrono::system_clock::now().time_since_epoch().count();
+        const char* s_sql = "INSERT OR REPLACE INTO multi_transfers "
+                            "(id, source_uri, policy, status, target_count, total_bytes, created_at, updated_at) "
+                            "VALUES (?, ?, ?, 'TRANSFERRING', ?, ?, ?, ?);";
+        sqlite3_stmt* stmt;
+        if (sqlite3_prepare_v2(db_, s_sql, -1, &stmt, nullptr) == SQLITE_OK) {
+            sqlite3_bind_text(stmt, 1, multi_id.c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(stmt, 2, source_uri.c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_text(stmt, 3, multi_transfer_policy_to_string(policy), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_int64(stmt, 4, targets.size());
+            sqlite3_bind_int64(stmt, 5, total_bytes);
+            sqlite3_bind_int64(stmt, 6, now);
+            sqlite3_bind_int64(stmt, 7, now);
+            sqlite3_step(stmt);
+            sqlite3_finalize(stmt);
+        }
+
+        const char* d_sql = "INSERT OR REPLACE INTO multi_destinations "
+                            "(multi_id, dest_index, dest_uri, status, bytes_transferred, error, sha256) "
+                            "VALUES (?, ?, ?, 'PENDING', 0, '', '');";
+        sqlite3_stmt* dstmt;
+        if (sqlite3_prepare_v2(db_, d_sql, -1, &dstmt, nullptr) == SQLITE_OK) {
+            for (size_t i = 0; i < targets.size(); ++i) {
+                sqlite3_reset(dstmt);
+                std::string dest_uri = targets[i].scheme + "://" + targets[i].path;
+                sqlite3_bind_text(dstmt, 1, multi_id.c_str(), -1, SQLITE_TRANSIENT);
+                sqlite3_bind_int64(dstmt, 2, i);
+                sqlite3_bind_text(dstmt, 3, dest_uri.c_str(), -1, SQLITE_TRANSIENT);
+                sqlite3_step(dstmt);
+            }
+            sqlite3_finalize(dstmt);
+        }
+        execute("COMMIT;");
+    } catch (...) {
+        execute("ROLLBACK;");
+        throw;
+    }
+}
+
+void StateManager::update_multi_dest_progress(const std::string& multi_id, size_t dest_index, uint64_t bytes_transferred, const std::string& status, const std::string& error, const std::string& sha256) {
+    std::lock_guard<std::recursive_mutex> lock(g_db_mutex);
+    const char* sql = "UPDATE multi_destinations SET bytes_transferred = ?, status = ?, error = ?, sha256 = ? "
+                      "WHERE multi_id = ? AND dest_index = ?;";
+    sqlite3_stmt* stmt;
+    if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) return;
+    sqlite3_bind_int64(stmt, 1, bytes_transferred);
+    sqlite3_bind_text(stmt, 2, status.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, error.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 4, sha256.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 5, multi_id.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int64(stmt, 6, dest_index);
+    sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+}
+
+void StateManager::complete_multi_transfer(const std::string& multi_id, bool overall_success) {
+    std::lock_guard<std::recursive_mutex> lock(g_db_mutex);
+    int64_t now = std::chrono::system_clock::now().time_since_epoch().count();
+    const char* sql = "UPDATE multi_transfers SET status = ?, updated_at = ? WHERE id = ?;";
+    sqlite3_stmt* stmt;
+    if (sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr) != SQLITE_OK) return;
+    sqlite3_bind_text(stmt, 1, overall_success ? "COMPLETED" : "FAILED", -1, SQLITE_TRANSIENT);
+    sqlite3_bind_int64(stmt, 2, now);
+    sqlite3_bind_text(stmt, 3, multi_id.c_str(), -1, SQLITE_TRANSIENT);
     sqlite3_step(stmt);
     sqlite3_finalize(stmt);
 }
