@@ -121,7 +121,7 @@ PARTIAL_PROGRESS=0
 for i in $(seq 1 100); do
     if [ -f "$DB_FILE" ]; then
         if command -v sqlite3 >/dev/null 2>&1; then
-            COMPLETED_CHUNKS=$(sqlite3 "$DB_FILE" "SELECT count(*) FROM chunks WHERE transfer_id='$TRANSFER_ID' AND state=1;" 2>/dev/null || echo 0)
+            COMPLETED_CHUNKS=$(sqlite3 "$DB_FILE" "SELECT count(*) FROM chunks WHERE transfer_id='$TRANSFER_ID' AND (state='COMPLETE' OR state=1);" 2>/dev/null || echo 0)
             if [ "$COMPLETED_CHUNKS" -ge 1 ]; then
                 PARTIAL_PROGRESS=$COMPLETED_CHUNKS
                 break
@@ -145,8 +145,8 @@ echo -e "      Process $UTP_PID terminated abruptly."
 # Verify SQLite ledger state shows partial progress (neither empty nor completed)
 if command -v sqlite3 >/dev/null 2>&1 && [ -f "$DB_FILE" ]; then
     STATE_BEFORE=$(sqlite3 "$DB_FILE" "SELECT state FROM transfers WHERE id='$TRANSFER_ID';" 2>/dev/null || echo "UNKNOWN")
-    CHUNKS_DONE=$(sqlite3 "$DB_FILE" "SELECT count(*) FROM chunks WHERE transfer_id='$TRANSFER_ID' AND state=1;" 2>/dev/null || echo 0)
-    CHUNKS_REMAINING=$(sqlite3 "$DB_FILE" "SELECT count(*) FROM chunks WHERE transfer_id='$TRANSFER_ID' AND state!=1;" 2>/dev/null || echo 0)
+    CHUNKS_DONE=$(sqlite3 "$DB_FILE" "SELECT count(*) FROM chunks WHERE transfer_id='$TRANSFER_ID' AND (state='COMPLETE' OR state=1);" 2>/dev/null || echo 0)
+    CHUNKS_REMAINING=$(sqlite3 "$DB_FILE" "SELECT count(*) FROM chunks WHERE transfer_id='$TRANSFER_ID' AND state!='COMPLETE' AND state!=1;" 2>/dev/null || echo 0)
     echo -e "      Ledger inspection before resume: State=${YELLOW}$STATE_BEFORE${NC}, Done=${GREEN}$CHUNKS_DONE${NC}, Remaining=${YELLOW}$CHUNKS_REMAINING${NC}"
     if [ "$STATE_BEFORE" = "COMPLETED" ]; then
         echo -e "${RED}Error: Transfer had already completed before kill -9 was sent!${NC}"
@@ -173,7 +173,7 @@ fi
 # Verify final SQLite ledger state
 if command -v sqlite3 >/dev/null 2>&1 && [ -f "$DB_FILE" ]; then
     FINAL_STATE=$(sqlite3 "$DB_FILE" "SELECT state FROM transfers WHERE id='$TRANSFER_ID';" 2>/dev/null || echo "")
-    REMAINING_AFTER=$(sqlite3 "$DB_FILE" "SELECT count(*) FROM chunks WHERE transfer_id='$TRANSFER_ID' AND state!=1;" 2>/dev/null || echo 0)
+    REMAINING_AFTER=$(sqlite3 "$DB_FILE" "SELECT count(*) FROM chunks WHERE transfer_id='$TRANSFER_ID' AND state!='COMPLETE' AND state!=1;" 2>/dev/null || echo 0)
     echo -e "      Ledger inspection after resume: Final State=${GREEN}$FINAL_STATE${NC}, Incomplete Chunks=$REMAINING_AFTER"
     if [ "$FINAL_STATE" != "COMPLETED" ]; then
         echo -e "${RED}Error: Final transfer state is not COMPLETED (got: '$FINAL_STATE').${NC}"
