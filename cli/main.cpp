@@ -15,6 +15,8 @@
 #include "utp/events.hpp"
 #include "utp/sync_engine.hpp"
 #include "utp/sync_types.hpp"
+#include "utp/multi_engine.hpp"
+#include "utp/multi_types.hpp"
 #include <iostream>
 #include <ctime>
 #include <memory>
@@ -230,6 +232,7 @@ void print_usage() {
     std::cout << C_VIOLET GLYPH_STEP C_RESET "  " C_WHITE C_BOLD "Commands & Usage:" C_RESET "\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "utp transfer" C_RESET "                     Launch interactive visual TUI mode\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "utp transfer" C_RESET " <src> <dest>       Direct cloud-to-cloud pipeline\n";
+    std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "utp route" C_RESET "    <src> <d1> <d2>... Multi-destination fan-out broadcast streaming\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "utp sync" C_RESET "     <src> <dest>       Delta folder synchronization & conflict policies\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "utp resume" C_RESET "   <transfer_id>      Resume paused/failed transfer state\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "utp pause" C_RESET "    <transfer_id>      Stop between chunks, keep all progress\n";
@@ -252,7 +255,7 @@ void print_usage() {
     std::cout << C_SPINE GLYPH_SPINE C_RESET "      " C_VIOLET "webdav://" C_RESET "<path>          Nextcloud, ownCloud & WebDAV NAS\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "\n";
     std::cout << C_VIOLET GLYPH_STEP C_RESET "  " C_WHITE C_BOLD "Options:" C_RESET "\n";
-    std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED "--policy" C_RESET " <policy>           Conflict policy (FAIL, OVERWRITE, RENAME, SKIP, NEWER_WINS)\n";
+    std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED "--policy" C_RESET " <policy>           Policy (sync: FAIL, OVERWRITE, SKIP; route: ALL_OR_NOTHING, BEST_EFFORT)\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED "--bidirectional" C_RESET ", -b           Bidirectional two-way folder synchronization\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED "--dry-run" C_RESET ", -n                 Preview delta sync plan without transferring bytes\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED "--bandwidth" C_RESET " <bps>           Limit transfer speed (0 = unlimited)\n";
@@ -641,8 +644,8 @@ int main(int argc, char* argv[]) {
     }
 
     try {
-        if (cmd == "transfer") {
-            if (pos_args.size() < 2) {
+        if (cmd == "transfer" || cmd == "route") {
+            if (pos_args.empty() && cmd == "transfer") {
                 // Interactive TUI Mode
                 bool is_initial_launch = true;
                 while (true) {
@@ -693,8 +696,73 @@ int main(int argc, char* argv[]) {
                     }
                 }
                 return 0;
+            } else if (pos_args.size() > 2 || cmd == "route") {
+                // Multi-Destination Routing Mode
+                if (pos_args.size() < 2) {
+                    std::cerr << "\n  " C_RED "✗ Error: Multi-destination transfer requires <source_uri> and at least one <dest_uri>" C_RESET "\n\n";
+                    print_usage();
+                    return 1;
+                }
+                std::string src_str = pos_args[0];
+                Resource src_res = parse_uri(src_str);
+                std::string src_path = src_res.path;
+                if (src_res.scheme == "file" || src_res.scheme == "local") {
+                    if (src_path.empty()) src_path = src_res.host_or_bucket;
+                    else if (!src_res.host_or_bucket.empty()) src_path = src_res.host_or_bucket + "/" + src_path;
+                }
+                auto src_provider = std::shared_ptr<StorageProvider>(create_provider(src_res.scheme, src_res.account));
+                std::string src_label = AccountManager::instance().get_display_name(src_res.scheme, src_res.account);
+
+                std::vector<DestinationTarget> targets;
+                for (size_t i = 1; i < pos_args.size(); ++i) {
+                    std::string dst_str = pos_args[i];
+                    Resource dst_res = parse_uri(dst_str);
+                    std::string dst_path = dst_res.path;
+                    if (dst_res.scheme == "file" || dst_res.scheme == "local") {
+                        if (dst_path.empty()) dst_path = dst_res.host_or_bucket;
+                        else if (!dst_res.host_or_bucket.empty()) dst_path = dst_res.host_or_bucket + "/" + dst_path;
+                    }
+                    auto dst_prov = std::shared_ptr<StorageProvider>(create_provider(dst_res.scheme, dst_res.account));
+                    std::string d_label = AccountManager::instance().get_display_name(dst_res.scheme, dst_res.account);
+                    targets.push_back({dst_res.scheme, dst_path, dst_prov, d_label + " (" + dst_str + ")"});
+                }
+
+                MultiTransferPolicy pol = multi_transfer_policy_from_string(sync_policy);
+                std::string multi_id = custom_id.empty() ? MultiEngine::generate_id() : custom_id;
+
+                std::cout << "\n" C_VIOLET GLYPH_TOP C_RESET "  " C_WHITE C_BOLD "UTP Multi-Destination Routing" C_RESET " " C_MUTED "· 0-Disk Fan-Out Pipeline" C_RESET "\n";
+                std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Multi ID    : " C_CYAN << multi_id << C_RESET "\n";
+                std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Source      : " C_WHITE << src_label << " (" << src_str << ")" C_RESET "\n";
+                std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Policy      : " C_YELLOW << multi_transfer_policy_to_string(pol) << C_RESET "\n";
+                std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Targets     : " C_WHITE << targets.size() << " destinations" C_RESET "\n";
+                for (size_t i = 0; i < targets.size(); ++i) {
+                    std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED "[" << (i + 1) << "] " C_CYAN << targets[i].display_name << C_RESET "\n";
+                }
+                std::cout << C_SPINE GLYPH_SPINE C_RESET "\n";
+
+                MultiEngine multi_engine(src_provider, "utp.db");
+                if (bandwidth_limit > 0) {
+                    multi_engine.set_bandwidth_limit(bandwidth_limit);
+                }
+
+                auto res = multi_engine.transfer(src_res.scheme, src_path, targets, nullptr, pol, multi_id);
+
+                if (res.overall_success) {
+                    std::cout << C_GREEN GLYPH_DONE C_RESET "  " C_GREEN C_BOLD "Multi-destination transfer complete!" C_RESET "\n";
+                } else {
+                    std::cout << C_RED "✘" C_RESET "  " C_RED C_BOLD "Multi-destination transfer failed requirements!" C_RESET "\n";
+                }
+                for (const auto& d : res.destinations) {
+                    if (d.success) {
+                        std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_GREEN "✔ " C_WHITE << d.display_name << C_RESET " · " C_MUTED << format_bytes(d.bytes_transferred) << " · SHA-256: " C_MUTED << (d.sha256.empty() ? "N/A" : d.sha256.substr(0, 16) + "...") << C_RESET "\n";
+                    } else {
+                        std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_RED "✘ " C_WHITE << d.display_name << C_RESET " · " C_RED << d.error << C_RESET "\n";
+                    }
+                }
+                std::cout << C_GREEN GLYPH_END C_RESET "  " C_MUTED "Finished in " C_WHITE << std::fixed << std::setprecision(2) << res.total_duration_seconds << "s" C_RESET "\n\n";
+                return res.overall_success ? 0 : 1;
             } else {
-                // Non-interactive CLI mode with arguments
+                // Non-interactive single-destination CLI mode
                 std::string src_str = pos_args[0];
                 std::string dest_str = pos_args[1];
 
