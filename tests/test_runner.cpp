@@ -28,6 +28,8 @@
 #include "utp/engine.hpp"
 #include "utp/sync_engine.hpp"
 #include "utp/sync_types.hpp"
+#include "utp/multi_engine.hpp"
+#include "utp/multi_types.hpp"
 #include "mock_provider.hpp"
 #include "providers/local/local_provider.hpp"
 
@@ -1142,6 +1144,139 @@ void test_sync_bidirectional_suite() {
     fs::remove_all(test_dir, ec);
 }
 
+class FailingWriteProvider : public utp::LocalProvider {
+public:
+    void write(utp::WriteSession session, uint64_t offset, const uint8_t* buffer, size_t size) override {
+        (void)session; (void)offset; (void)buffer; (void)size;
+        throw std::runtime_error("Simulated disk error: destination write failed");
+    }
+};
+
+void test_multi_dest_fanout_suite() {
+    std::string test_dir = "scratch_test_multi_fanout_" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
+    std::string src_dir = test_dir + "/src";
+    std::string dst_1 = test_dir + "/dst1";
+    std::string dst_2 = test_dir + "/dst2";
+    std::string dst_3 = test_dir + "/dst3";
+    std::string db_file = test_dir + "/multi.db";
+    fs::create_directories(src_dir);
+    fs::create_directories(dst_1);
+    fs::create_directories(dst_2);
+    fs::create_directories(dst_3);
+
+    std::string src_file = src_dir + "/payload.bin";
+    write_pattern_(src_file, 64 * 1024); // 64 KB pattern
+
+    auto src_prov = std::make_shared<utp::LocalProvider>();
+    utp::MultiEngine engine(src_prov, db_file);
+
+    std::vector<utp::DestinationTarget> targets = {
+        {"file", dst_1 + "/payload.bin", std::make_shared<utp::LocalProvider>(), "target_one"},
+        {"file", dst_2 + "/payload.bin", std::make_shared<utp::LocalProvider>(), "target_two"},
+        {"file", dst_3 + "/payload.bin", std::make_shared<utp::LocalProvider>(), "target_three"}
+    };
+
+    auto res = engine.transfer("file", src_file, targets, nullptr, utp::MultiTransferPolicy::ALL_OR_NOTHING);
+    ASSERT_TRUE(res.overall_success);
+    ASSERT_EQ(res.destinations.size(), 3);
+
+    for (size_t i = 0; i < targets.size(); ++i) {
+        ASSERT_TRUE(res.destinations[i].success);
+        ASSERT_TRUE(fs::exists(targets[i].path));
+        ASSERT_TRUE(files_equal_(src_file, targets[i].path));
+        ASSERT_FALSE(res.destinations[i].sha256.empty());
+        ASSERT_EQ(res.destinations[i].sha256, res.destinations[0].sha256);
+    }
+
+    // Check SQLite ledger events
+    utp::StateManager sm(db_file);
+    auto events = sm.get_events(res.multi_id, 50);
+    ASSERT_TRUE(has_event_(events, utp::EventType::MULTI_TRANSFER_STARTED));
+    ASSERT_TRUE(has_event_(events, utp::EventType::MULTI_DEST_COMPLETED));
+    ASSERT_TRUE(has_event_(events, utp::EventType::MULTI_TRANSFER_COMPLETED));
+
+    std::error_code ec;
+    fs::remove_all(test_dir, ec);
+}
+
+void test_multi_dest_all_or_nothing_policy_suite() {
+    std::string test_dir = "scratch_test_multi_aon_" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
+    std::string src_dir = test_dir + "/src";
+    std::string dst_1 = test_dir + "/dst1";
+    std::string dst_2 = test_dir + "/dst2";
+    std::string db_file = test_dir + "/multi.db";
+    fs::create_directories(src_dir);
+    fs::create_directories(dst_1);
+    fs::create_directories(dst_2);
+
+    std::string src_file = src_dir + "/data.bin";
+    write_pattern_(src_file, 32 * 1024);
+
+    auto src_prov = std::make_shared<utp::LocalProvider>();
+    utp::MultiEngine engine(src_prov, db_file);
+
+    std::vector<utp::DestinationTarget> targets = {
+        {"file", dst_1 + "/data.bin", std::make_shared<utp::LocalProvider>(), "good_target"},
+        {"file", dst_2 + "/data.bin", std::make_shared<FailingWriteProvider>(), "bad_target"}
+    };
+
+    auto res = engine.transfer("file", src_file, targets, nullptr, utp::MultiTransferPolicy::ALL_OR_NOTHING);
+    ASSERT_FALSE(res.overall_success);
+    ASSERT_FALSE(res.destinations[1].success);
+
+    // Target 1 must be aborted/cleaned up, not committed
+    ASSERT_FALSE(fs::exists(dst_1 + "/data.bin"));
+
+    // Check SQLite ledger events
+    utp::StateManager sm(db_file);
+    auto events = sm.get_events(res.multi_id, 50);
+    ASSERT_TRUE(has_event_(events, utp::EventType::MULTI_TRANSFER_FAILED));
+
+    std::error_code ec;
+    fs::remove_all(test_dir, ec);
+}
+
+void test_multi_dest_best_effort_policy_suite() {
+    std::string test_dir = "scratch_test_multi_be_" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
+    std::string src_dir = test_dir + "/src";
+    std::string dst_1 = test_dir + "/dst1";
+    std::string dst_2 = test_dir + "/dst2";
+    std::string db_file = test_dir + "/multi.db";
+    fs::create_directories(src_dir);
+    fs::create_directories(dst_1);
+    fs::create_directories(dst_2);
+
+    std::string src_file = src_dir + "/data.bin";
+    write_pattern_(src_file, 32 * 1024);
+
+    auto src_prov = std::make_shared<utp::LocalProvider>();
+    utp::MultiEngine engine(src_prov, db_file);
+
+    std::vector<utp::DestinationTarget> targets = {
+        {"file", dst_1 + "/data.bin", std::make_shared<utp::LocalProvider>(), "good_target"},
+        {"file", dst_2 + "/data.bin", std::make_shared<FailingWriteProvider>(), "bad_target"}
+    };
+
+    auto res = engine.transfer("file", src_file, targets, nullptr, utp::MultiTransferPolicy::BEST_EFFORT);
+    ASSERT_TRUE(res.overall_success); // At least 1 target succeeded
+    ASSERT_TRUE(res.destinations[0].success);
+    ASSERT_FALSE(res.destinations[1].success);
+
+    // Target 1 must be committed and match source
+    ASSERT_TRUE(fs::exists(dst_1 + "/data.bin"));
+    ASSERT_TRUE(files_equal_(src_file, dst_1 + "/data.bin"));
+
+    // Check SQLite ledger events
+    utp::StateManager sm(db_file);
+    auto events = sm.get_events(res.multi_id, 50);
+    ASSERT_TRUE(has_event_(events, utp::EventType::MULTI_DEST_COMPLETED));
+    ASSERT_TRUE(has_event_(events, utp::EventType::MULTI_DEST_FAILED));
+    ASSERT_TRUE(has_event_(events, utp::EventType::MULTI_TRANSFER_COMPLETED));
+
+    std::error_code ec;
+    fs::remove_all(test_dir, ec);
+}
+
 int main() {
     std::cout << "\n" T_BOLD T_CYAN "╔════════════════════════════════════════════════════════════════╗\n";
     std::cout << "║       Universal Cloud Transfer Protocol (UTP) Test Suite       ║\n";
@@ -1166,6 +1301,9 @@ int main() {
     run_test("Phase 6 Delta Sync", "Delta Change Detection & Unchanged Skip (0 bytes)", test_sync_delta_detection_suite);
     run_test("Phase 6 Conflict Matrix", "Resolution Policies (FAIL, OVERWRITE, SKIP)", test_sync_conflict_policies_suite);
     run_test("Phase 6 Bidirectional", "Two-way Reconciliation & Ledger Events", test_sync_bidirectional_suite);
+    run_test("Phase 7 Multi-Dest Fan-Out", "1 Source -> 3 Concurrent Destinations Broadcast", test_multi_dest_fanout_suite);
+    run_test("Phase 7 Policy ALL_OR_NOTHING", "Abort & Rollback on Single Target Failure", test_multi_dest_all_or_nothing_policy_suite);
+    run_test("Phase 7 Policy BEST_EFFORT", "Surviving Destinations Commit on Partial Failure", test_multi_dest_best_effort_policy_suite);
 
     std::cout << "\n" T_BOLD "─── Evaluation Summary ───" T_RESET "\n";
     std::cout << "  Passed: " T_GREEN << g_tests_passed << T_RESET "\n";

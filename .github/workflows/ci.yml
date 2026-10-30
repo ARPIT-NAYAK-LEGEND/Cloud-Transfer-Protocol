@@ -43,7 +43,7 @@ jobs:
           g++ -std=c++20 -O3 -I core/include -I . \
             tests/test_runner.cpp \
             core/src/chunk_planner.cpp core/src/engine.cpp core/src/state_manager.cpp core/src/uri_parser.cpp \
-            core/src/sync_engine.cpp \
+            core/src/sync_engine.cpp core/src/multi_engine.cpp \
             providers/common/http_client.cpp providers/local/local_provider.cpp \
             -o test_runner -lcurl -lssl -lcrypto -lpthread -lsqlite3
           ./test_runner
