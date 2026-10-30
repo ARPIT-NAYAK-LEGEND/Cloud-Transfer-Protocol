@@ -1,3 +1,5 @@
+find_package(OpenSSL REQUIRED COMPONENTS SSL Crypto)
+
 add_executable(utpd main.cpp)
 target_link_libraries(utpd PRIVATE 
     utp_core 
@@ -10,6 +12,7 @@ target_link_libraries(utpd PRIVATE
     utp_providers_webdav
     utp_providers_icloud
     OpenSSL::SSL
+    OpenSSL::Crypto
 )
 if(WIN32)
     target_link_libraries(utpd PRIVATE ws2_32)

@@ -152,6 +152,11 @@ if command -v sqlite3 >/dev/null 2>&1 && [ -f "$DB_FILE" ]; then
         echo -e "${RED}Error: Transfer had already completed before kill -9 was sent!${NC}"
         exit 1
     fi
+    if [ "$STATE_BEFORE" = "FAILED" ]; then
+        echo -e "${RED}Error: Transfer failed before kill -9 could be sent!${NC}"
+        cat "$TEST_DIR/transfer.log"
+        exit 1
+    fi
 fi
 
 # 7. Resume the transfer
@@ -184,6 +189,7 @@ fi
 echo -e "${GREEN}[6/6] Verifying cryptographic integrity (SHA-256)...${NC}"
 if [ ! -f "$DST_FILE" ]; then
     echo -e "${RED}Error: Destination file $DST_FILE does not exist!${NC}"
+    cat "$TEST_DIR/transfer.log"
     exit 1
 fi
 

@@ -108,6 +108,36 @@ static std::string extract_json_value(const std::string& json, const std::string
     return json.substr(pos, end - pos);
 }
 
+static std::string resolve_local_resource_path(const Resource& res) {
+    if (res.path.empty()) {
+        return res.host_or_bucket;
+    }
+    if (!res.host_or_bucket.empty()) {
+        return res.host_or_bucket + "/" + res.path;
+    }
+#ifdef _WIN32
+    if (res.path.length() >= 2 && res.path[1] == ':') {
+        return res.path;
+    }
+    return "/" + res.path;
+#else
+    if (!res.path.empty() && res.path[0] != '/') {
+        return "/" + res.path;
+    }
+    return res.path;
+#endif
+}
+
+static std::string get_resource_path(const Resource& res) {
+    if (res.scheme == "file" || res.scheme == "local") {
+        return resolve_local_resource_path(res);
+    }
+    if (res.path.empty()) {
+        return res.host_or_bucket;
+    }
+    return res.host_or_bucket.empty() ? res.path : (res.host_or_bucket + "/" + res.path);
+}
+
 // Convert TransferState enum to string
 std::string state_to_string(TransferState s) {
     switch(s) {
@@ -228,8 +258,8 @@ int main() {
         if (!src_res.account.empty()) src_scheme += ":" + src_res.account;
         if (!dest_res.account.empty()) dest_scheme += ":" + dest_res.account;
         
-        std::string src_path = (src_res.host_or_bucket.empty() ? "" : (src_res.host_or_bucket + "/")) + src_res.path;
-        std::string dest_path = (dest_res.host_or_bucket.empty() ? "" : (dest_res.host_or_bucket + "/")) + dest_res.path;
+        std::string src_path = get_resource_path(src_res);
+        std::string dest_path = get_resource_path(dest_res);
 
         try {
             auto src_provider = create_provider(src_scheme);

@@ -342,6 +342,36 @@ static std::string format_eta(double elapsed_sec, float progress) {
 //  STREAMING TRANSFER HUD (CLAUDE CODE / HERMES STYLE)
 // ═══════════════════════════════════════════════════════════════════════════════
 
+static std::string resolve_local_resource_path(const Resource& res) {
+    if (res.path.empty()) {
+        return res.host_or_bucket;
+    }
+    if (!res.host_or_bucket.empty()) {
+        return res.host_or_bucket + "/" + res.path;
+    }
+#ifdef _WIN32
+    if (res.path.length() >= 2 && res.path[1] == ':') {
+        return res.path;
+    }
+    return "/" + res.path;
+#else
+    if (!res.path.empty() && res.path[0] != '/') {
+        return "/" + res.path;
+    }
+    return res.path;
+#endif
+}
+
+static std::string get_resource_path(const Resource& res) {
+    if (res.scheme == "file" || res.scheme == "local") {
+        return resolve_local_resource_path(res);
+    }
+    if (res.path.empty()) {
+        return res.host_or_bucket;
+    }
+    return res.host_or_bucket.empty() ? res.path : (res.host_or_bucket + "/" + res.path);
+}
+
 void run_batch_transfer_pool(std::shared_ptr<StorageProvider> src_provider,
                              std::shared_ptr<StorageProvider> dest_provider,
                              const std::vector<TransferItem>& transfers,
@@ -373,7 +403,7 @@ void run_batch_transfer_pool(std::shared_ptr<StorageProvider> src_provider,
     uint64_t total_batch_bytes = 0;
     for (const auto& it : transfers) {
         Resource r = parse_uri(it.src_uri);
-        std::string p = r.path.empty() ? r.host_or_bucket : (r.host_or_bucket + "/" + r.path);
+        std::string p = get_resource_path(r);
         try {
             auto st = src_provider->stat(p);
             total_batch_bytes += st.size;
@@ -491,13 +521,8 @@ void run_batch_transfer_pool(std::shared_ptr<StorageProvider> src_provider,
                 Resource s_res = parse_uri(item.src_uri);
                 Resource d_res = parse_uri(item.dest_uri);
 
-                // Empty host (e.g. file:///rel/path) previously produced a
-                // bogus leading slash ("/rel/path") — keep host-relative or
-                // plain-relative forms intact.
-                std::string s_p = s_res.path.empty() ? s_res.host_or_bucket
-                    : (s_res.host_or_bucket.empty() ? s_res.path : s_res.host_or_bucket + "/" + s_res.path);
-                std::string d_p = d_res.path.empty() ? d_res.host_or_bucket
-                    : (d_res.host_or_bucket.empty() ? d_res.path : d_res.host_or_bucket + "/" + d_res.path);
+                std::string s_p = get_resource_path(s_res);
+                std::string d_p = get_resource_path(d_res);
 
                 // P1.4: pass scheme WITH account context so the engine persists
                 // the full provider identity — `utp resume` then reconstructs
@@ -705,11 +730,7 @@ int main(int argc, char* argv[]) {
                 }
                 std::string src_str = pos_args[0];
                 Resource src_res = parse_uri(src_str);
-                std::string src_path = src_res.path;
-                if (src_res.scheme == "file" || src_res.scheme == "local") {
-                    if (src_path.empty()) src_path = src_res.host_or_bucket;
-                    else if (!src_res.host_or_bucket.empty()) src_path = src_res.host_or_bucket + "/" + src_path;
-                }
+                std::string src_path = get_resource_path(src_res);
                 auto src_provider = std::shared_ptr<StorageProvider>(create_provider(src_res.scheme, src_res.account));
                 std::string src_label = AccountManager::instance().get_display_name(src_res.scheme, src_res.account);
 
@@ -717,11 +738,7 @@ int main(int argc, char* argv[]) {
                 for (size_t i = 1; i < pos_args.size(); ++i) {
                     std::string dst_str = pos_args[i];
                     Resource dst_res = parse_uri(dst_str);
-                    std::string dst_path = dst_res.path;
-                    if (dst_res.scheme == "file" || dst_res.scheme == "local") {
-                        if (dst_path.empty()) dst_path = dst_res.host_or_bucket;
-                        else if (!dst_res.host_or_bucket.empty()) dst_path = dst_res.host_or_bucket + "/" + dst_path;
-                    }
+                    std::string dst_path = get_resource_path(dst_res);
                     auto dst_prov = std::shared_ptr<StorageProvider>(create_provider(dst_res.scheme, dst_res.account));
                     std::string d_label = AccountManager::instance().get_display_name(dst_res.scheme, dst_res.account);
                     targets.push_back({dst_res.scheme, dst_path, dst_prov, d_label + " (" + dst_str + ")"});
@@ -797,16 +814,8 @@ int main(int argc, char* argv[]) {
             Resource src_res = parse_uri(src_str);
             Resource dest_res = parse_uri(dest_str);
 
-            std::string src_path = src_res.path;
-            if (src_res.scheme == "file" || src_res.scheme == "local") {
-                if (src_path.empty()) src_path = src_res.host_or_bucket;
-                else if (!src_res.host_or_bucket.empty()) src_path = src_res.host_or_bucket + "/" + src_path;
-            }
-            std::string dest_path = dest_res.path;
-            if (dest_res.scheme == "file" || dest_res.scheme == "local") {
-                if (dest_path.empty()) dest_path = dest_res.host_or_bucket;
-                else if (!dest_res.host_or_bucket.empty()) dest_path = dest_res.host_or_bucket + "/" + dest_path;
-            }
+            std::string src_path = get_resource_path(src_res);
+            std::string dest_path = get_resource_path(dest_res);
 
             auto src_provider = std::shared_ptr<StorageProvider>(create_provider(src_res.scheme, src_res.account));
             auto dest_provider = std::shared_ptr<StorageProvider>(create_provider(dest_res.scheme, dest_res.account));

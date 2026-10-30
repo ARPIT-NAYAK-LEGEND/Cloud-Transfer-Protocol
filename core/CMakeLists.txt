@@ -1,5 +1,5 @@
 find_package(SQLite3 REQUIRED)
-find_package(OpenSSL REQUIRED)
+find_package(OpenSSL REQUIRED COMPONENTS Crypto)
 
 add_library(utp_core STATIC 
     src/uri_parser.cpp 

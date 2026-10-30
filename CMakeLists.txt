@@ -5,6 +5,9 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 find_package(Threads REQUIRED)
+find_package(SQLite3 REQUIRED)
+find_package(OpenSSL REQUIRED COMPONENTS SSL Crypto)
+find_package(CURL REQUIRED)
 
 # Add core library
 add_subdirectory(core)
