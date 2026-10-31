@@ -8,6 +8,7 @@ add_library(utp_core STATIC
     src/state_manager.cpp
     src/sync_engine.cpp
     src/multi_engine.cpp
+    src/routing_rules.cpp
 )
 
 target_include_directories(utp_core

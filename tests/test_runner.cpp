@@ -30,6 +30,7 @@
 #include "utp/sync_types.hpp"
 #include "utp/multi_engine.hpp"
 #include "utp/multi_types.hpp"
+#include "utp/routing_rules.hpp"
 #include "mock_provider.hpp"
 #include "providers/local/local_provider.hpp"
 
@@ -1277,6 +1278,67 @@ void test_multi_dest_best_effort_policy_suite() {
     fs::remove_all(test_dir, ec);
 }
 
+void test_routing_rule_engine_suite() {
+    using namespace utp;
+
+    // 1. Size parser verification
+    ASSERT_EQ(RoutingRuleEngine::parse_size_bytes("500b"), 500ULL);
+    ASSERT_EQ(RoutingRuleEngine::parse_size_bytes("10K"), 10ULL * 1024ULL);
+    ASSERT_EQ(RoutingRuleEngine::parse_size_bytes("50MB"), 50ULL * 1024ULL * 1024ULL);
+    ASSERT_EQ(RoutingRuleEngine::parse_size_bytes("2GB"), 2ULL * 1024ULL * 1024ULL * 1024ULL);
+    ASSERT_EQ(RoutingRuleEngine::parse_size_bytes("1TB"), 1024ULL * 1024ULL * 1024ULL * 1024ULL);
+
+    // 2. Rule parsing syntax
+    auto r1 = RoutingRuleEngine::parse_rule_string("ext=mp4,mkv,mov:s3://media-vault");
+    ASSERT_TRUE(r1.type == RuleConditionType::EXTENSION);
+    ASSERT_EQ(r1.match_values.size(), 3);
+    ASSERT_EQ(r1.destination_uri, "s3://media-vault");
+
+    auto r2 = RoutingRuleEngine::parse_rule_string("size>100M:b2://cold-archive");
+    ASSERT_TRUE(r2.type == RuleConditionType::SIZE_GREATER);
+    ASSERT_EQ(r2.size_threshold, 100ULL * 1024ULL * 1024ULL);
+    ASSERT_EQ(r2.destination_uri, "b2://cold-archive");
+
+    auto r3 = RoutingRuleEngine::parse_rule_string("size<10M:onedrive://small-files");
+    ASSERT_TRUE(r3.type == RuleConditionType::SIZE_LESS);
+    ASSERT_EQ(r3.size_threshold, 10ULL * 1024ULL * 1024ULL);
+
+    auto r4 = RoutingRuleEngine::parse_rule_string("path=docs/:gdrive://documents");
+    ASSERT_TRUE(r4.type == RuleConditionType::PATH_PREFIX);
+    ASSERT_EQ(r4.match_values[0], "docs/");
+
+    auto r5 = RoutingRuleEngine::parse_rule_string("name=backup:azure://backups");
+    ASSERT_TRUE(r5.type == RuleConditionType::NAME_CONTAINS);
+
+    auto r_def = RoutingRuleEngine::parse_rule_string("default:local:///tmp/fallback");
+    ASSERT_TRUE(r_def.type == RuleConditionType::DEFAULT);
+
+    // 3. Engine evaluation and precedence
+    RoutingRuleEngine engine;
+    engine.add_rule(r1); // ext=mp4,mkv,mov -> s3://media-vault
+    engine.add_rule(r2); // size>100M -> b2://cold-archive
+    engine.add_rule(r3); // size<10M -> onedrive://small-files
+    engine.set_default_destination("local:///default-landing");
+
+    // Match extension
+    ASSERT_EQ(engine.match_destination("video.mp4", 50 * 1024 * 1024), "s3://media-vault");
+    ASSERT_EQ(engine.match_destination("archive/movie.MKV", 500 * 1024 * 1024), "s3://media-vault");
+
+    // Match size > 100M (non-video)
+    ASSERT_EQ(engine.match_destination("huge_database.db", 250 * 1024 * 1024), "b2://cold-archive");
+
+    // Match size < 10M (non-video)
+    ASSERT_EQ(engine.match_destination("notes.txt", 1024), "onedrive://small-files");
+
+    // Default destination fallback
+    ASSERT_EQ(engine.match_destination("medium_bundle.tar", 50 * 1024 * 1024), "local:///default-landing");
+
+    // Without default destination, unhandled file throws exception
+    RoutingRuleEngine no_def_engine;
+    no_def_engine.add_rule(r1);
+    ASSERT_THROWS(no_def_engine.match_destination("unmatched.txt", 100), std::runtime_error);
+}
+
 int main() {
     std::cout << "\n" T_BOLD T_CYAN "╔════════════════════════════════════════════════════════════════╗\n";
     std::cout << "║       Universal Cloud Transfer Protocol (UTP) Test Suite       ║\n";
@@ -1304,6 +1366,7 @@ int main() {
     run_test("Phase 7 Multi-Dest Fan-Out", "1 Source -> 3 Concurrent Destinations Broadcast", test_multi_dest_fanout_suite);
     run_test("Phase 7 Policy ALL_OR_NOTHING", "Abort & Rollback on Single Target Failure", test_multi_dest_all_or_nothing_policy_suite);
     run_test("Phase 7 Policy BEST_EFFORT", "Surviving Destinations Commit on Partial Failure", test_multi_dest_best_effort_policy_suite);
+    run_test("Phase 10 Smart Routing", "Rules-Based Engine (Ext, Size, Fallback)", test_routing_rule_engine_suite);
 
     std::cout << "\n" T_BOLD "─── Evaluation Summary ───" T_RESET "\n";
     std::cout << "  Passed: " T_GREEN << g_tests_passed << T_RESET "\n";

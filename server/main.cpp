@@ -193,7 +193,22 @@ static std::string get_or_create_api_token() {
     return new_token;
 }
 
-int main() {
+int main(int argc, char* argv[]) {
+    int port = 8080;
+    const char* port_env = std::getenv("UTP_PORT");
+    if (!port_env) port_env = std::getenv("PORT");
+    if (port_env) {
+        try { port = std::stoi(port_env); } catch (...) {}
+    }
+    for (int i = 1; i < argc; ++i) {
+        std::string a = argv[i];
+        if (a == "--port" && i + 1 < argc) {
+            try { port = std::stoi(argv[++i]); } catch (...) {}
+        } else if (std::isdigit(static_cast<unsigned char>(a[0]))) {
+            try { port = std::stoi(a); } catch (...) {}
+        }
+    }
+
     Server svr;
     StateManager sm("utp.db");
     
@@ -404,7 +419,9 @@ int main() {
         res.set_header("X-UTP-Surface", "experimental");
     });
 
-    std::cout << "[UTP Daemon] API Server running on http://0.0.0.0:8080 (EXPERIMENTAL: Post-MVP surface pending Phase 4 gate verification)\n";
-    svr.listen("0.0.0.0", 8080);
+    std::cout << "[UTP Daemon] API Server running on http://0.0.0.0:" << port << " (EXPERIMENTAL: Post-MVP surface pending Phase 4 gate verification)\n";
+    std::cout << "[UTP Daemon] svr.is_valid(): " << svr.is_valid() << "\n";
+    bool ret = svr.listen("0.0.0.0", port);
+    std::cout << "[UTP Daemon] svr.listen() returned: " << ret << "\n";
     return 0;
 }

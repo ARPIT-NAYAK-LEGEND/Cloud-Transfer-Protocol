@@ -17,6 +17,7 @@
 #include "utp/sync_types.hpp"
 #include "utp/multi_engine.hpp"
 #include "utp/multi_types.hpp"
+#include "utp/routing_rules.hpp"
 #include <iostream>
 #include <ctime>
 #include <memory>
@@ -28,6 +29,9 @@
 #include <vector>
 #include <algorithm>
 #include <functional>
+#include <filesystem>
+#include <fstream>
+#include <csignal>
 #ifdef _WIN32
 #include <windows.h>
 static BOOL WINAPI console_ctrl_handler(DWORD signal) {
@@ -42,6 +46,9 @@ static BOOL WINAPI console_ctrl_handler(DWORD signal) {
 #include <sys/ioctl.h>
 #include <unistd.h>
 #include <signal.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 #endif
 
 using namespace utp;
@@ -233,10 +240,12 @@ void print_usage() {
     std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "utp transfer" C_RESET "                     Launch interactive visual TUI mode\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "utp transfer" C_RESET " <src> <dest>       Direct cloud-to-cloud pipeline\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "utp route" C_RESET "    <src> <d1> <d2>... Multi-destination fan-out broadcast streaming\n";
+    std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "utp route" C_RESET "    <src> --rule \"<c>:<d>\" Smart rules-based routing pipeline\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "utp sync" C_RESET "     <src> <dest>       Delta folder synchronization & conflict policies\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "utp resume" C_RESET "   <transfer_id>      Resume paused/failed transfer state\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "utp pause" C_RESET "    <transfer_id>      Stop between chunks, keep all progress\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "utp cancel" C_RESET "   <transfer_id>      Abandon transfer, discard partial state\n";
+    std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "utp daemon" C_RESET "   start|stop|status  Background API daemon lifecycle controls\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "utp status" C_RESET "  <transfer_id>      State, chunks and event history\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "utp list" C_RESET "                      Show recent transfers from the ledger\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "\n";
@@ -256,6 +265,9 @@ void print_usage() {
     std::cout << C_SPINE GLYPH_SPINE C_RESET "\n";
     std::cout << C_VIOLET GLYPH_STEP C_RESET "  " C_WHITE C_BOLD "Options:" C_RESET "\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED "--policy" C_RESET " <policy>           Policy (sync: FAIL, OVERWRITE, SKIP; route: ALL_OR_NOTHING, BEST_EFFORT)\n";
+    std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED "--rule" C_RESET " <cond>:<dest>         Smart routing rule (e.g. 'ext=mp4:s3://media', 'size>100M:b2://cold')\n";
+    std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED "--default" C_RESET " <dest>             Default fallback destination for routing rules\n";
+    std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED "--port" C_RESET " <port>                Daemon listening port (default: 8080)\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED "--bidirectional" C_RESET ", -b           Bidirectional two-way folder synchronization\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED "--dry-run" C_RESET ", -n                 Preview delta sync plan without transferring bytes\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED "--bandwidth" C_RESET " <bps>           Limit transfer speed (0 = unlimited)\n";
@@ -336,6 +348,194 @@ static std::string format_eta(double elapsed_sec, float progress) {
     char buf[32];
     snprintf(buf, sizeof(buf), "~%dm %ds", mins, secs);
     return std::string(buf);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  DAEMON MANAGEMENT (utpd)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+static const char* DAEMON_PID_FILE = ".utpd.pid";
+static const char* DAEMON_TOKEN_FILE = ".utp_api_token";
+
+static bool is_process_running(int pid) {
+    if (pid <= 0) return false;
+#ifdef _WIN32
+    HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, static_cast<DWORD>(pid));
+    if (!hProcess) return false;
+    DWORD exitCode = 0;
+    BOOL res = GetExitCodeProcess(hProcess, &exitCode);
+    CloseHandle(hProcess);
+    return (res && exitCode == STILL_ACTIVE);
+#else
+    return (kill(pid, 0) == 0);
+#endif
+}
+
+static bool stop_daemon_process(int pid) {
+    if (pid <= 0) return false;
+#ifdef _WIN32
+    HANDLE hProcess = OpenProcess(PROCESS_TERMINATE | SYNCHRONIZE, FALSE, static_cast<DWORD>(pid));
+    if (!hProcess) return false;
+    TerminateProcess(hProcess, 0);
+    WaitForSingleObject(hProcess, 2000);
+    CloseHandle(hProcess);
+    return true;
+#else
+    kill(pid, SIGTERM);
+    for (int i = 0; i < 20; ++i) {
+        if (kill(pid, 0) != 0) return true;
+        usleep(100000);
+    }
+    kill(pid, SIGKILL);
+    return true;
+#endif
+}
+
+static std::string find_utpd_binary(const char* argv0) {
+    std::vector<std::string> candidates;
+    if (argv0) {
+        std::filesystem::path p(argv0);
+        auto dir = p.parent_path();
+        if (!dir.empty()) {
+#ifdef _WIN32
+            candidates.push_back((dir / "utpd.exe").generic_string());
+            candidates.push_back((dir / "utp-server.exe").generic_string());
+#else
+            candidates.push_back((dir / "utpd").generic_string());
+#endif
+        }
+    }
+#ifdef _WIN32
+    candidates.push_back("./utpd.exe");
+    candidates.push_back("utpd.exe");
+    candidates.push_back("./utp-server.exe");
+    candidates.push_back("utp-server.exe");
+    candidates.push_back("./build/server/utpd.exe");
+    candidates.push_back("build/server/utpd.exe");
+#else
+    candidates.push_back("./utpd");
+    candidates.push_back("utpd");
+    candidates.push_back("./build/server/utpd");
+    candidates.push_back("build/server/utpd");
+#endif
+
+    for (const auto& c : candidates) {
+        if (std::filesystem::exists(c)) {
+            std::error_code ec;
+            auto abs_p = std::filesystem::absolute(c, ec);
+            return ec ? c : abs_p.string();
+        }
+    }
+#ifdef _WIN32
+    return "utpd.exe";
+#else
+    return "utpd";
+#endif
+}
+
+static bool spawn_daemon(const std::string& bin_path, int port, int& out_pid) {
+#ifdef _WIN32
+    SECURITY_ATTRIBUTES sa;
+    ZeroMemory(&sa, sizeof(sa));
+    sa.nLength = sizeof(sa);
+    sa.bInheritHandle = TRUE;
+
+    HANDLE hLog = CreateFileA(".utpd.log", FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE, &sa, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    HANDLE hNul = CreateFileA("NUL", GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, &sa, OPEN_EXISTING, 0, NULL);
+
+    STARTUPINFOA si;
+    PROCESS_INFORMATION pi;
+    ZeroMemory(&si, sizeof(si));
+    si.cb = sizeof(si);
+    si.dwFlags |= STARTF_USESHOWWINDOW;
+    si.wShowWindow = SW_HIDE;
+    if (hLog != INVALID_HANDLE_VALUE) {
+        si.dwFlags |= STARTF_USESTDHANDLES;
+        si.hStdInput = (hNul != INVALID_HANDLE_VALUE) ? hNul : NULL;
+        si.hStdOutput = hLog;
+        si.hStdError = hLog;
+    }
+    ZeroMemory(&pi, sizeof(pi));
+
+    std::string norm_bin = bin_path;
+    std::replace(norm_bin.begin(), norm_bin.end(), '/', '\\');
+    std::string cmd = "\"" + norm_bin + "\" --port " + std::to_string(port);
+    std::vector<char> cmd_buf(cmd.begin(), cmd.end());
+    cmd_buf.push_back('\0');
+
+    BOOL success = CreateProcessA(
+        NULL,
+        cmd_buf.data(),
+        NULL,
+        NULL,
+        TRUE,
+        CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP,
+        NULL,
+        NULL,
+        &si,
+        &pi
+    );
+
+    if (hLog != INVALID_HANDLE_VALUE) CloseHandle(hLog);
+    if (hNul != INVALID_HANDLE_VALUE) CloseHandle(hNul);
+
+    if (!success) return false;
+    out_pid = static_cast<int>(pi.dwProcessId);
+    CloseHandle(pi.hThread);
+    CloseHandle(pi.hProcess);
+    return true;
+#else
+    pid_t pid = fork();
+    if (pid < 0) return false;
+    if (pid == 0) {
+        setsid();
+        int dev_null = open("/dev/null", O_RDWR);
+        if (dev_null != -1) {
+            dup2(dev_null, STDIN_FILENO);
+            dup2(dev_null, STDOUT_FILENO);
+            dup2(dev_null, STDERR_FILENO);
+            close(dev_null);
+        }
+        std::string port_str = std::to_string(port);
+        execlp(bin_path.c_str(), bin_path.c_str(), "--port", port_str.c_str(), nullptr);
+        _exit(1);
+    }
+    out_pid = static_cast<int>(pid);
+    return true;
+#endif
+}
+
+static int read_pid_file(int* out_port = nullptr) {
+    std::ifstream f(DAEMON_PID_FILE);
+    if (!f.is_open()) return 0;
+    int pid = 0;
+    f >> pid;
+    if (out_port) {
+        int p = 0;
+        if (f >> p && p > 0) *out_port = p;
+    }
+    return pid;
+}
+
+static void write_pid_file(int pid, int port) {
+    std::ofstream f(DAEMON_PID_FILE);
+    if (f.is_open()) {
+        f << pid << " " << port << "\n";
+    }
+}
+
+static void remove_pid_file() {
+    std::error_code ec;
+    std::filesystem::remove(DAEMON_PID_FILE, ec);
+}
+
+static std::string read_token_file() {
+    std::ifstream f(DAEMON_TOKEN_FILE);
+    if (!f.is_open()) return "";
+    std::string token;
+    std::getline(f, token);
+    while (!token.empty() && (token.back() == '\r' || token.back() == '\n' || token.back() == ' ')) token.pop_back();
+    return token;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -647,6 +847,9 @@ int main(int argc, char* argv[]) {
     std::string sync_policy = "OVERWRITE";
     bool sync_bidirectional = false;
     bool sync_dry_run = false;
+    int daemon_port = 8080;
+    std::vector<std::string> routing_rules;
+    std::string default_dest;
     std::vector<std::string> pos_args;
 
     for (int i = 2; i < argc; ++i) {
@@ -661,6 +864,12 @@ int main(int argc, char* argv[]) {
             sync_bidirectional = true;
         } else if (arg == "--dry-run" || arg == "-n") {
             sync_dry_run = true;
+        } else if (arg == "--rule" && i + 1 < argc) {
+            routing_rules.push_back(argv[++i]);
+        } else if (arg == "--default" && i + 1 < argc) {
+            default_dest = argv[++i];
+        } else if (arg == "--port" && i + 1 < argc) {
+            daemon_port = std::stoi(argv[++i]);
         } else if (arg == "--verbose") {
             verbose = true;
         } else if (!arg.empty() && arg[0] != '-') {
@@ -721,6 +930,121 @@ int main(int argc, char* argv[]) {
                     }
                 }
                 return 0;
+            } else if (cmd == "route" && (!routing_rules.empty() || !default_dest.empty())) {
+                // Rules-Based Smart Routing Engine
+                if (pos_args.empty()) {
+                    std::cerr << "\n  " C_RED "✗ Error: Smart routing requires at least one source file or directory path." C_RESET "\n\n";
+                    return 1;
+                }
+
+                std::string src_input = pos_args[0];
+                RoutingRuleEngine rule_engine;
+                for (const auto& r_str : routing_rules) {
+                    rule_engine.add_rule(RoutingRuleEngine::parse_rule_string(r_str));
+                }
+                if (!default_dest.empty()) {
+                    rule_engine.set_default_destination(default_dest);
+                }
+
+                std::cout << "\n" C_VIOLET GLYPH_TOP C_RESET "  " C_WHITE C_BOLD "UTP Rules-Based Smart Routing Engine" C_RESET "\n";
+                std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Configured Rules (" << rule_engine.get_rules().size() << "):" C_RESET "\n";
+                for (size_t r = 0; r < rule_engine.get_rules().size(); ++r) {
+                    const auto& rule = rule_engine.get_rules()[r];
+                    std::cout << C_SPINE GLYPH_SPINE C_RESET "    [" << (r + 1) << "] " C_YELLOW << rule.label << C_RESET
+                              << C_MUTED " ──▶ " C_CYAN << rule.destination_uri << C_RESET "\n";
+                }
+                if (!rule_engine.get_default_destination().empty()) {
+                    std::cout << C_SPINE GLYPH_SPINE C_RESET "    [*] " C_MUTED "Default Fallback ──▶ " C_CYAN << rule_engine.get_default_destination() << C_RESET "\n";
+                }
+                std::cout << C_SPINE GLYPH_SPINE C_RESET "\n";
+
+                struct ItemToRoute {
+                    std::string src_uri;
+                    std::string file_path;
+                    uint64_t file_size;
+                };
+                std::vector<ItemToRoute> items;
+
+                if (std::filesystem::exists(src_input) && std::filesystem::is_directory(src_input)) {
+                    for (const auto& entry : std::filesystem::recursive_directory_iterator(src_input)) {
+                        if (entry.is_regular_file()) {
+                            std::string rel = std::filesystem::relative(entry.path(), src_input).generic_string();
+                            items.push_back({
+                                "file://" + entry.path().generic_string(),
+                                rel,
+                                entry.file_size()
+                            });
+                        }
+                    }
+                } else if (std::filesystem::exists(src_input)) {
+                    std::filesystem::path p(src_input);
+                    items.push_back({
+                        "file://" + p.generic_string(),
+                        p.filename().generic_string(),
+                        std::filesystem::file_size(p)
+                    });
+                } else {
+                    Resource r = parse_uri(src_input);
+                    std::string item_name = r.path.empty() ? r.host_or_bucket : r.path;
+                    items.push_back({
+                        src_input,
+                        item_name,
+                        0
+                    });
+                }
+
+                std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_WHITE C_BOLD "Evaluating " << items.size() << " item" << (items.size() > 1 ? "s" : "") << ":" C_RESET "\n";
+
+                size_t routed_count = 0;
+                size_t failed_count = 0;
+
+                for (const auto& item : items) {
+                    auto matched_rule = rule_engine.find_matching_rule(item.file_path, item.file_size);
+                    if (!matched_rule) {
+                        std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_RED "✘ " C_WHITE << item.file_path << C_RESET
+                                  << C_MUTED " — No matching rule and no default destination." C_RESET "\n";
+                        failed_count++;
+                        continue;
+                    }
+
+                    std::string dest_target = matched_rule->destination_uri;
+                    if (dest_target.ends_with('/') || dest_target.find_last_of('/') == dest_target.find("://") + 2) {
+                        dest_target += item.file_path;
+                    }
+
+                    std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_GREEN "✔ " C_WHITE << item.file_path << C_RESET
+                              << C_MUTED " (" << format_bytes(item.file_size) << ") "
+                              << C_YELLOW << "[" << matched_rule->label << "]" C_RESET
+                              << C_MUTED " ──▶ " C_CYAN << dest_target << C_RESET "\n";
+
+                    Resource s_res = parse_uri(item.src_uri);
+                    Resource d_res = parse_uri(dest_target);
+                    std::string s_p = get_resource_path(s_res);
+                    std::string d_p = get_resource_path(d_res);
+
+                    auto s_prov = std::shared_ptr<StorageProvider>(create_provider(s_res.scheme, s_res.account));
+                    auto d_prov = std::shared_ptr<StorageProvider>(create_provider(d_res.scheme, d_res.account));
+
+                    std::string t_id = custom_id.empty() ? Engine::generate_id() : custom_id;
+                    try {
+                        Engine engine(s_prov, d_prov, "utp.db");
+                        if (bandwidth_limit > 0) engine.set_bandwidth_limit(bandwidth_limit);
+                        engine.transfer(s_res.scheme, s_p, d_res.scheme, d_p, nullptr, t_id);
+                        routed_count++;
+                    } catch (const std::exception& e) {
+                        std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_RED "Transfer failed: " << e.what() << C_RESET "\n";
+                        failed_count++;
+                    }
+                }
+
+                std::cout << C_SPINE GLYPH_SPINE C_RESET "\n";
+                if (failed_count == 0) {
+                    std::cout << C_GREEN GLYPH_END C_RESET "  " C_GREEN C_BOLD GLYPH_CHECK " All " << routed_count << " items routed and transferred successfully!" C_RESET "\n\n";
+                    return 0;
+                } else {
+                    std::cout << C_YELLOW GLYPH_END C_RESET "  " C_YELLOW "▲ Routing completed with " << failed_count << " error" << (failed_count > 1 ? "s" : "") << "." C_RESET "\n\n";
+                    return 1;
+                }
             } else if (pos_args.size() > 2 || cmd == "route") {
                 // Multi-Destination Routing Mode
                 if (pos_args.size() < 2) {
@@ -801,6 +1125,91 @@ int main(int argc, char* argv[]) {
                 std::vector<TransferItem> transfers = {{src_str, dest_str, item_name, src_res.account, dest_res.account, transfer_id}};
                 run_batch_transfer_pool(src_provider, dest_provider, transfers, 1, src_label, dest_label, bandwidth_limit);
                 return 0;
+            }
+        } else if (cmd == "daemon") {
+            std::string subcmd = pos_args.empty() ? "status" : pos_args[0];
+            std::string utpd_bin = find_utpd_binary(argv[0]);
+
+            if (subcmd == "start") {
+                int pid = read_pid_file();
+                if (pid > 0 && is_process_running(pid)) {
+                    std::cout << "\n" C_YELLOW GLYPH_TOP C_RESET "  " C_WHITE C_BOLD "UTP API Server Daemon" C_RESET "\n";
+                    std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_YELLOW "▲ Daemon is already running (PID: " << pid << ")" C_RESET "\n";
+                    std::string token = read_token_file();
+                    std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Endpoint: " C_CYAN "http://127.0.0.1:" << daemon_port << C_RESET "\n";
+                    if (!token.empty()) {
+                        std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Token:    " C_WHITE << token << C_RESET "\n";
+                    }
+                    std::cout << C_GREEN GLYPH_END C_RESET "\n";
+                    return 0;
+                }
+
+                int new_pid = 0;
+                if (!spawn_daemon(utpd_bin, daemon_port, new_pid)) {
+                    std::cerr << "\n  " C_RED "✗ Error: Failed to start utpd daemon binary: " << utpd_bin << C_RESET "\n\n";
+                    return 1;
+                }
+
+                write_pid_file(new_pid, daemon_port);
+                std::this_thread::sleep_for(std::chrono::milliseconds(250));
+
+                std::string token = read_token_file();
+
+                std::cout << "\n" C_VIOLET GLYPH_TOP C_RESET "  " C_WHITE C_BOLD "UTP API Server Daemon" C_RESET "\n";
+                std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Status:   " C_GREEN C_BOLD "ACTIVE (Running)" C_RESET "\n";
+                std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "PID:      " C_WHITE << new_pid << C_RESET "\n";
+                std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Binary:   " C_MUTED << utpd_bin << C_RESET "\n";
+                std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Endpoint: " C_CYAN "http://127.0.0.1:" << daemon_port << C_RESET "\n";
+                if (!token.empty()) {
+                    std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Auth:     " C_VIOLET "Bearer " C_WHITE << token << C_RESET "\n";
+                }
+                std::cout << C_GREEN GLYPH_END C_RESET "  " C_MUTED "Standing by for REST API & TypeScript SDK requests." C_RESET "\n\n";
+                return 0;
+            } else if (subcmd == "stop") {
+                int pid = read_pid_file();
+                if (pid <= 0 || !is_process_running(pid)) {
+                    std::cout << "\n  " C_YELLOW "▲ UTP Daemon is not currently running." C_RESET "\n\n";
+                    remove_pid_file();
+                    return 0;
+                }
+
+                bool stopped = stop_daemon_process(pid);
+                remove_pid_file();
+
+                std::cout << "\n" C_VIOLET GLYPH_TOP C_RESET "  " C_WHITE C_BOLD "UTP API Server Daemon" C_RESET "\n";
+                std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Terminated PID: " C_WHITE << pid << C_RESET "\n";
+                if (stopped) {
+                    std::cout << C_GREEN GLYPH_END C_RESET "  " C_GREEN C_BOLD GLYPH_CHECK " Daemon stopped successfully." C_RESET "\n\n";
+                } else {
+                    std::cout << C_YELLOW GLYPH_END C_RESET "  " C_YELLOW "▲ Process signal sent." C_RESET "\n\n";
+                }
+                return 0;
+            } else if (subcmd == "status") {
+                int saved_port = 8080;
+                int pid = read_pid_file(&saved_port);
+                bool running = (pid > 0 && is_process_running(pid));
+                int effective_port = (daemon_port != 8080) ? daemon_port : saved_port;
+
+                std::cout << "\n" C_VIOLET GLYPH_TOP C_RESET "  " C_WHITE C_BOLD "UTP API Server Daemon Status" C_RESET "\n";
+                if (running) {
+                    std::string token = read_token_file();
+                    std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "State:    " C_GREEN C_BOLD "● ACTIVE (Running)" C_RESET "\n";
+                    std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "PID:      " C_WHITE << pid << C_RESET "\n";
+                    std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Endpoint: " C_CYAN "http://127.0.0.1:" << effective_port << C_RESET "\n";
+                    if (!token.empty()) {
+                        std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Token:    " C_WHITE << token << C_RESET "\n";
+                    }
+                    std::cout << C_GREEN GLYPH_END C_RESET "  " C_MUTED "Ready to accept transfers." C_RESET "\n\n";
+                } else {
+                    std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "State:    " C_MUTED "○ STOPPED (Inactive)" C_RESET "\n";
+                    std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Start with: " C_CYAN "utp daemon start" C_RESET "\n";
+                    std::cout << C_GREEN GLYPH_END C_RESET "\n";
+                }
+                return 0;
+            } else {
+                std::cerr << "\n  " C_RED "✗ Error: Unknown daemon subcommand: " << subcmd << C_RESET "\n";
+                std::cerr << "  Usage: utp daemon [start|stop|status] [--port <port>]\n\n";
+                return 1;
             }
         } else if (cmd == "sync") {
             if (pos_args.size() < 2) {
