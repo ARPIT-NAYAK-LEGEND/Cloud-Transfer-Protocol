@@ -46,6 +46,9 @@ UTP adheres to strict MVP scope discipline (§12 of `CLAUDE.md`). Surfaces are e
 | **CLI & TUI Engine** | `utp transfer`, `resume`, `pause`, `status` | **Core MVP (Production)** | End-to-End Terminal UI & SHA-256 Match |
 | **Folder Sync Engine** | `utp sync <src> <dest>` | **Core MVP (Production)** | Phase 6 Delta Change Detection (0 bytes skip) + 5 Conflict Policies |
 | **Multi-Destination Fan-Out** | `utp route <src> <d1> <d2>...` | **Core MVP (Production)** | Phase 7 Zero-Disk Fan-Out Streaming + Concurrent Broadcast |
+| **Smart Routing Engine** | `utp route <src> --rule "<c>:<d>"` | **Core MVP (Production)** | Phase 10 Pattern Engine (ext, size, prefix, name, default fallback) |
+| **Daemon Management** | `utp daemon start\|stop\|status` | **Core MVP (Production)** | Phase 9 Detached Background Process Group Controls |
+| **TypeScript / Node SDK** | `@utp/client` (`sdk/typescript/`) | **Core MVP (Production)** | Phase 8 Native Typed Client + Async Event Stream + Mock Battery |
 | **State Persistence** | SQLite WAL ledger (`utp.db`) | **Core MVP (Production)** | Crash-Resilient Upsert & Event Stream |
 | **Daemon Server (`utpd`)** | REST API (`/api/transfers`) | *Experimental (Post-MVP)* | Marked `X-UTP-Surface: experimental` |
 | **Web Dashboard** | Browser UI (`web/`) | *Experimental (Post-MVP)* | Preview UI for Daemon API |
@@ -167,7 +170,53 @@ utp route s3://bucket/dataset.tar.gz gdrive://backups/dataset.tar.gz onedrive://
 utp route file://firmware.bin s3://primary/firmware.bin b2://backup/firmware.bin --policy best_effort
 ```
 
-### 5. Resume Paused Transfers
+### 5. Rules-Based Smart Routing Engine
+Dynamically route files matching extensions, byte sizes, prefixes, or keywords to different storage destinations:
+```bash
+# Route media to S3, documents to OneDrive, and archives (>100MB) to Backblaze B2
+utp route ./data \
+  --rule "ext=mp4,mkv,mov:s3://media-vault/" \
+  --rule "ext=pdf,docx:onedrive://documents/" \
+  --rule "size>100M:b2://cold-archive/" \
+  --default "file://fallback_dir/"
+```
+
+### 6. Background API Daemon Lifecycle
+Manage the background REST API server directly from the CLI:
+```bash
+# Start background API server with detached process group and bearer auth
+utp daemon start --port 8080
+
+# Query daemon runtime state, active PID, endpoint, and token
+utp daemon status
+
+# Gracefully terminate background daemon process
+utp daemon stop
+```
+
+### 7. Native TypeScript SDK (`@utp/client`)
+Integrate zero-disk cloud transfers into Node.js, Next.js, and backend services:
+```typescript
+import { UTPClient } from '@utp/client';
+
+const client = new UTPClient({
+  baseUrl: 'http://127.0.0.1:8080',
+  token: 'YOUR_API_TOKEN'
+});
+
+// Launch zero-disk streaming transfer
+const transfer = await client.transfer({
+  src: 'gdrive://1GwVK676IBt10iBEdRzh2LgqWdajT-In_',
+  dest: 'onedrive://Backups/dataset.tar.gz'
+});
+
+// Await completion with real-time progress callbacks
+await client.waitForCompletion(transfer.id, { timeoutMs: 60000 }, (p) => {
+  console.log(`Progress: ${p.bytesTransferred} / ${p.size} bytes`);
+});
+```
+
+### 8. Resume Paused Transfers
 If a transfer is interrupted by network failure or reboot:
 ```bash
 utp resume <transfer_id>
