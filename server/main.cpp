@@ -16,6 +16,7 @@
 #include "providers/azure/azure_provider.hpp"
 #include "providers/webdav/webdav_provider.hpp"
 #include "providers/icloud/icloud_provider.hpp"
+#include "providers/common/credentials.hpp"
 #include <iostream>
 #include <memory>
 #include <string>
@@ -42,17 +43,13 @@ std::unique_ptr<StorageProvider> create_provider(const std::string& scheme) {
 
     if (base_scheme == "local" || base_scheme == "file") return std::make_unique<LocalProvider>();
     if (base_scheme == "gdrive") {
-        const char* env_id = std::getenv("GDRIVE_CLIENT_ID");
-        const char* env_sec = std::getenv("GDRIVE_CLIENT_SECRET");
-        std::string cid = env_id ? env_id : "617211477359-8a1s4v0aamr860vrs2k9bn9h6lou534u.apps.googleusercontent.com";
-        std::string csec = env_sec ? env_sec : "";
+        std::string cid = utp::resolve_gdrive_client_id();
+        std::string csec = utp::resolve_gdrive_client_secret(cid);
         return std::make_unique<GoogleDriveProvider>(cid, csec, effective_context);
     }
     if (base_scheme == "onedrive") {
-        const char* env_id = std::getenv("ONEDRIVE_CLIENT_ID");
-        const char* env_sec = std::getenv("ONEDRIVE_CLIENT_SECRET");
-        std::string cid = env_id ? env_id : "5091c9e9-674d-466c-849a-e1bf7d6badee";
-        std::string csec = env_sec ? env_sec : "";
+        std::string cid = utp::resolve_onedrive_client_id();
+        std::string csec = utp::resolve_onedrive_client_secret(cid);
         return std::make_unique<OneDriveProvider>(cid, csec, effective_context);
     }
     if (base_scheme == "dropbox") return std::make_unique<DropboxProvider>("", "", effective_context);

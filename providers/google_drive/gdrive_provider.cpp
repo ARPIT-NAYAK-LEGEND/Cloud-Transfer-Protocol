@@ -1,4 +1,5 @@
 #include "gdrive_provider.hpp"
+#include "providers/common/credentials.hpp"
 #include <stdexcept>
 #include <iostream>
 #include <cstring>
@@ -149,6 +150,9 @@ static std::string extract_json_value(const std::string& json, const std::string
 
 GoogleDriveProvider::GoogleDriveProvider(const std::string& client_id, const std::string& client_secret, const std::string& name_context) 
     : client_id_(client_id), client_secret_(client_secret), name_context_(name_context) {
+    if (client_secret_.empty()) {
+        client_secret_ = utp::resolve_gdrive_client_secret(client_id_);
+    }
     authenticate();
 }
 
@@ -165,6 +169,9 @@ static std::mutex s_gdrive_cache_mutex;
 
 void GoogleDriveProvider::authenticate() {
     std::string prefix = "\033[1;36m[GoogleDrive]\033[0m ";
+    if (client_secret_.empty()) {
+        client_secret_ = utp::resolve_gdrive_client_secret(client_id_);
+    }
     std::string token_file;
     if (name_context_.empty() || name_context_ == "default" || name_context_ == "src" || name_context_ == "dest") {
         token_file = ".utp_gdrive_my_personal_token.json";
@@ -231,6 +238,8 @@ void GoogleDriveProvider::authenticate() {
                     };
                 }
                 return;
+            } else {
+                std::cout << prefix << "Stored session expired, refreshing authorization...\n";
             }
         } else if (!access_token_.empty()) {
             std::lock_guard<std::mutex> lock(s_gdrive_cache_mutex);
@@ -242,6 +251,13 @@ void GoogleDriveProvider::authenticate() {
             };
             return;
         }
+    }
+
+    if (client_secret_.empty()) {
+        std::cerr << prefix << "\033[1;31mError: OAuth client_secret is missing.\033[0m\n"
+                  << "  Please set the GDRIVE_CLIENT_SECRET environment variable or provide it in .utp_credentials.json\n"
+                  << "  Example in PowerShell: $env:GDRIVE_CLIENT_SECRET = \"your-secret\"\n";
+        throw std::runtime_error("Google Drive OAuth client_secret is missing");
     }
 
     std::cout << prefix << "Authenticating via OAuth2...\n";
@@ -336,6 +352,9 @@ std::string GoogleDriveProvider::token_file_path() const {
 // mid-transfer. Bypasses the 50-minute memory cache on purpose — the cache
 // being "fresh" is exactly what caused the stale-token failure.
 void GoogleDriveProvider::refresh_auth() {
+    if (client_secret_.empty()) {
+        client_secret_ = utp::resolve_gdrive_client_secret(client_id_);
+    }
     if (refresh_token_.empty()) {
         throw TransferError(ErrorCategory::FATAL,
             "Google Drive: no refresh token stored; reconnect this account (delete the .utp_gdrive_*_token.json file and re-run)");

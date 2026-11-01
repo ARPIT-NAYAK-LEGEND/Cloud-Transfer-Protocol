@@ -1,4 +1,5 @@
 #include "onedrive_provider.hpp"
+#include "providers/common/credentials.hpp"
 #include <stdexcept>
 #include <iostream>
 #include <cstring>
@@ -163,9 +164,7 @@ static std::string extract_json_value(const std::string& json, const std::string
 OneDriveProvider::OneDriveProvider(const std::string& client_id, const std::string& client_secret, const std::string& name_context) 
     : client_id_(client_id), client_secret_(client_secret), name_context_(name_context) {
     if (client_secret_.empty()) {
-        const char* env_cs = std::getenv("ONEDRIVE_CLIENT_SECRET");
-        if (env_cs && strlen(env_cs) > 0) client_secret_ = env_cs;
-        // Secret is injected via create_provider() in main.cpp (XOR-obfuscated at compile time)
+        client_secret_ = utp::resolve_onedrive_client_secret(client_id_);
     }
     authenticate();
 }
@@ -183,6 +182,9 @@ static std::mutex s_onedrive_cache_mutex;
 
 void OneDriveProvider::authenticate() {
     std::string prefix = "\033[1;34m[OneDrive]\033[0m ";
+    if (client_secret_.empty()) {
+        client_secret_ = utp::resolve_onedrive_client_secret(client_id_);
+    }
     std::string token_file;
     if (name_context_.empty() || name_context_ == "default" || name_context_ == "src" || name_context_ == "dest") {
         token_file = ".utp_onedrive_token.json";
@@ -354,6 +356,9 @@ std::string OneDriveProvider::token_file_path() const {
 // P1.1: forced token refresh for mid-transfer 401s. OneDrive access tokens
 // live ~1h; a multi-hour transfer WILL cross the expiry boundary.
 void OneDriveProvider::refresh_auth() {
+    if (client_secret_.empty()) {
+        client_secret_ = utp::resolve_onedrive_client_secret(client_id_);
+    }
     if (refresh_token_.empty()) {
         throw TransferError(ErrorCategory::FATAL,
             "OneDrive: no refresh token stored; reconnect this account (delete the .utp_onedrive_*_token.json file and re-run)");
