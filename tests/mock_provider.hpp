@@ -41,8 +41,8 @@ public:
     }
 
     WriteSession openWrite(Path path, uint64_t size, const std::string& resume_token = "") override {
-        (void)size;
         (void)resume_token;
+        files[path] = size;
         last_open_write_path = path;
         return {"write_" + path};
     }

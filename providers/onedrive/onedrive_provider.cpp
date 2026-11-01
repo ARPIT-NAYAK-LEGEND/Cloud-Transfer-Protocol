@@ -433,7 +433,9 @@ FileInfo OneDriveProvider::stat(Path path) {
     std::string name_str = extract_json_value(resp.body, "name");
     bool is_dir = (resp.body.find("\"folder\":") != std::string::npos);
     uint64_t size = size_str.empty() ? 0 : std::stoull(size_str);
-    return {path, size, is_dir, name_str.empty() ? path : name_str};
+    std::string sha256_str = extract_json_value(resp.body, "sha256Hash");
+    for (char& c : sha256_str) c = std::tolower(static_cast<unsigned char>(c));
+    return {path, size, is_dir, name_str.empty() ? path : name_str, 0, sha256_str};
 }
 
 // Parse one page of Graph children into `items`.
@@ -475,10 +477,12 @@ static void parse_onedrive_children_page(const std::string& body, const std::str
         std::string size_str = extract_json_value(item_json, "size");
         bool is_dir = (item_json.find("\"folder\":") != std::string::npos);
         uint64_t size = size_str.empty() ? 0 : std::stoull(size_str);
+        std::string sha256_str = extract_json_value(item_json, "sha256Hash");
+        for (char& c : sha256_str) c = std::tolower(static_cast<unsigned char>(c));
 
         if (!name.empty()) {
             std::string item_path = clean_path.empty() ? name : (clean_path + "/" + name);
-            items.push_back({item_path, size, is_dir, name});
+            items.push_back({item_path, size, is_dir, name, 0, sha256_str});
         }
 
         curr = obj_end + 1;

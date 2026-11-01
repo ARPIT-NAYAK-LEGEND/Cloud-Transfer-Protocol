@@ -688,10 +688,15 @@ void run_batch_transfer_pool(std::shared_ptr<StorageProvider> src_provider,
             std::ostringstream frame;
             frame << "\r\033[2K" C_SPINE GLYPH_SPINE C_RESET "  " C_CYAN GLYPH_STREAM C_RESET " "
                   << C_WHITE C_BOLD << disp_file << C_RESET "  "
-                  << bar_str << " " C_WHITE << std::setw(3) << pct << "%" C_RESET
-                  << " · " C_CYAN << speed_str << C_RESET
-                  << " · " C_MUTED "ETA " << eta_str << C_RESET
-                  << " · " C_MUTED << status_info << C_RESET;
+                  << bar_str << " " C_WHITE << std::setw(3) << pct << "%" C_RESET;
+
+            if (pct >= 100 || (total_transferred >= total_batch_bytes && total_batch_bytes > 0)) {
+                frame << " · " C_YELLOW "Committing & Verifying cloud integrity..." C_RESET;
+            } else {
+                frame << " · " C_CYAN << speed_str << C_RESET
+                      << " · " C_MUTED "ETA " << eta_str << C_RESET
+                      << " · " C_MUTED << status_info << C_RESET;
+            }
 
             std::cout << frame.str();
             std::cout.flush();

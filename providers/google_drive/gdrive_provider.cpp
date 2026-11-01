@@ -434,7 +434,7 @@ FileInfo GoogleDriveProvider::stat(Path path) {
     std::vector<std::string> headers = {
         "Authorization: Bearer " + access_token_
     };
-    std::string url = "https://www.googleapis.com/drive/v3/files/" + clean_id + "?fields=id,name,size,mimeType";
+    std::string url = "https://www.googleapis.com/drive/v3/files/" + clean_id + "?fields=id,name,size,mimeType,sha256Checksum,md5Checksum";
     auto resp = http_.get(url, headers);
     
     if (resp.status_code != 200) {
@@ -446,7 +446,11 @@ FileInfo GoogleDriveProvider::stat(Path path) {
     std::string mime_str = extract_json_value(resp.body, "mimeType");
     bool is_dir = (mime_str == "application/vnd.google-apps.folder");
     uint64_t size = size_str.empty() ? 0 : std::stoull(size_str);
-    return {clean_id, size, is_dir, name_str.empty() ? clean_id : name_str};
+    std::string sha256_str = extract_json_value(resp.body, "sha256Checksum");
+    std::string md5_str = extract_json_value(resp.body, "md5Checksum");
+    std::string hash = !sha256_str.empty() ? sha256_str : md5_str;
+    for (char& c : hash) c = std::tolower(static_cast<unsigned char>(c));
+    return {clean_id, size, is_dir, name_str.empty() ? clean_id : name_str, 0, hash};
 }
 
 // Parse one page of the drive.files list response into `items`.
@@ -487,12 +491,16 @@ static void parse_gdrive_files_page(const std::string& body, std::vector<FileInf
         std::string name = extract_json_value(item_json, "name");
         std::string mime = extract_json_value(item_json, "mimeType");
         std::string size_str = extract_json_value(item_json, "size");
+        std::string sha256_str = extract_json_value(item_json, "sha256Checksum");
+        std::string md5_str = extract_json_value(item_json, "md5Checksum");
+        std::string hash = !sha256_str.empty() ? sha256_str : md5_str;
+        for (char& c : hash) c = std::tolower(static_cast<unsigned char>(c));
 
         bool is_dir = (mime == "application/vnd.google-apps.folder");
         uint64_t size = size_str.empty() ? 0 : std::stoull(size_str);
 
         if (!id.empty() && !name.empty()) {
-            items.push_back({id, size, is_dir, name});
+            items.push_back({id, size, is_dir, name, 0, hash});
         }
 
         curr = obj_end + 1;
@@ -518,7 +526,7 @@ std::vector<FileInfo> GoogleDriveProvider::list(Path path) {
     int page = 0;
     const int max_pages = 100; // 100 pages x 100 items — hard stop against runaway loops
     do {
-        std::string url = "https://www.googleapis.com/drive/v3/files?pageSize=100&fields=nextPageToken,files(id,name,mimeType,size)&q=" + url_encode(q);
+        std::string url = "https://www.googleapis.com/drive/v3/files?pageSize=100&fields=nextPageToken,files(id,name,mimeType,size,sha256Checksum,md5Checksum)&q=" + url_encode(q);
         if (!page_token.empty()) {
             url += "&pageToken=" + url_encode(page_token);
         }

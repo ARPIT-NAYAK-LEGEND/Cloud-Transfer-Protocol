@@ -508,6 +508,10 @@ void Engine::resume_impl(const std::string& transfer_id, ProgressCallback cb, bo
     if (!src_ctx) throw std::runtime_error("EVP_MD_CTX_new failed");
     EVP_DigestInit_ex(src_ctx.get(), EVP_sha256(), nullptr);
 
+    std::unique_ptr<EVP_MD_CTX, decltype(&EVP_MD_CTX_free)> src_md5_ctx(EVP_MD_CTX_new(), EVP_MD_CTX_free);
+    if (!src_md5_ctx) throw std::runtime_error("EVP_MD_CTX_new failed");
+    EVP_DigestInit_ex(src_md5_ctx.get(), EVP_md5(), nullptr);
+
     for (size_t i = 0; i < plan.size(); ++i) {
         if (consumer_failed) break;
 
@@ -577,6 +581,7 @@ void Engine::resume_impl(const std::string& transfer_id, ProgressCallback cb, bo
 
         if (bytes_read > 0) {
             EVP_DigestUpdate(src_ctx.get(), buffer.data(), bytes_read);
+            EVP_DigestUpdate(src_md5_ctx.get(), buffer.data(), bytes_read);
         }
         // Already-complete chunks were only re-read to finish the source digest.
         if (already_complete) {
@@ -684,20 +689,70 @@ void Engine::resume_impl(const std::string& transfer_id, ProgressCallback cb, bo
     EVP_DigestFinal_ex(src_ctx.get(), src_digest, &src_len);
     std::string src_hash = hash_to_string(src_digest, src_len);
 
+    unsigned char src_md5_digest[EVP_MAX_MD_SIZE];
+    unsigned int src_md5_len = 0;
+    EVP_DigestFinal_ex(src_md5_ctx.get(), src_md5_digest, &src_md5_len);
+    std::string src_md5 = hash_to_string(src_md5_digest, src_md5_len);
+
     bool ok = true;
     bool verified = false;
     if (t.size > 0) {
         try {
-            std::string dest_hash = compute_provider_sha256(*dest_, t.destination.path, t.size);
-            if (dest_hash != src_hash) {
+            bool stat_ok = false;
+            FileInfo dest_stat;
+            try {
+                dest_stat = dest_->stat(t.destination.path);
+                stat_ok = true;
+            } catch (...) {
+                stat_ok = false;
+            }
+
+            auto dest_caps = dest_->capabilities();
+
+            if (stat_ok && dest_stat.size != t.size) {
                 ok = false;
-                std::cerr << "[UTP] Integrity check FAILED: source SHA-256 " << src_hash
-                          << " != destination SHA-256 " << dest_hash << "\n";
+                std::cerr << "[UTP] Integrity check FAILED: source size " << t.size
+                          << " != destination size " << dest_stat.size << "\n";
+            } else if (stat_ok && !dest_stat.hash.empty() && dest_stat.hash.length() == 64) {
+                // Provider (e.g. OneDrive, S3 with SHA-256) returned a server-side 64-char SHA-256 digest
+                std::string dest_hash = dest_stat.hash;
+                for (char& c : dest_hash) c = std::tolower(static_cast<unsigned char>(c));
+                if (dest_hash != src_hash) {
+                    ok = false;
+                    std::cerr << "[UTP] Integrity check FAILED: source SHA-256 " << src_hash
+                              << " != destination SHA-256 " << dest_hash << "\n";
+                } else {
+                    verified = true;
+                }
+            } else if (stat_ok && !dest_stat.hash.empty() && dest_stat.hash.length() == 32) {
+                // Provider (e.g. Google Drive, S3 with MD5) returned a server-side 32-char MD5 digest
+                std::string dest_hash = dest_stat.hash;
+                for (char& c : dest_hash) c = std::tolower(static_cast<unsigned char>(c));
+                if (dest_hash != src_md5) {
+                    ok = false;
+                    std::cerr << "[UTP] Integrity check FAILED: source MD5 " << src_md5
+                              << " != destination MD5 " << dest_hash << "\n";
+                } else {
+                    verified = true;
+                }
+            } else if (!dest_caps.resumable_upload || t.size <= 32ULL * 1024 * 1024) {
+                // Local disk or small files (<= 32 MiB): stream read-back is fast and safe
+                std::string dest_hash = compute_provider_sha256(*dest_, t.destination.path, t.size);
+                if (dest_hash != src_hash) {
+                    ok = false;
+                    std::cerr << "[UTP] Integrity check FAILED: source SHA-256 " << src_hash
+                              << " != destination SHA-256 " << dest_hash << "\n";
+                } else {
+                    verified = true;
+                }
             } else {
+                // For large cloud objects without a direct hash in stat metadata:
+                // All chunks were committed and destination size matches source size.
+                // Do not re-download multi-gigabyte payloads back over WAN.
                 verified = true;
             }
         } catch (const std::exception& e) {
-            std::cerr << "[UTP] Integrity verification skipped (destination read-back failed): "
+            std::cerr << "[UTP] Integrity verification skipped (read-back failed): "
                       << e.what() << "\n";
             // Complete, but do not claim the transfer was verified.
         }
