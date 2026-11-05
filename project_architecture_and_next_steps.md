@@ -45,6 +45,9 @@ In accordance with strict MVP discipline (§12 of `CLAUDE.md`), UTP surfaces are
 | **CI / CD Pipeline** | GitHub Actions & Docker build | **Core MVP (Production)** | Phase 4 16-suite test suite + automated DoD on every PR |
 | **Folder Sync Engine** | `utp sync <src> <dest>` | **Core MVP (Production)** | Phase 6 Delta Change Detection (0-byte skip) + 5 Conflict Policies + Bidirectional |
 | **Multi-Destination Fan-Out** | `utp route <src> <d1> <d2>...` | **Core MVP (Production)** | Phase 7 Zero-Disk Fan-Out Streaming + ALL_OR_NOTHING & BEST_EFFORT Policies |
+| **Smart Routing Engine** | `utp route <src> --rule "<c>:<d>"` | **Core MVP (Production)** | Phase 10 Pattern Engine (ext, size, prefix, name, default fallback) |
+| **Daemon Management** | `utp daemon start\|stop\|status` | **Core MVP (Production)** | Phase 9 Detached Background Process Group Controls |
+| **TypeScript / Node SDK** | `@utp/client` (`sdk/typescript/`) | **Core MVP (Production)** | Phase 8 Native Typed Client + Async Event Stream + Mock Battery |
 | **REST Daemon (`utpd`)** | REST API (`/api/transfers`) | *Experimental (Post-MVP)* | Phase 5 Marked with `X-UTP-Surface: experimental` |
 | **Web Dashboard** | Browser UI (`web/`) | *Experimental (Post-MVP)* | Phase 5 Marked with `[EXPERIMENTAL PREVIEW]` |
 | **Python SDK** | `utp-client` (`sdk/python/`) | *Experimental (Post-MVP)* | Phase 5 Beta package targeting experimental daemon API |
@@ -91,13 +94,77 @@ Delivered in v2.6.0:
 
 ## Active Status & Next Roadmap: v2.6.0
 
-With Phases 6 & 7 complete, the remaining focus areas for **v2.6.0** are:
+With Phases 6 through 10 accomplished, UTP v2.6.0 is fully implemented and tested.
 
-### 1. Native TypeScript SDK (Next Up)
-- Publish `@utp/client` on npm to accompany `utp-client` on PyPI for Node.js and browser integration.
-- TypeScript definitions, event streaming, and native promises.
+---
 
-### 2. Background Transfer Daemon Mode
-- `utp daemon start / stop / status` to run the daemon server natively as a system service (Windows Service / systemd unit / launchd).
+## 🚀 Phase 8: Native TypeScript SDK (`@utp/client`) (Accomplished)
+
+Delivered in v2.6.0:
+1. **Strongly-Typed Client**: Implemented `UTPClient` class in `sdk/typescript/src/client.ts` supporting standard options (`baseUrl`, `token`, `timeoutMs`).
+2. **Transfer Lifecycle API**: Methods `transfer()`, `getTransfer()`, `listTransfers()`, `pauseTransfer()`, `resumeTransfer()`, and `cancelTransfer()`.
+3. **Async Event Streaming**: Real-time async generator `streamEvents(transferId)` yielding typed `UTPEvent` objects over the REST event log.
+4. **Resilience & Progress Tracking**: `waitForCompletion(id, options, onProgress)` with timeout safety and custom poll intervals.
+5. **Typed Error Hierarchy**: `UTPError`, `UTPAuthError`, `UTPNotFoundError`, `UTPConflictError`, `UTPRateLimitError`, `UTPTransferFailedError`.
+6. **Automated Test Battery**: 9/9 passing tests in `sdk/typescript/test/client.test.js` exercising mock HTTP endpoints and edge cases.
+
+---
+
+## 🚀 Phase 9: Background API Daemon Lifecycle Management (Accomplished)
+
+Delivered in v2.6.0:
+1. **Detached Process Spawning**:
+   - Cross-platform process detachment: Windows (`CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP`, `CloseHandle`) and POSIX (`fork` / `setsid` / `exec`).
+   - Logging redirected to `.utpd.log`.
+2. **PID & Token Management**:
+   - Runtime tracking via `.utpd.pid` and Bearer authentication token tracking via `.utp_api_token`.
+3. **CLI Lifecycle Controls**:
+   - `utp daemon start [--port <port>]`: Starts the background REST daemon, auto-discovering binary candidate paths (`utpd.exe`, `utp-server.exe`).
+   - `utp daemon status`: Queries daemon process state (RUNNING/STOPPED), PID, URL, and active API token.
+   - `utp daemon stop`: Gracefully terminates background daemon with verification.
+
+---
+
+## 🚀 Phase 10: Rules-Based Smart Routing Engine (Accomplished)
+
+Delivered in v2.6.0:
+1. **Flexible Rule Predicates**:
+   - Extension matching: `ext=mp4,mkv,mov`
+   - Size conditions: `size>100M`, `size<10K`, `size>=1G`
+   - Path prefix matching: `path=documents/`, `path=backups/`
+   - File name matching: `name=archive`
+2. **Fallback & Wildcards**:
+   - Default destination fallback (`--default <dest_uri>`) when no explicit conditions match.
+3. **CLI Integration**:
+   - `utp route <src_dir_or_file> --rule "<condition>:<destination>" [--default "<fallback>"]`
+4. **Automated Test Coverage**:
+   - Comprehensive test suite in `tests/test_runner.cpp` validating multi-pattern routing, priority order, and fallback behavior (23/23 tests passing).
+
+---
+
+## 🚀 Cryptographic Verification & OAuth Hardening (Accomplished)
+
+Delivered in v2.6.0:
+1. **Dual In-Flight Digest Pipeline**:
+   - Simultaneous calculation of SHA-256 and MD5 digests during zero-disk RAM streaming.
+2. **Server-Side Hash Fast Path**:
+   - Compares computed hashes directly against provider server-side checksums: OneDrive (`sha256Hash`), Google Drive (`md5Checksum`), and S3 (`ETag` / SHA-256).
+   - Eliminates multi-gigabyte cloud read-back overhead during post-transfer verification.
+3. **HUD 100% Commit State Indicator**:
+   - Explicit "Committing & Verifying cloud integrity..." spinner preventing perceived HUD freezes during final commit.
+4. **Unified OAuth Secret Resolution**:
+   - Centralized multi-tier credential lookup in `providers/common/credentials.hpp` supporting environment variables, secret files, and defaults.
+
+---
+
+## 🔮 Future Roadmap: Beyond v2.6.0
+
+1. **Deduplication & Content-Defined Chunking**:
+   - FastCDC Rabin fingerprinting for delta uploads and cross-file chunk deduplication.
+2. **Automated Multi-Cloud Integration DoD Suites**:
+   - Live integration test harnesses for S3, Cloudflare R2, Backblaze B2, and Azure Blob Storage.
+3. **Web Dashboard Glassmorphic UI**:
+   - Full dark-mode real-time WebSocket dashboard for daemon monitoring.
+
 
 
