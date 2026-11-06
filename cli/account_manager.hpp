@@ -53,13 +53,10 @@ public:
             }
         }
         if (provider == "gdrive") {
-            if (account_id == "my_personal") return "Personal Google Drive (arpitpupu@gmail.com)";
-            if (account_id == "my_work") return "Work Google Drive (arpit.work@gmail.com)";
             return account_id.empty() ? "Google Drive" : ("Google Drive (" + account_id + ")");
         }
         if (provider == "onedrive") {
-            if (account_id == "default" || account_id.empty()) return "Primary OneDrive (zyphe4@outlook.com)";
-            return "OneDrive (" + account_id + ")";
+            return (account_id.empty() || account_id == "default") ? "OneDrive" : ("OneDrive (" + account_id + ")");
         }
         if (provider == "dropbox") {
             if (account_id == "default" || account_id.empty()) return "Dropbox";
@@ -188,14 +185,6 @@ private:
                         a.email = em;
                     }
                 }
-                if (a.email.empty() || a.email.find('@') == std::string::npos) {
-                    if (a.provider == "gdrive") {
-                        if (a.id == "my_personal" || a.id == "personal") a.email = "arpitpupu@gmail.com";
-                        else if (a.id == "my_work" || a.id == "work") a.email = "arpit.work@gmail.com";
-                    } else if (a.provider == "onedrive") {
-                        if (a.id == "default" || a.id == "personal") a.email = "zyphe4@outlook.com";
-                    }
-                }
             }
         }
 
@@ -257,10 +246,7 @@ private:
                         if (a.provider == "gdrive" && a.id == id) { found = true; break; }
                     }
                     if (!found) {
-                        std::string label = (id == "my_personal") ? "Personal Drive" :
-                                            (id == "my_work") ? "Work Drive" :
-                                            (id == "default") ? "Primary Drive" :
-                                            ("Google Drive (" + id + ")");
+                        std::string label = (id == "personal" || id == "default") ? "Personal Google Drive" : (id == "work") ? "Work Google Drive" : ("Google Drive (" + id + ")");
                         accounts_.push_back({id, "gdrive", label, id, fname});
                     }
                 }
@@ -272,7 +258,7 @@ private:
                         if (a.provider == "onedrive" && a.id == "default") { found = true; break; }
                     }
                     if (!found) {
-                        accounts_.push_back({"default", "onedrive", "Primary OneDrive", "Personal/Work", fname});
+                        accounts_.push_back({"default", "onedrive", "OneDrive", "", fname});
                     }
                 }
 

@@ -49,6 +49,7 @@ private:
 
     void authenticate();
     std::string token_file_path() const;
+    void ensure_folder_path(const std::string& folder_path);
 };
 
 } // namespace utp

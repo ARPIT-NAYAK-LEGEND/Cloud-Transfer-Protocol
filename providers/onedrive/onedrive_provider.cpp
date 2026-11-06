@@ -231,16 +231,25 @@ void OneDriveProvider::authenticate() {
                 std::string new_ref = extract_json_value(r.body, "refresh_token");
                 if (!new_ref.empty()) refresh_token_ = new_ref;
 
-                std::string user_name = user_email_.empty() ? "Connected Account" : user_email_;
                 std::vector<std::string> auth_header = {"Authorization: Bearer " + access_token_};
-                auto user_resp = http_.get("https://graph.microsoft.com/v1.0/me/drive", auth_header);
-                if (user_resp.status_code == 200) {
-                    std::string fetched_name = extract_json_value(user_resp.body, "email");
-                    if (fetched_name.empty()) fetched_name = extract_json_value(user_resp.body, "userPrincipalName");
-                    if (fetched_name.empty()) fetched_name = extract_json_value(user_resp.body, "displayName");
-                    if (!fetched_name.empty()) user_name = fetched_name;
-                }
-                user_email_ = user_name;
+        std::string user_name;
+        auto me_resp = http_.get("https://graph.microsoft.com/v1.0/me", auth_header);
+        if (me_resp.status_code == 200) {
+            std::string mail = extract_json_value(me_resp.body, "mail");
+            if (mail.empty()) mail = extract_json_value(me_resp.body, "userPrincipalName");
+            if (!mail.empty()) user_name = mail;
+            else user_name = extract_json_value(me_resp.body, "displayName");
+        }
+        if (user_name.empty()) {
+            auto user_resp = http_.get("https://graph.microsoft.com/v1.0/me/drive", auth_header);
+            if (user_resp.status_code == 200) {
+                user_name = extract_json_value(user_resp.body, "email");
+                if (user_name.empty()) user_name = extract_json_value(user_resp.body, "userPrincipalName");
+                if (user_name.empty()) user_name = extract_json_value(user_resp.body, "displayName");
+            }
+        }
+        if (user_name.empty()) user_name = "Connected Account";
+        user_email_ = user_name;
 
                 std::string new_json = "{\"access_token\":\"" + access_token_ + "\",\"refresh_token\":\"" + refresh_token_ + "\",\"email\":\"" + user_name + "\"}";
                 std::ofstream outfile(token_file);
@@ -311,10 +320,22 @@ void OneDriveProvider::authenticate() {
         refresh_token_ = extract_json_value(resp.body, "refresh_token");
         
         std::vector<std::string> auth_header = {"Authorization: Bearer " + access_token_};
-        auto user_resp = http_.get("https://graph.microsoft.com/v1.0/me/drive", auth_header);
-        std::string user_name = extract_json_value(user_resp.body, "email");
-        if (user_name.empty()) user_name = extract_json_value(user_resp.body, "userPrincipalName");
-        if (user_name.empty()) user_name = extract_json_value(user_resp.body, "displayName");
+        std::string user_name;
+        auto me_resp = http_.get("https://graph.microsoft.com/v1.0/me", auth_header);
+        if (me_resp.status_code == 200) {
+            std::string mail = extract_json_value(me_resp.body, "mail");
+            if (mail.empty()) mail = extract_json_value(me_resp.body, "userPrincipalName");
+            if (!mail.empty()) user_name = mail;
+            else user_name = extract_json_value(me_resp.body, "displayName");
+        }
+        if (user_name.empty()) {
+            auto user_resp = http_.get("https://graph.microsoft.com/v1.0/me/drive", auth_header);
+            if (user_resp.status_code == 200) {
+                user_name = extract_json_value(user_resp.body, "email");
+                if (user_name.empty()) user_name = extract_json_value(user_resp.body, "userPrincipalName");
+                if (user_name.empty()) user_name = extract_json_value(user_resp.body, "displayName");
+            }
+        }
         if (user_name.empty()) user_name = "Connected Account";
         user_email_ = user_name;
 
@@ -529,6 +550,50 @@ std::vector<FileInfo> OneDriveProvider::list(Path path) {
     }
 
     return items;
+}
+
+void OneDriveProvider::ensure_folder_path(const std::string& folder_path) {
+    if (folder_path.empty() || folder_path == "root" || folder_path == ".") return;
+
+    if (folder_path == "Personal Vault" || folder_path.rfind("Personal Vault/", 0) == 0 ||
+        folder_path.rfind("Personal_Vault", 0) == 0) {
+        throw TransferError(ErrorCategory::FATAL,
+            "OneDrive Personal Vault is BitLocker/2FA-locked and restricted from third-party API access by Microsoft. Please select the root directory or a standard folder.");
+    }
+
+    std::stringstream ss(folder_path);
+    std::string segment;
+    std::string current_parent = "";
+
+    std::vector<std::string> headers = {
+        "Authorization: Bearer " + access_token_,
+        "Content-Type: application/json"
+    };
+
+    while (std::getline(ss, segment, '/')) {
+        while (!segment.empty() && (segment.front() == ' ' || segment.front() == '/')) segment.erase(0, 1);
+        while (!segment.empty() && (segment.back() == ' ' || segment.back() == '/')) segment.pop_back();
+        if (segment.empty() || segment == "." || segment == "root") continue;
+
+        std::string target_path = current_parent.empty() ? segment : (current_parent + "/" + segment);
+
+        // Check if target folder exists
+        std::string check_url = "https://graph.microsoft.com/v1.0/me/drive/root:/" + url_encode_path(target_path);
+        auto check_resp = http_.get(check_url, headers);
+        if (check_resp.status_code != 200) {
+            // Folder does not exist, create it via Graph API
+            std::string create_url = current_parent.empty()
+                ? "https://graph.microsoft.com/v1.0/me/drive/root/children"
+                : ("https://graph.microsoft.com/v1.0/me/drive/root:/" + url_encode_path(current_parent) + ":/children");
+            std::string body = "{\"name\":\"" + segment + "\",\"folder\":{},\"@microsoft.graph.conflictBehavior\":\"fail\"}";
+            auto create_resp = http_.post(create_url, body, headers);
+            if (create_resp.status_code != 200 && create_resp.status_code != 201 && create_resp.status_code != 409) {
+                std::cerr << "[OneDrive] Note: failed to create intermediate folder '" << target_path 
+                          << "' (" << create_resp.status_code << "): " << create_resp.body << "\n";
+            }
+        }
+        current_parent = target_path;
+    }
 }
 
 ReadStream OneDriveProvider::openRead(Path path) {

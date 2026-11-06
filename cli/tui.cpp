@@ -383,6 +383,10 @@ static ExplorerResult run_drive_explorer(const std::string& scheme, const std::s
 
                 std::string sz_str = it.is_directory ? "--" : format_bytes(it.size);
                 const char* n_color = it.is_directory ? C_YELLOW : C_WHITE;
+                if (it.name == "Personal Vault") {
+                    sz_str = "[Locked]";
+                    n_color = C_MUTED;
+                }
 
                 std::cout << C_SPINE GLYPH_SPINE C_RESET "    "
                           << C_MUTED << "[" << num_str << "]" C_RESET "  "
@@ -513,6 +517,10 @@ static ExplorerResult run_drive_explorer(const std::string& scheme, const std::s
                 size_t idx = selected_indices[0];
                 const auto& chosen = items[idx];
                 if (chosen.is_directory) {
+                    if (chosen.name == "Personal Vault") {
+                        std::cout << "\n  " C_RED "? " C_YELLOW "OneDrive Personal Vault is BitLocker/2FA-protected and restricted from third-party API access by Microsoft.\n    Please select a standard folder or the drive root." C_RESET "\n\n";
+                        continue;
+                    }
                     if (is_source) {
                         std::vector<MenuOption> dir_choices = {
                             {"Open folder", "", "Browse inside " + chosen.name},
@@ -730,9 +738,13 @@ static SelectedEndpoint select_storage_endpoint(const std::string& step_title, i
         std::string alias_label = alias;
         if (!alias_label.empty()) alias_label[0] = std::toupper(alias_label[0]);
         std::string disp_name = alias_label + " " + prov_name;
+        if (!user_email.empty() && user_email.find('@') != std::string::npos) {
+            disp_name += " (" + user_email + ")";
+        }
         AccountManager::instance().add_account({alias, ep.scheme, disp_name, user_email, token_file});
         ep.account = alias;
         ep.display_name = AccountManager::instance().get_display_name(ep.scheme, alias);
+        std::cout << C_GREEN GLYPH_DONE C_RESET "  " C_GREEN C_BOLD << ep.display_name << " connected successfully!" C_RESET "\n\n";
         return ep;
     }
 
@@ -778,9 +790,13 @@ static SelectedEndpoint select_storage_endpoint(const std::string& step_title, i
         std::string alias_label = alias;
         if (!alias_label.empty()) alias_label[0] = std::toupper(alias_label[0]);
         std::string disp_name = alias_label + " " + prov_name;
+        if (!user_email.empty() && user_email.find('@') != std::string::npos) {
+            disp_name += " (" + user_email + ")";
+        }
         AccountManager::instance().add_account({alias, ep.scheme, disp_name, user_email, token_file});
         ep.account = alias;
         ep.display_name = AccountManager::instance().get_display_name(ep.scheme, alias);
+        std::cout << C_GREEN GLYPH_DONE C_RESET "  " C_GREEN C_BOLD << ep.display_name << " connected successfully!" C_RESET "\n\n";
         return ep;
     }
 
