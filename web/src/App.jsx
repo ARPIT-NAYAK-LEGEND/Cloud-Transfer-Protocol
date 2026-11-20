@@ -3,7 +3,6 @@ import Navbar from './components/Navbar.jsx';
 import Hero from './components/Hero.jsx';
 import TerminalSimulation from './components/TerminalSimulation.jsx';
 import FeatureGrid from './components/FeatureGrid.jsx';
-import ArchitectureDiagram from './components/ArchitectureDiagram.jsx';
 import ProtocolMatrix from './components/ProtocolMatrix.jsx';
 import ComplianceHub from './components/ComplianceHub.jsx';
 import Footer from './components/Footer.jsx';
@@ -12,7 +11,7 @@ import LegalModals from './components/LegalModals.jsx';
 export default function App() {
   const [legalModalTab, setLegalModalTab] = useState(null); // 'privacy' | 'terms' | 'security' | null
 
-  // Support direct deep-linking via URL hash (e.g., #privacy, #terms, #security) or path (/privacy, /terms, /security)
+  // Support direct deep-linking via URL hash (#privacy, #terms, #security) or path (/privacy, /terms, /security)
   useEffect(() => {
     const checkRoute = () => {
       const hash = window.location.hash.toLowerCase();
@@ -47,10 +46,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#07090e] text-slate-100 flex flex-col relative overflow-hidden bg-cyber-grid">
-      {/* Top subtle ambient mesh */}
-      <div className="absolute top-0 left-0 right-0 h-96 glow-mesh pointer-events-none" />
-
+    <div className="min-h-screen bg-[#0E0D0C] text-[#F5F4F0] flex flex-col relative selection:bg-[#FF5B1F]/30 selection:text-[#FF5B1F]">
       {/* Top Fixed Navbar */}
       <Navbar onOpenLegal={handleOpenLegal} />
 
@@ -59,12 +55,11 @@ export default function App() {
         <Hero onOpenLegal={handleOpenLegal} />
         <TerminalSimulation />
         <FeatureGrid />
-        <ArchitectureDiagram />
         <ProtocolMatrix />
         <ComplianceHub onOpenLegal={handleOpenLegal} />
       </main>
 
-      {/* Footer */}
+      {/* Structural Footer */}
       <Footer onOpenLegal={handleOpenLegal} />
 
       {/* Store Review & Compliance Modals */}
@@ -73,7 +68,7 @@ export default function App() {
         onClose={handleCloseLegal}
         onSelectTab={(tab) => {
           setLegalModalTab(tab);
-          window.history.pushState(null, '', `#${tab}`);
+          window.history.pushState(null, '', `/${tab}`);
         }}
       />
     </div>

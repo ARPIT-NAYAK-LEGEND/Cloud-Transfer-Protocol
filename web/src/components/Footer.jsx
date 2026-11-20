@@ -32,7 +32,7 @@ export default function Footer({ onOpenLegal }) {
               <li><a href="#simulator" className="hover:text-[#F5F4F0] transition-colors">01 / Runtime Simulator</a></li>
               <li><a href="#features" className="hover:text-[#F5F4F0] transition-colors">02 / Engineering Feats</a></li>
               <li><a href="#protocols" className="hover:text-[#F5F4F0] transition-colors">03 / Supported Protocols</a></li>
-              <li><a href="#architecture" className="hover:text-[#F5F4F0] transition-colors">04 / Zero-Disk Pipeline</a></li>
+              <li><a href="#compliance" className="hover:text-[#F5F4F0] transition-colors">04 / Compliance Specs</a></li>
             </ul>
           </div>
 

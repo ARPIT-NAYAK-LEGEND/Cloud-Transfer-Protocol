@@ -65,14 +65,11 @@ export default function Navbar({ onOpenLegal }) {
               <a href="#protocols" className="hover:text-[#F5F4F0] transition-colors">
                 <span className="text-[#66635C] mr-1">03</span>Protocols
               </a>
-              <a href="#architecture" className="hover:text-[#F5F4F0] transition-colors">
-                <span className="text-[#66635C] mr-1">04</span>Specs
-              </a>
               <button
                 onClick={() => onOpenLegal('privacy')}
                 className="hover:text-[#FF5B1F] transition-colors cursor-pointer"
               >
-                <span className="text-[#66635C] mr-1">05</span>Legal
+                <span className="text-[#66635C] mr-1">04</span>Legal
               </button>
             </nav>
 
@@ -139,13 +136,6 @@ export default function Navbar({ onOpenLegal }) {
             className="block text-[#9E9B94] hover:text-[#F5F4F0]"
           >
             <span className="text-[#66635C] mr-2">03</span>Supported Protocols
-          </a>
-          <a
-            href="#architecture"
-            onClick={() => setMobileMenuOpen(false)}
-            className="block text-[#9E9B94] hover:text-[#F5F4F0]"
-          >
-            <span className="text-[#66635C] mr-2">04</span>Zero-Disk Architecture
           </a>
           <div className="pt-3 border-t border-[#242220] flex gap-4">
             <button
