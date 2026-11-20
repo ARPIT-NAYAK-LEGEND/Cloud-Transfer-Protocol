@@ -3,6 +3,7 @@
 #include "providers/interface/storage_provider.hpp"
 #include <string>
 #include <memory>
+#include <vector>
 
 namespace utp {
 
@@ -13,6 +14,7 @@ struct TransferItem {
     std::string src_account{""};
     std::string dest_account{""};
     std::string custom_id{""};
+    uint64_t file_size{0};
 };
 
 struct TuiTransferParams {
@@ -20,8 +22,11 @@ struct TuiTransferParams {
     std::string dest_uri;
     std::string src_account{""};
     std::string dest_account{""};
+    std::string src_display{""};
+    std::string dest_display{""};
+    std::string target_folder{""};
     std::vector<TransferItem> transfers;
-    bool valid;
+    bool valid{false};
 };
 
 struct MenuOption {

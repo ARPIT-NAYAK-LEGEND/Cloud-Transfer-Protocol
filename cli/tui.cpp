@@ -19,20 +19,23 @@
 namespace utp {
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  DESIGN TOKENS (CLAUDE CODE / CLACK / VERCEL PALETTE)
+//  DESIGN TOKENS & ANSI COLOR PALETTE (CLAUDE CODE / VERCEL / STRIPE)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 #define C_RESET     "\033[0m"
 #define C_BOLD      "\033[1m"
 #define C_DIM       "\033[2m"
-#define C_VIOLET    "\033[38;5;141m" // Claude signature violet (#a78bfa)
-#define C_CYAN      "\033[38;5;51m"  // Electric cyan (#38bdf8)
-#define C_GREEN     "\033[38;5;49m"  // Vibrant emerald (#34d399)
-#define C_YELLOW    "\033[38;5;215m" // Warm amber (#fbbf24)
-#define C_RED       "\033[38;5;203m" // Coral red
-#define C_WHITE     "\033[1;37m"     // Crisp white
-#define C_MUTED     "\033[38;5;242m" // Slate gray (#64748b)
-#define C_SPINE     "\033[38;5;239m" // Left spine color (#475569)
+#define C_VIOLET    "\033[38;5;141m" // Signature Violet (#a78bfa)
+#define C_CYAN      "\033[38;5;51m"  // Electric Cyan (#38bdf8)
+#define C_BLUE      "\033[38;5;75m"  // Soft Blue (#60a5fa)
+#define C_EMERALD   "\033[38;5;49m"  // Vibrant Emerald (#34d399)
+#define C_AMBER     "\033[38;5;215m" // Warm Amber (#fbbf24)
+#define C_ROSE      "\033[38;5;203m" // Coral Red (#f87171)
+#define C_WHITE     "\033[1;37m"     // Crisp White
+#define C_DIM_W     "\033[0;37m"     // Regular Soft White
+#define C_MUTED     "\033[38;5;242m" // Slate Gray (#64748b)
+#define C_SPINE     "\033[38;5;239m" // Vertical Spine Line (#475569)
+#define C_BORDER    "\033[38;5;238m" // Card Border Box (#334155)
 
 // Glyphs
 #define GLYPH_TOP    "┌"
@@ -71,6 +74,17 @@ static std::string to_lower(std::string s) {
     return s;
 }
 
+static std::string pad_right(const std::string& str, size_t width) {
+    if (str.length() >= width) return str;
+    return str + std::string(width - str.length(), ' ');
+}
+
+static std::string truncate_str(const std::string& str, size_t max_len) {
+    if (str.length() <= max_len) return str;
+    if (max_len <= 3) return str.substr(0, max_len);
+    return str.substr(0, max_len - 3) + "...";
+}
+
 static std::string get_file_icon(const std::string& name, bool is_dir) {
     if (is_dir) return "📁";
     std::string lower = to_lower(name);
@@ -84,8 +98,25 @@ static std::string get_file_icon(const std::string& name, bool is_dir) {
     return "📄";
 }
 
+static std::string get_file_type_label(const std::string& name, bool is_dir) {
+    if (is_dir) return "Directory";
+    std::string lower = to_lower(name);
+    if (lower.ends_with(".mp4")) return "MP4 Video";
+    if (lower.ends_with(".mov")) return "QuickTime Video";
+    if (lower.ends_with(".mkv")) return "Matroska Video";
+    if (lower.ends_with(".avi")) return "AVI Video";
+    if (lower.ends_with(".jpg") || lower.ends_with(".jpeg")) return "JPEG Image";
+    if (lower.ends_with(".png")) return "PNG Image";
+    if (lower.ends_with(".pdf")) return "PDF Document";
+    if (lower.ends_with(".zip") || lower.ends_with(".7z") || lower.ends_with(".tar") || lower.ends_with(".gz")) return "Archive";
+    if (lower.ends_with(".mp3") || lower.ends_with(".flac") || lower.ends_with(".wav")) return "Audio";
+    if (lower.ends_with(".doc") || lower.ends_with(".docx")) return "Word Doc";
+    if (lower.ends_with(".txt") || lower.ends_with(".md")) return "Text Document";
+    return "File";
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
-//  INTERACTIVE MENU (ARROW KEYS / NUMBER KEYS)
+//  INTERACTIVE MENU (TABULAR ALIGNMENT, ZERO GHOSTING, FAST SHORTCUTS)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 int run_interactive_menu(const std::string& question, const std::vector<MenuOption>& options, int default_idx) {
@@ -102,29 +133,35 @@ int run_interactive_menu(const std::string& question, const std::vector<MenuOpti
         }
         for (int i = 0; i < total; ++i) {
             std::cout << "\033[2K" C_SPINE GLYPH_SPINE C_RESET "  ";
+
+            // Determine column values cleanly
+            std::string title = options[i].title;
+            std::string sub = options[i].scheme;
+            std::string badge = options[i].desc;
+
+            // Handle internal sentinel values cleanly
+            if (sub == "add_new") {
+                sub = "(Browser OAuth)";
+                if (badge.empty()) badge = "Connect new account";
+            }
+
+            std::string col1 = pad_right(truncate_str(title, 28), 28);
+            std::string col2 = pad_right(truncate_str(sub, 26), 26);
+            std::string col3 = truncate_str(badge, 28);
+
             if (i == selected) {
-                std::cout << C_CYAN GLYPH_ON " " C_WHITE C_BOLD << options[i].title << C_RESET;
-                if (!options[i].scheme.empty()) {
-                    std::cout << "  " C_CYAN << options[i].scheme << C_RESET;
-                }
-                if (!options[i].desc.empty()) {
-                    std::cout << "  " C_MUTED << options[i].desc << C_RESET;
-                }
-                std::cout << "\n";
+                std::cout << C_CYAN GLYPH_PROMPT " " C_VIOLET GLYPH_ON " " C_WHITE C_BOLD << col1 << C_RESET "  "
+                          << C_CYAN << col2 << C_RESET "  "
+                          << C_AMBER << col3 << C_RESET "\n";
             } else {
-                std::cout << C_MUTED GLYPH_OFF " " << options[i].title << C_RESET;
-                if (!options[i].scheme.empty()) {
-                    std::cout << "  " C_MUTED << options[i].scheme << C_RESET;
-                }
-                if (!options[i].desc.empty()) {
-                    std::cout << "  " C_MUTED << options[i].desc << C_RESET;
-                }
-                std::cout << "\n";
+                std::cout << "  " C_MUTED GLYPH_OFF " " C_DIM_W << col1 << C_RESET "  "
+                          << C_MUTED << col2 << C_RESET "  "
+                          << C_MUTED << col3 << C_RESET "\n";
             }
         }
         std::cout << "\033[2K" C_SPINE GLYPH_SPINE C_RESET "\n";
         std::cout << "\033[2K" C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "↑/↓ navigate · 1-" << total
-                  << " select · Enter confirm · q quit" C_RESET "\n";
+                  << " select · Enter confirm · Esc cancel" C_RESET "\n";
         std::cout.flush();
     };
 
@@ -139,7 +176,7 @@ int run_interactive_menu(const std::string& question, const std::vector<MenuOpti
         if (ch == 13) { // Enter
             break;
         }
-        if (ch >= '1' && ch < '1' + total) {
+        if (ch >= '1' && ch < '1' + total && ch <= '9') {
             selected = ch - '1';
             break;
         }
@@ -166,17 +203,19 @@ int run_interactive_menu(const std::string& question, const std::vector<MenuOpti
 #endif
     }
 
-    // Collapse in-place into clean completed step
+    // Collapse cleanly into confirmed step
     std::cout << "\033[" << (total + 3) << "A";
-    std::cout << "\033[2K" C_GREEN GLYPH_DONE C_RESET "  " C_MUTED << question << ": "
+    std::cout << "\033[2K" C_EMERALD GLYPH_DONE C_RESET "  " C_MUTED << question << ": "
               << C_WHITE C_BOLD << options[selected].title << C_RESET;
-    if (!options[selected].scheme.empty() && options[selected].scheme != "add_new" &&
-        options[selected].scheme.find("://") == std::string::npos &&
-        options[selected].scheme.find('@') != std::string::npos) {
-        std::cout << " " C_CYAN "(" << options[selected].scheme << ")" C_RESET;
+
+    std::string tag = options[selected].scheme;
+    if (!tag.empty() && tag != "add_new" && tag.find("://") == std::string::npos && tag.find('@') != std::string::npos) {
+        std::cout << " " C_CYAN "(" << tag << ")" C_RESET;
     }
     std::cout << "\n";
     std::cout << "\033[2K" C_SPINE GLYPH_SPINE C_RESET "\n";
+
+    // Clear remaining choice lines smoothly
     for (int i = 0; i < total + 1; ++i) {
         std::cout << "\033[2K\n";
     }
@@ -199,35 +238,16 @@ static void clear_screen() {
 #endif
 }
 
-void print_modern_header(bool animated = false) {
-    clear_screen();
-    std::cout << C_VIOLET GLYPH_TOP C_RESET "  " C_WHITE C_BOLD "utp-engine" C_RESET " " C_MUTED "v2.6.0-pro" C_RESET "\n";
-    std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "direct cloud-to-cloud memory pipeline · tls 1.3 · 0-disk" C_RESET "\n";
-    std::cout << C_SPINE GLYPH_SPINE C_RESET "\n";
-
-    if (animated) {
-        const char* spinner[] = {"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"};
-        struct InitStep {
-            std::string label;
-            std::string done_text;
-        };
-        std::vector<InitStep> steps = {
-            {"Initializing zero-disk memory pipeline...", "Zero-disk memory pipeline active [TLS 1.3]"},
-            {"Mounting cloud interface mesh...", "Cloud interfaces online (GDrive · OneDrive · S3)"},
-            {"Calibrating direct RAM ring buffers...", "High-throughput streaming tunnels ready (0-disk)"}
-        };
-
-        for (const auto& step : steps) {
-            for (int f = 0; f < 6; ++f) {
-                std::cout << "\r" C_SPINE GLYPH_SPINE C_RESET "  " C_CYAN << spinner[f % 10] << C_RESET "  " C_WHITE << step.label << C_RESET "    ";
-                std::cout.flush();
-                std::this_thread::sleep_for(std::chrono::milliseconds(25));
-            }
-            std::cout << "\r" C_SPINE GLYPH_SPINE C_RESET "  " C_GREEN GLYPH_CHECK C_RESET "  " C_MUTED << step.done_text << C_RESET "    \n";
-            std::cout.flush();
-        }
-        std::cout << C_SPINE GLYPH_SPINE C_RESET "\n";
-    }
+void print_modern_header(bool is_initial = true) {
+    if (is_initial) clear_screen();
+    std::cout << "\n"
+              << C_VIOLET "▲" C_RESET " " C_WHITE C_BOLD "UTP" C_RESET " "
+              << C_MUTED "· Universal Cloud Transfer Protocol" C_RESET " "
+              << C_CYAN "v2.6.0-pro" C_RESET "\n"
+              << C_SPINE GLYPH_SPINE C_RESET "  "
+              << C_MUTED "Direct Memory Ring Buffer · Zero-Disk Pipeline · TLS 1.3" C_RESET "\n"
+              << C_SPINE GLYPH_SPINE C_RESET "\n";
+    std::cout.flush();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -310,7 +330,7 @@ static ExplorerResult run_drive_explorer(const std::string& scheme, const std::s
         provider = create_provider(scheme, account_id);
     } catch (const std::exception& e) {
         std::cout << "\033[1A\033[2K";
-        std::cout << C_RED "✗" C_RESET "  " C_RED "Connection failed: " << e.what() << C_RESET "\n\n";
+        std::cout << C_ROSE "✗" C_RESET "  " C_ROSE "Connection failed: " << e.what() << C_RESET "\n\n";
         res.cancelled = true;
         return res;
     }
@@ -321,7 +341,7 @@ static ExplorerResult run_drive_explorer(const std::string& scheme, const std::s
     std::vector<FolderBreadcrumb> gdrive_stack = {{"root", ""}};
     std::string current_path = "";
     size_t current_page = 0;
-    const size_t PAGE_SIZE = 16;
+    const size_t PAGE_SIZE = 12;
 
     while (true) {
         std::string query_target;
@@ -345,7 +365,7 @@ static ExplorerResult run_drive_explorer(const std::string& scheme, const std::s
         try {
             items = provider->list(query_target);
         } catch (const std::exception& e) {
-            std::cout << C_RED "✗" C_RESET "  " C_RED "Error fetching directory: " << e.what() << C_RESET "\n";
+            std::cout << C_ROSE "✗" C_RESET "  " C_ROSE "Error fetching directory: " << e.what() << C_RESET "\n";
         }
 
         size_t total_items = items.size();
@@ -364,9 +384,13 @@ static ExplorerResult run_drive_explorer(const std::string& scheme, const std::s
         // Header
         std::cout << C_VIOLET GLYPH_STEP C_RESET "  " C_WHITE C_BOLD
                   << (is_source ? "Select file(s) to transfer" : "Select destination directory") << C_RESET "\n";
-        std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "📁 " << provider_name << " " << display_path
-                  << " (" << total_items << " items · " << format_bytes(total_file_size) << ")" C_RESET "\n";
+        std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Location: " << C_CYAN << provider_name << C_MUTED " ── " << C_WHITE << display_path
+                  << C_MUTED " (" << total_items << " items · " << format_bytes(total_file_size) << ")" C_RESET "\n";
         std::cout << C_SPINE GLYPH_SPINE C_RESET "\n";
+
+        // Table Header
+        std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED "#    Name                                      Size        Type" C_RESET "\n";
+        std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_BORDER "───────────────────────────────────────────────────────────────────" C_RESET "\n";
 
         // Rows
         if (items.empty()) {
@@ -379,30 +403,37 @@ static ExplorerResult run_drive_explorer(const std::string& scheme, const std::s
 
                 std::string disp_name = it.name.empty() ? it.path : it.name;
                 if (it.is_directory) disp_name += "/";
-                if (disp_name.length() > 44) disp_name = disp_name.substr(0, 41) + "...";
+                disp_name = truncate_str(disp_name, 38);
 
                 std::string sz_str = it.is_directory ? "--" : format_bytes(it.size);
-                const char* n_color = it.is_directory ? C_YELLOW : C_WHITE;
+                std::string type_label = get_file_type_label(it.name, it.is_directory);
+                const char* n_color = it.is_directory ? C_AMBER : C_WHITE;
+
                 if (it.name == "Personal Vault") {
-                    sz_str = "[Locked]";
+                    sz_str = "[2FA Locked]";
+                    type_label = "Restricted";
                     n_color = C_MUTED;
                 }
 
                 std::cout << C_SPINE GLYPH_SPINE C_RESET "    "
-                          << C_MUTED << "[" << num_str << "]" C_RESET "  "
+                          << C_CYAN << "[" << num_str << "]" C_RESET "  "
                           << icon << " "
-                          << n_color << std::left << std::setw(44) << disp_name << C_RESET " "
-                          << C_MUTED << std::right << std::setw(10) << sz_str << C_RESET "\n";
+                          << n_color << std::left << std::setw(38) << disp_name << C_RESET "  "
+                          << C_MUTED << std::right << std::setw(10) << sz_str << C_RESET "  "
+                          << C_MUTED << std::left << std::setw(12) << type_label << C_RESET "\n";
             }
         }
 
         std::cout << C_SPINE GLYPH_SPINE C_RESET "\n";
-        std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Page " << (current_page + 1) << "/" << total_pages
-                  << " · [n]ext · [p]rev · cd <#> · enter item #" << (is_source ? " (or 'all')" : " (or '.' for root)") << C_RESET "\n";
+        std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Shortcuts: [01-99] Select · [..] Parent · [.] Pick folder · [q] Cancel" C_RESET "\n";
+        if (total_pages > 1) {
+            std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Pagination: Page " << (current_page + 1) << " of " << total_pages
+                      << " · [n] Next · [p] Previous" C_RESET "\n";
+        }
         std::cout << C_SPINE GLYPH_SPINE C_RESET "\n";
 
         // Prompt
-        std::cout << C_VIOLET GLYPH_PROMPT " " C_WHITE;
+        std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_CYAN GLYPH_PROMPT " " C_WHITE << (is_source ? "Select file #" : "Select destination #") << ": " C_RESET;
         std::string cmd;
         if (!std::getline(std::cin, cmd)) {
             res.cancelled = true;
@@ -429,7 +460,7 @@ static ExplorerResult run_drive_explorer(const std::string& scheme, const std::s
             continue;
         }
 
-        // cd ..
+        // Parent directory
         if (low == "cd .." || low == "..") {
             if (scheme == "gdrive") {
                 if (gdrive_stack.size() > 1) {
@@ -445,7 +476,7 @@ static ExplorerResult run_drive_explorer(const std::string& scheme, const std::s
             continue;
         }
 
-        // cd /
+        // Root directory
         if (low == "cd /" || low == "/" || low == "cd ~") {
             if (scheme == "gdrive") gdrive_stack = {{"root", ""}};
             else current_path = "";
@@ -492,7 +523,7 @@ static ExplorerResult run_drive_explorer(const std::string& scheme, const std::s
                 }
                 cur_dir.is_directory = true;
                 res.selected_files.push_back(cur_dir);
-                std::cout << C_GREEN GLYPH_DONE C_RESET "  " C_WHITE C_BOLD "Selected folder: " << cur_dir.name << C_RESET "\n";
+                std::cout << C_EMERALD GLYPH_DONE C_RESET "  " C_WHITE C_BOLD "Selected folder: " << cur_dir.name << C_RESET "\n";
                 std::cout << C_SPINE GLYPH_SPINE C_RESET "\n";
                 return res;
             } else {
@@ -504,13 +535,13 @@ static ExplorerResult run_drive_explorer(const std::string& scheme, const std::s
                     res.chosen_folder_name = current_path.empty() ? "Root" : current_path;
                 }
                 res.is_folder_chosen = true;
-                std::cout << C_GREEN GLYPH_DONE C_RESET "  " C_WHITE C_BOLD "Destination folder: " << res.chosen_folder_name << C_RESET "\n";
+                std::cout << C_EMERALD GLYPH_DONE C_RESET "  " C_WHITE C_BOLD "Destination folder: " << res.chosen_folder_name << C_RESET "\n";
                 std::cout << C_SPINE GLYPH_SPINE C_RESET "\n";
                 return res;
             }
         }
 
-        // Selection by number (e.g. 94 or 1-4)
+        // Selection by number (e.g. 1 or 1-4)
         auto selected_indices = parse_selection(cmd, items.size(), items);
         if (!selected_indices.empty()) {
             if (selected_indices.size() == 1) {
@@ -518,18 +549,19 @@ static ExplorerResult run_drive_explorer(const std::string& scheme, const std::s
                 const auto& chosen = items[idx];
                 if (chosen.is_directory) {
                     if (chosen.name == "Personal Vault") {
-                        std::cout << "\n  " C_RED "? " C_YELLOW "OneDrive Personal Vault is BitLocker/2FA-protected and restricted from third-party API access by Microsoft.\n    Please select a standard folder or the drive root." C_RESET "\n\n";
+                        std::cout << "\n" C_SPINE GLYPH_SPINE C_RESET "  " C_AMBER "▲ Notice: Microsoft OneDrive Personal Vault is 2FA/BitLocker protected.\n"
+                                  << C_SPINE GLYPH_SPINE C_RESET "    Microsoft Graph API restricts 3rd-party access. Please select a standard folder or root." C_RESET "\n\n";
                         continue;
                     }
                     if (is_source) {
                         std::vector<MenuOption> dir_choices = {
-                            {"Open folder", "", "Browse inside " + chosen.name},
-                            {"Transfer entire folder", "", "Queue all items in " + chosen.name}
+                            {"Open directory", "", "Browse inside " + chosen.name},
+                            {"Transfer entire directory", "", "Queue all items recursively in " + chosen.name}
                         };
-                        int dc = run_interactive_menu("Folder action: " + chosen.name, dir_choices, 0);
+                        int dc = run_interactive_menu("Folder Action: " + chosen.name, dir_choices, 0);
                         if (dc == 1) {
                             res.selected_files.push_back(chosen);
-                            std::cout << C_GREEN GLYPH_DONE C_RESET "  Selected folder: " C_WHITE C_BOLD << chosen.name << C_RESET "\n";
+                            std::cout << C_EMERALD GLYPH_DONE C_RESET "  Selected folder: " C_WHITE C_BOLD << chosen.name << C_RESET "\n";
                             std::cout << C_SPINE GLYPH_SPINE C_RESET "\n";
                             return res;
                         } else {
@@ -541,15 +573,15 @@ static ExplorerResult run_drive_explorer(const std::string& scheme, const std::s
                     } else {
                         // Destination folder selection
                         std::vector<MenuOption> dir_choices = {
-                            {"Select '" + chosen.name + "' as destination", "", "Files will be transferred into this folder"},
-                            {"Navigate inside folder", "", "Enter and browse deeper"}
+                            {"Select '" + chosen.name + "' as destination", "", "Files will transfer into this folder"},
+                            {"Navigate inside directory", "", "Enter and browse deeper"}
                         };
-                        int dc = run_interactive_menu("Destination folder: " + chosen.name, dir_choices, 0);
+                        int dc = run_interactive_menu("Destination Folder: " + chosen.name, dir_choices, 0);
                         if (dc == 0) {
                             res.chosen_folder = chosen.path;
                             res.chosen_folder_name = chosen.name;
                             res.is_folder_chosen = true;
-                            std::cout << C_GREEN GLYPH_DONE C_RESET "  Destination folder: " C_WHITE C_BOLD << chosen.name << C_RESET "\n";
+                            std::cout << C_EMERALD GLYPH_DONE C_RESET "  Destination folder: " C_WHITE C_BOLD << chosen.name << C_RESET "\n";
                             std::cout << C_SPINE GLYPH_SPINE C_RESET "\n";
                             return res;
                         } else {
@@ -560,9 +592,9 @@ static ExplorerResult run_drive_explorer(const std::string& scheme, const std::s
                         }
                     }
                 } else {
-                    // Single file selected!
+                    // Single file selected
                     res.selected_files.push_back(chosen);
-                    std::cout << C_GREEN GLYPH_DONE C_RESET "  Selected: " C_WHITE C_BOLD << chosen.name << C_RESET
+                    std::cout << C_EMERALD GLYPH_DONE C_RESET "  Selected: " C_WHITE C_BOLD << chosen.name << C_RESET
                               << C_MUTED " (" << format_bytes(chosen.size) << ")" C_RESET "\n";
                     std::cout << C_SPINE GLYPH_SPINE C_RESET "\n";
                     return res;
@@ -572,7 +604,7 @@ static ExplorerResult run_drive_explorer(const std::string& scheme, const std::s
                 for (size_t idx : selected_indices) {
                     res.selected_files.push_back(items[idx]);
                 }
-                std::cout << C_GREEN GLYPH_DONE C_RESET "  Selected: " C_WHITE C_BOLD
+                std::cout << C_EMERALD GLYPH_DONE C_RESET "  Selected: " C_WHITE C_BOLD
                           << res.selected_files.size() << " files" C_RESET "\n";
                 std::cout << C_SPINE GLYPH_SPINE C_RESET "\n";
                 return res;
@@ -608,7 +640,7 @@ static void scan_folder_recursive(StorageProvider* provider,
             }
         }
     } catch (const std::exception& e) {
-        std::cerr << C_SPINE GLYPH_SPINE C_RESET "  " C_RED "[Warning] Could not list folder " << folder_target << ": " << e.what() << C_RESET "\n";
+        std::cerr << C_SPINE GLYPH_SPINE C_RESET "  " C_ROSE "[Warning] Could not list folder " << folder_target << ": " << e.what() << C_RESET "\n";
     }
 }
 
@@ -629,13 +661,13 @@ static SelectedEndpoint select_storage_endpoint(const std::string& step_title, i
     size_t dropbox_cnt = AccountManager::instance().count_accounts("dropbox");
     size_t icloud_cnt = AccountManager::instance().count_accounts("icloud");
 
-    std::string gdrive_desc = (gdrive_cnt == 0) ? "Google Workspace & Drive files" :
+    std::string gdrive_desc = (gdrive_cnt == 0) ? "Ready to connect" :
                               (std::to_string(gdrive_cnt) + " account" + (gdrive_cnt > 1 ? "s" : "") + " connected");
-    std::string onedrive_desc = (onedrive_cnt == 0) ? "Microsoft 365 & Personal Vault" :
+    std::string onedrive_desc = (onedrive_cnt == 0) ? "Ready to connect" :
                                 (std::to_string(onedrive_cnt) + " account" + (onedrive_cnt > 1 ? "s" : "") + " connected");
-    std::string dropbox_desc = (dropbox_cnt == 0) ? "Personal & Team Cloud Files" :
+    std::string dropbox_desc = (dropbox_cnt == 0) ? "Personal & Team Cloud" :
                                (std::to_string(dropbox_cnt) + " account" + (dropbox_cnt > 1 ? "s" : "") + " connected");
-    std::string icloud_desc = (icloud_cnt == 0) ? "Apple iCloud Drive (Web docws & Local Bridge)" :
+    std::string icloud_desc = (icloud_cnt == 0) ? "Apple iCloud Drive" :
                               (std::to_string(icloud_cnt) + " account" + (icloud_cnt > 1 ? "s" : "") + " connected");
 
     std::vector<MenuOption> provider_options = {
@@ -643,11 +675,11 @@ static SelectedEndpoint select_storage_endpoint(const std::string& step_title, i
         {"OneDrive", "onedrive://", onedrive_desc},
         {"Dropbox", "dropbox://", dropbox_desc},
         {"Apple iCloud Drive", "icloud://", icloud_desc},
-        {"Amazon S3", "s3://", "AWS S3 Buckets & Cloud Storage"},
-        {"Cloudflare R2", "r2://", "High-Performance Zero-Egress S3 Storage"},
-        {"Backblaze B2", "b2://", "Cost-Effective S3 Cloud Storage"},
-        {"WebDAV / Nextcloud", "webdav://", "Nextcloud, ownCloud & Private NAS"},
-        {"Local Filesystem", "file://", "Local NVMe / SSD & Mounted Disks"}
+        {"Amazon S3", "s3://", "AWS S3 Buckets & Storage"},
+        {"Cloudflare R2", "r2://", "Zero-Egress Object Storage"},
+        {"Backblaze B2", "b2://", "Cost-Effective S3 Storage"},
+        {"WebDAV / Nextcloud", "webdav://", "Nextcloud, ownCloud & NAS"},
+        {"Local Filesystem", "file://", "Local NVMe & Mounted Disks"}
     };
 
     int p_idx = run_interactive_menu(step_title, provider_options, default_provider_idx);
@@ -699,8 +731,8 @@ static SelectedEndpoint select_storage_endpoint(const std::string& step_title, i
     auto accs = AccountManager::instance().get_accounts(ep.scheme);
 
     if (accs.empty()) {
-        std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_CYAN GLYPH_STEP C_RESET " No " << prov_name << " accounts connected.\n";
-        std::cout << C_SPINE GLYPH_SPINE C_RESET "  Enter alias for this account (e.g. personal, work, local) [personal]: ";
+        std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_CYAN GLYPH_STEP C_RESET " No " << prov_name << " accounts connected yet.\n";
+        std::cout << C_SPINE GLYPH_SPINE C_RESET "  Enter alias for this account (e.g. personal, work) [personal]: ";
         std::string alias;
         std::getline(std::cin, alias);
         alias = trim(alias);
@@ -724,12 +756,12 @@ static SelectedEndpoint select_storage_endpoint(const std::string& step_title, i
             }
         }
 
-        std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_CYAN GLYPH_STEP C_RESET " Authorizing new " << prov_name << " (" << alias << ")...\n";
+        std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_CYAN GLYPH_STEP C_RESET " Authorizing new " << prov_name << " (" << alias << ") via browser...\n";
         std::unique_ptr<StorageProvider> test_p;
         try {
             test_p = create_provider(ep.scheme, alias);
         } catch (const std::exception& e) {
-            std::cout << C_RED "✗" C_RESET "  " C_RED "Authentication failed: " << e.what() << C_RESET "\n\n";
+            std::cout << C_ROSE "✗" C_RESET "  " C_ROSE "Authentication failed: " << e.what() << C_RESET "\n\n";
             ep.cancelled = true;
             return ep;
         }
@@ -744,7 +776,7 @@ static SelectedEndpoint select_storage_endpoint(const std::string& step_title, i
         AccountManager::instance().add_account({alias, ep.scheme, disp_name, user_email, token_file});
         ep.account = alias;
         ep.display_name = AccountManager::instance().get_display_name(ep.scheme, alias);
-        std::cout << C_GREEN GLYPH_DONE C_RESET "  " C_GREEN C_BOLD << ep.display_name << " connected successfully!" C_RESET "\n\n";
+        std::cout << C_EMERALD GLYPH_DONE C_RESET "  " C_EMERALD C_BOLD << ep.display_name << " connected successfully!" C_RESET "\n\n";
         return ep;
     }
 
@@ -753,10 +785,10 @@ static SelectedEndpoint select_storage_endpoint(const std::string& step_title, i
     for (const auto& a : accs) {
         std::string mail = (!a.email.empty() && a.email.find('@') != std::string::npos) ? a.email : "";
         std::string tag = mail.empty() ? a.id : mail;
-        std::string desc = mail.empty() ? "OAuth 2.0 · Ready" : ("alias: " + a.id);
+        std::string desc = mail.empty() ? "OAuth 2.0 Ready" : ("alias: " + a.id);
         acc_options.push_back({a.name, tag, desc});
     }
-    acc_options.push_back({"[+] Connect new " + prov_name + " account...", "add_new", "Log in to another " + prov_name + " account via browser"});
+    acc_options.push_back({"[+] Connect new " + prov_name + " account...", "add_new", "Log in via browser"});
 
     int acc_idx = run_interactive_menu("Select " + prov_name + " account", acc_options, 0);
     if (acc_idx < 0) {
@@ -765,7 +797,7 @@ static SelectedEndpoint select_storage_endpoint(const std::string& step_title, i
     }
 
     if (acc_idx == static_cast<int>(accs.size())) {
-        std::cout << C_SPINE GLYPH_SPINE C_RESET "  Enter alias for new " << prov_name << " account (e.g. work, school, drive3): ";
+        std::cout << C_SPINE GLYPH_SPINE C_RESET "  Enter alias for new " << prov_name << " account (e.g. work, school): ";
         std::string alias;
         std::getline(std::cin, alias);
         alias = trim(alias);
@@ -775,12 +807,12 @@ static SelectedEndpoint select_storage_endpoint(const std::string& step_title, i
             if (c == ' ' || c == ':' || c == '+' || c == '/') c = '_';
         }
 
-        std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_CYAN GLYPH_STEP C_RESET " Authorizing new " << prov_name << " (" << alias << ")...\n";
+        std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_CYAN GLYPH_STEP C_RESET " Authorizing new " << prov_name << " (" << alias << ") via browser...\n";
         std::unique_ptr<StorageProvider> test_p;
         try {
             test_p = create_provider(ep.scheme, alias);
         } catch (const std::exception& e) {
-            std::cout << C_RED "✗" C_RESET "  " C_RED "Authentication failed: " << e.what() << C_RESET "\n\n";
+            std::cout << C_ROSE "✗" C_RESET "  " C_ROSE "Authentication failed: " << e.what() << C_RESET "\n\n";
             ep.cancelled = true;
             return ep;
         }
@@ -796,7 +828,7 @@ static SelectedEndpoint select_storage_endpoint(const std::string& step_title, i
         AccountManager::instance().add_account({alias, ep.scheme, disp_name, user_email, token_file});
         ep.account = alias;
         ep.display_name = AccountManager::instance().get_display_name(ep.scheme, alias);
-        std::cout << C_GREEN GLYPH_DONE C_RESET "  " C_GREEN C_BOLD << ep.display_name << " connected successfully!" C_RESET "\n\n";
+        std::cout << C_EMERALD GLYPH_DONE C_RESET "  " C_EMERALD C_BOLD << ep.display_name << " connected successfully!" C_RESET "\n\n";
         return ep;
     }
 
@@ -821,7 +853,7 @@ TuiTransferParams launch_interactive_tui(bool is_initial_launch) {
     std::string src_account = src_ep.account;
     std::string src_name = src_ep.display_name;
 
-    // Direct entry to file explorer
+    // File Explorer
     auto exp_res = run_drive_explorer(src_scheme, src_account, src_name, true);
     if (exp_res.cancelled || exp_res.selected_files.empty()) return params;
 
@@ -844,12 +876,12 @@ TuiTransferParams launch_interactive_tui(bool is_initial_launch) {
         if (is_dir && src_provider_check) {
             source_was_folder = true;
             if (source_root_folder_name.empty()) source_root_folder_name = dir_name;
-            std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_CYAN GLYPH_STEP C_RESET " Scanning folder '" << dir_name << "'...";
+            std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_CYAN GLYPH_STEP C_RESET " Scanning directory '" << dir_name << "'...";
             std::cout.flush();
             size_t before_cnt = expanded_source_files.size();
             scan_folder_recursive(src_provider_check.get(), sf.path, dir_name + "/", expanded_source_files);
             size_t found_cnt = expanded_source_files.size() - before_cnt;
-            std::cout << " " C_GREEN GLYPH_CHECK " (" << found_cnt << " files discovered)" C_RESET "\n";
+            std::cout << " " C_EMERALD GLYPH_CHECK " (" << found_cnt << " files discovered)" C_RESET "\n";
             std::cout << C_SPINE GLYPH_SPINE C_RESET "\n";
         } else {
             expanded_source_files.push_back({sf.path, sf.name.empty() ? sf.path : sf.name, sf.name.empty() ? sf.path : sf.name, sf.size});
@@ -857,7 +889,7 @@ TuiTransferParams launch_interactive_tui(bool is_initial_launch) {
     }
 
     if (expanded_source_files.empty()) {
-        std::cout << C_RED "✗" C_RESET "  " C_RED "No files selected." C_RESET "\n\n";
+        std::cout << C_ROSE "✗" C_RESET "  " C_ROSE "No files selected." C_RESET "\n\n";
         return params;
     }
 
@@ -872,7 +904,7 @@ TuiTransferParams launch_interactive_tui(bool is_initial_launch) {
     std::string dest_account = dest_ep.account;
     std::string dest_name = dest_ep.display_name;
 
-    // Direct entry to destination folder picker
+    // Destination folder picker
     auto dest_exp_res = run_drive_explorer(dest_scheme, dest_account, dest_name, false);
     if (dest_exp_res.cancelled) return params;
 
@@ -896,6 +928,7 @@ TuiTransferParams launch_interactive_tui(bool is_initial_launch) {
             while (!fn.empty() && fn.front() == '/') fn.erase(0, 1);
             if (!fn.empty()) custom_single_filename = fn;
         }
+        std::cout << C_SPINE GLYPH_SPINE C_RESET "\n";
     }
 
     // Build final transfer list
@@ -918,7 +951,7 @@ TuiTransferParams launch_interactive_tui(bool is_initial_launch) {
         std::string d_path = dest_base.empty() ? sf.rel_path : (dest_base + "/" + sf.rel_path);
         std::string d_uri = d_prefix + "://" + d_path;
 
-        params.transfers.push_back({s_uri, d_uri, item_filename, src_account, dest_account});
+        params.transfers.push_back({s_uri, d_uri, item_filename, src_account, dest_account, "", sf.size});
     }
 
     if (!params.transfers.empty()) {
@@ -926,6 +959,9 @@ TuiTransferParams launch_interactive_tui(bool is_initial_launch) {
         params.dest_uri = params.transfers[0].dest_uri;
         params.src_account = src_account;
         params.dest_account = dest_account;
+        params.src_display = src_name;
+        params.dest_display = dest_name;
+        params.target_folder = dest_base.empty() ? "/" : ("/" + dest_base);
         params.valid = true;
     }
 

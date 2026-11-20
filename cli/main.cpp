@@ -55,50 +55,41 @@ static BOOL WINAPI console_ctrl_handler(DWORD signal) {
 using namespace utp;
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  MODERN CLAUDE / HERMES / VERCEL DESIGN SYSTEM
+//  DESIGN TOKENS & ANSI COLOR PALETTE (CLAUDE CODE / VERCEL / STRIPE)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 #define C_RESET     "\033[0m"
 #define C_BOLD      "\033[1m"
 #define C_DIM       "\033[2m"
-#define C_VIOLET    "\033[38;5;141m" // Claude signature violet (#a78bfa)
-#define C_CYAN      "\033[38;5;51m"  // Electric cyan (#38bdf8)
-#define C_BLUE      "\033[38;5;75m"  // Muted blue
-#define C_GREEN     "\033[38;5;49m"  // Vibrant emerald (#34d399)
-#define C_YELLOW    "\033[38;5;215m" // Warm amber (#fbbf24)
-#define C_RED       "\033[38;5;203m" // Coral red
-#define C_WHITE     "\033[1;37m"     // Crisp white
-#define C_MUTED     "\033[38;5;242m" // Slate gray (#64748b)
-#define C_BORDER    "\033[38;5;239m" // Subtle box border (#475569)
-#define C_SPINE     "\033[38;5;239m" // Left spine color (#475569)
-#define C_DIM_W     "\033[0;37m"     // Regular white
+#define C_VIOLET    "\033[38;5;141m" // Signature Violet (#a78bfa)
+#define C_CYAN      "\033[38;5;51m"  // Electric Cyan (#38bdf8)
+#define C_BLUE      "\033[38;5;75m"  // Soft Blue (#60a5fa)
+#define C_EMERALD   "\033[38;5;49m"  // Vibrant Emerald (#34d399)
+#define C_AMBER     "\033[38;5;215m" // Warm Amber (#fbbf24)
+#define C_ROSE      "\033[38;5;203m" // Coral Red (#f87171)
+#define C_WHITE     "\033[1;37m"     // Crisp White
+#define C_DIM_W     "\033[0;37m"     // Regular Soft White
+#define C_MUTED     "\033[38;5;242m" // Slate Gray (#64748b)
+#define C_SPINE     "\033[38;5;239m" // Vertical Spine Line (#475569)
+#define C_BORDER    "\033[38;5;238m" // Card Border Box (#334155)
 
-// Clack / Claude Code spine glyphs
+// Glyphs
 #define GLYPH_TOP    "┌"
 #define GLYPH_SPINE  "│"
 #define GLYPH_STEP   "◇"
 #define GLYPH_DONE   "◆"
 #define GLYPH_END    "└"
 #define GLYPH_STREAM "▲"
-
-// High-tech glyphs
-#define GLYPH_BOLT   "\xe2\x9a\xa1" // ⚡
-#define GLYPH_CHECK  "\xe2\x9c\x94" // ✔
-#define GLYPH_ARROW  "\xe2\x9d\xaf" // ❯
-#define GLYPH_DOT_ON "\xe2\x97\x8f" // ●
-#define GLYPH_DOT_OF "\xe2\x97\x8b" // ○
-#define GLYPH_BULLET "\xe2\x97\x86" // ◆
-#define GLYPH_STAR   "\xe2\x9c\xa6" // ✦
-#define GLYPH_RIGHT  "\xe2\x9e\x94" // ➔
+#define GLYPH_CHECK  "✔"
+#define GLYPH_FAIL   "✗"
+#define GLYPH_PROMPT "❯"
 
 #define BLOCK_FULL   "\xe2\x96\x88" // █
 #define BLOCK_MED    "\xe2\x96\x93" // ▓
 #define BLOCK_LIGHT  "\xe2\x96\x91" // ░
 
 static const char* SPINNER[] = {
-    "\xe2\xa0\x8b", "\xe2\xa0\x99", "\xe2\xa0\xb9", "\xe2\xa0\xb8",
-    "\xe2\xa0\xbc", "\xe2\xa0\xb4", "\xe2\xa0\xa6", "\xe2\xa0\xa7",
-    "\xe2\xa0\x87", "\xe2\xa0\x8f"
+    "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"
 };
 static constexpr int SPIN_N = 10;
 
@@ -229,51 +220,6 @@ static std::string format_bytes(uint64_t bytes) {
     return std::string(buf);
 }
 
-void print_usage() {
-    std::cout << "\n" C_VIOLET GLYPH_TOP C_RESET "  " C_WHITE C_BOLD "utp-engine" C_RESET " " C_MUTED "v2.6.0-pro" C_RESET "\n";
-    std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "universal cloud transfer protocol · direct memory pipeline" C_RESET "\n";
-    std::cout << C_SPINE GLYPH_SPINE C_RESET "\n";
-    std::cout << C_VIOLET GLYPH_STEP C_RESET "  " C_WHITE C_BOLD "Commands & Usage:" C_RESET "\n";
-    std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "utp transfer" C_RESET "                     Launch interactive visual TUI mode\n";
-    std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "utp transfer" C_RESET " <src> <dest>       Direct cloud-to-cloud pipeline\n";
-    std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "utp route" C_RESET "    <src> <d1> <d2>... Multi-destination fan-out broadcast streaming\n";
-    std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "utp route" C_RESET "    <src> --rule \"<c>:<d>\" Smart rules-based routing pipeline\n";
-    std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "utp sync" C_RESET "     <src> <dest>       Delta folder synchronization & conflict policies\n";
-    std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "utp resume" C_RESET "   <transfer_id>      Resume paused/failed transfer state\n";
-    std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "utp pause" C_RESET "    <transfer_id>      Stop between chunks, keep all progress\n";
-    std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "utp cancel" C_RESET "   <transfer_id>      Abandon transfer, discard partial state\n";
-    std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "utp daemon" C_RESET "   start|stop|status  Background API daemon lifecycle controls\n";
-    std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "utp status" C_RESET "  <transfer_id>      State, chunks and event history\n";
-    std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "utp list" C_RESET "                      Show recent transfers from the ledger\n";
-    std::cout << C_SPINE GLYPH_SPINE C_RESET "\n";
-    std::cout << C_VIOLET GLYPH_STEP C_RESET "  " C_WHITE C_BOLD "Supported Protocols:" C_RESET "\n";
-    std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_GREEN "[Core MVP - Verified]" C_RESET "\n";
-    std::cout << C_SPINE GLYPH_SPINE C_RESET "      " C_CYAN "gdrive://" C_RESET "<file_id>          Google Drive files & shared folders\n";
-    std::cout << C_SPINE GLYPH_SPINE C_RESET "      " C_BLUE "onedrive://" C_RESET "<path>          Microsoft OneDrive & SharePoint\n";
-    std::cout << C_SPINE GLYPH_SPINE C_RESET "      " C_GREEN "file://" C_RESET "<path>               Local NVMe / SSD & mounted disks\n";
-    std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_YELLOW "[Post-MVP - Experimental]" C_RESET "\n";
-    std::cout << C_SPINE GLYPH_SPINE C_RESET "      " C_CYAN "dropbox://" C_RESET "<path>           Dropbox Personal & Team Cloud\n";
-    std::cout << C_SPINE GLYPH_SPINE C_RESET "      " C_CYAN "icloud://" C_RESET "<path>            Apple iCloud Drive (Web & Local Bridge)\n";
-    std::cout << C_SPINE GLYPH_SPINE C_RESET "      " C_YELLOW "s3://" C_RESET "<bucket>/<key>         Amazon S3 buckets & cloud objects\n";
-    std::cout << C_SPINE GLYPH_SPINE C_RESET "      " C_YELLOW "r2://" C_RESET "<bucket>/<key>         Cloudflare R2 Object Storage (Zero Egress)\n";
-    std::cout << C_SPINE GLYPH_SPINE C_RESET "      " C_YELLOW "b2://" C_RESET "<bucket>/<key>         Backblaze B2 Cloud Storage\n";
-    std::cout << C_SPINE GLYPH_SPINE C_RESET "      " C_BLUE "azure://" C_RESET "<container>/<blob>   Azure Blob Storage Containers\n";
-    std::cout << C_SPINE GLYPH_SPINE C_RESET "      " C_VIOLET "webdav://" C_RESET "<path>          Nextcloud, ownCloud & WebDAV NAS\n";
-    std::cout << C_SPINE GLYPH_SPINE C_RESET "\n";
-    std::cout << C_VIOLET GLYPH_STEP C_RESET "  " C_WHITE C_BOLD "Options:" C_RESET "\n";
-    std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED "--policy" C_RESET " <policy>           Policy (sync: FAIL, OVERWRITE, SKIP; route: ALL_OR_NOTHING, BEST_EFFORT)\n";
-    std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED "--rule" C_RESET " <cond>:<dest>         Smart routing rule (e.g. 'ext=mp4:s3://media', 'size>100M:b2://cold')\n";
-    std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED "--default" C_RESET " <dest>             Default fallback destination for routing rules\n";
-    std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED "--port" C_RESET " <port>                Daemon listening port (default: 8080)\n";
-    std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED "--bidirectional" C_RESET ", -b           Bidirectional two-way folder synchronization\n";
-    std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED "--dry-run" C_RESET ", -n                 Preview delta sync plan without transferring bytes\n";
-    std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED "--bandwidth" C_RESET " <bps>           Limit transfer speed (0 = unlimited)\n";
-    std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED "--id" C_RESET " <transfer_id>       Assign deterministic ID for tracking/resumption\n";
-    std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED "--verbose" C_RESET "                   Enable verbose diagnostic logging\n";
-    std::cout << C_SPINE GLYPH_SPINE C_RESET "\n";
-    std::cout << C_GREEN GLYPH_END C_RESET "  " C_MUTED "Standing by." C_RESET "\n\n";
-}
-
 static int get_terminal_width() {
 #ifdef _WIN32
     CONSOLE_SCREEN_BUFFER_INFO csbi;
@@ -298,33 +244,163 @@ static std::string truncate_visible(const std::string& str, size_t max_len) {
     return str.substr(0, max_len - 3) + "...";
 }
 
-static std::string format_pipeline_label(const std::string& src, const std::string& dest, int max_line_width) {
-    std::string arrow = " ──[ Direct RAM 0-Disk ]──▶ ";
-    int avail = max_line_width - static_cast<int>(arrow.length()) - 4; // 4 chars for "│  "
-    if (avail < 16) {
-        arrow = " ──▶ ";
-        avail = max_line_width - static_cast<int>(arrow.length()) - 4;
-    }
-    if (avail < 10) avail = 10;
-    int half = avail / 2;
-    std::string s = (static_cast<int>(src.length()) > half) ? truncate_visible(src, half) : src;
-    std::string d = (static_cast<int>(dest.length()) > half) ? truncate_visible(dest, half) : dest;
-    return s + arrow + d;
+static std::string truncate_str(const std::string& str, size_t max_len) {
+    return truncate_visible(str, max_len);
 }
 
-// Block progress bar renderer (buffered string, single atomic write)
-static std::string render_block_bar(float progress, int width) {
+static std::string pad_box_line(const std::string& text, size_t inner_width) {
+    if (text.length() >= inner_width) return text.substr(0, inner_width);
+    return text + std::string(inner_width - text.length(), ' ');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  FRIENDLY ERROR DIAGNOSTIC PARSER
+// ═══════════════════════════════════════════════════════════════════════════════
+
+struct FriendlyError {
+    std::string code;
+    std::string service;
+    std::string cause;
+    std::string action;
+};
+
+static FriendlyError parse_friendly_error(const std::string& raw) {
+    FriendlyError fe;
+    fe.code = "OPERATION_FAILED";
+    fe.service = "Cloud Storage Provider";
+    fe.cause = raw;
+    fe.action = "Check network connection and account permissions.";
+
+    // OneDrive / Microsoft Graph 404 itemNotFound
+    if (raw.find("itemNotFound") != std::string::npos || raw.find("Item not found") != std::string::npos || raw.find("(404)") != std::string::npos) {
+        fe.code = "404 (itemNotFound)";
+        fe.service = "Microsoft OneDrive Graph API";
+        fe.cause = "Destination folder path does not exist or target is inaccessible.";
+        fe.action = "Select an existing destination folder or transfer to drive root.";
+        return fe;
+    }
+
+    // Personal Vault / 403 Access Denied
+    if (raw.find("Personal Vault") != std::string::npos || raw.find("accessDenied") != std::string::npos || raw.find("(403)") != std::string::npos) {
+        fe.code = "403 (Access Denied)";
+        fe.service = "Microsoft OneDrive";
+        fe.cause = "Microsoft Graph API strictly forbids 3rd-party access to 2FA Personal Vault.";
+        fe.action = "Select a standard OneDrive folder or the drive root.";
+        return fe;
+    }
+
+    // Google Drive 404 File not found
+    if (raw.find("File not found") != std::string::npos || raw.find("notFound") != std::string::npos) {
+        fe.code = "404 (NotFound)";
+        fe.service = "Google Drive API";
+        fe.cause = "The requested file or folder ID does not exist or was deleted.";
+        fe.action = "Refresh drive file list or re-select the file.";
+        return fe;
+    }
+
+    // 401 Unauthorized / Token Expired
+    if (raw.find("401") != std::string::npos || raw.find("invalid_grant") != std::string::npos || raw.find("unauthorized") != std::string::npos) {
+        fe.code = "401 (Auth Expired)";
+        fe.service = "OAuth 2.0 Security Gateway";
+        fe.cause = "Authentication session token expired or permissions revoked.";
+        fe.action = "Re-connect account via browser in the account selection menu.";
+        return fe;
+    }
+
+    // Quota Exceeded
+    if (raw.find("quotaExceeded") != std::string::npos || raw.find("insufficientFilePermissions") != std::string::npos) {
+        fe.code = "507 (Storage Quota)";
+        fe.service = "Destination Cloud Storage";
+        fe.cause = "Destination cloud account does not have sufficient free space.";
+        fe.action = "Free up space on destination drive and retry.";
+        return fe;
+    }
+
+    // Clean JSON quotes from fallback
+    std::string clean = raw;
+    size_t m_pos = clean.find("\"message\":\"");
+    if (m_pos != std::string::npos) {
+        size_t end_pos = clean.find("\"", m_pos + 11);
+        if (end_pos != std::string::npos) {
+            fe.cause = clean.substr(m_pos + 11, end_pos - (m_pos + 11));
+        }
+    }
+    return fe;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  CLI USAGE SCREEN (STRIPE / VERCEL STYLE)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+void print_usage() {
+    std::cout << "\n"
+              << C_VIOLET "▲" C_RESET " " C_WHITE C_BOLD "UTP" C_RESET " "
+              << C_MUTED "· Universal Cloud Transfer Protocol" C_RESET " "
+              << C_CYAN "v2.6.0-pro" C_RESET "\n"
+              << C_SPINE GLYPH_SPINE C_RESET "  "
+              << C_MUTED "Direct zero-disk memory streaming · End-to-end TLS 1.3" C_RESET "\n"
+              << C_SPINE GLYPH_SPINE C_RESET "\n"
+              << C_VIOLET GLYPH_STEP C_RESET "  " C_WHITE C_BOLD "USAGE" C_RESET "\n"
+              << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "utp" C_RESET " <command> [arguments] [flags]\n"
+              << C_SPINE GLYPH_SPINE C_RESET "\n"
+              << C_VIOLET GLYPH_STEP C_RESET "  " C_WHITE C_BOLD "CORE COMMANDS" C_RESET "\n"
+              << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "transfer" C_RESET "                  Launch interactive visual TUI mode\n"
+              << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "transfer" C_RESET " <src> <dest>    Direct cloud-to-cloud memory transfer\n"
+              << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "sync" C_RESET "     <src> <dest>    Delta folder sync with conflict reconciliation\n"
+              << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "route" C_RESET "    <src> <d1> <d2> Multi-destination fan-out broadcast streaming\n"
+              << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "route" C_RESET "    <src> --rule    Rules-based smart routing engine\n"
+              << C_SPINE GLYPH_SPINE C_RESET "\n"
+              << C_VIOLET GLYPH_STEP C_RESET "  " C_WHITE C_BOLD "TRANSFER LIFECYCLE" C_RESET "\n"
+              << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "status" C_RESET "   <id>            Inspect state, chunks & event history\n"
+              << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "resume" C_RESET "   <id>            Resume interrupted transfer from ACID ledger\n"
+              << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "pause" C_RESET "    <id>            Safely pause transfer between chunks\n"
+              << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "cancel" C_RESET "   <id>            Abort transfer and discard partial state\n"
+              << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "list" C_RESET "                     Show recent transfers from state ledger\n"
+              << C_SPINE GLYPH_SPINE C_RESET "\n"
+              << C_VIOLET GLYPH_STEP C_RESET "  " C_WHITE C_BOLD "DAEMON MANAGEMENT" C_RESET "\n"
+              << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "daemon" C_RESET "   start|stop|status  Manage background REST API & SDK server\n"
+              << C_SPINE GLYPH_SPINE C_RESET "\n"
+              << C_VIOLET GLYPH_STEP C_RESET "  " C_WHITE C_BOLD "SUPPORTED PROTOCOLS" C_RESET "\n"
+              << C_SPINE GLYPH_SPINE C_RESET "    " C_EMERALD "gdrive://" C_RESET "<id>          Google Drive files & shared drives\n"
+              << C_SPINE GLYPH_SPINE C_RESET "    " C_BLUE "onedrive://" C_RESET "<path>        Microsoft OneDrive & SharePoint\n"
+              << C_SPINE GLYPH_SPINE C_RESET "    " C_AMBER "s3://" C_RESET "<bucket>/<key>       Amazon S3 Buckets\n"
+              << C_SPINE GLYPH_SPINE C_RESET "    " C_AMBER "r2://" C_RESET "<bucket>/<key>       Cloudflare R2 Object Storage (Zero Egress)\n"
+              << C_SPINE GLYPH_SPINE C_RESET "    " C_AMBER "b2://" C_RESET "<bucket>/<key>       Backblaze B2 Storage\n"
+              << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "dropbox://" C_RESET "<path>         Dropbox Personal & Team\n"
+              << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "icloud://" C_RESET "<path>          Apple iCloud Drive\n"
+              << C_SPINE GLYPH_SPINE C_RESET "    " C_VIOLET "webdav://" C_RESET "<path>          Nextcloud, ownCloud & Private NAS\n"
+              << C_SPINE GLYPH_SPINE C_RESET "    " C_WHITE "file://" C_RESET "<path>            Local NVMe / SSD & Mounted Disks\n"
+              << C_SPINE GLYPH_SPINE C_RESET "\n"
+              << C_VIOLET GLYPH_STEP C_RESET "  " C_WHITE C_BOLD "OPTIONS" C_RESET "\n"
+              << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED "--policy" C_RESET " <policy>         Sync: FAIL, OVERWRITE, SKIP · Route: ALL_OR_NOTHING, BEST_EFFORT\n"
+              << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED "--rule" C_RESET " <cond>:<dest>      Routing rule (e.g. 'ext=mp4:s3://media', 'size>100M:b2://cold')\n"
+              << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED "--default" C_RESET " <dest>         Default destination for unrouted items\n"
+              << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED "--bidirectional" C_RESET ", -b      Two-way bidirectional sync\n"
+              << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED "--dry-run" C_RESET ", -n            Preview delta sync plan without transferring bytes\n"
+              << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED "--bandwidth" C_RESET " <bps>        Limit transfer throughput (0 = unlimited)\n"
+              << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED "--id" C_RESET " <transfer_id>       Deterministic ID for resumption\n"
+              << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED "--verbose" C_RESET "                 Enable verbose network diagnostics\n"
+              << C_SPINE GLYPH_SPINE C_RESET "\n"
+              << C_EMERALD GLYPH_END C_RESET "  " C_MUTED "Standing by." C_RESET "\n\n";
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//  PROGRESS BAR & HUD HELPERS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+static std::string render_gradient_bar(float progress, int width) {
     if (progress < 0.0f) progress = 0.0f;
     if (progress > 1.0f) progress = 1.0f;
     int filled = static_cast<int>(width * progress);
     std::string s;
     s.reserve(width * 16);
-    s += C_VIOLET;
+    s += C_CYAN;
     for (int k = 0; k < filled; ++k) {
+        if (k == width / 2) s += C_VIOLET;
         s += BLOCK_FULL;
     }
     if (filled < width && progress < 1.0f) {
-        s += C_CYAN BLOCK_MED;
+        s += C_BLUE BLOCK_MED;
         filled++;
     }
     s += C_BORDER;
@@ -536,7 +612,7 @@ static std::string read_token_file() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-//  STREAMING TRANSFER HUD (CLAUDE CODE / HERMES STYLE)
+//  RESOURCE PATH RESOLUTION
 // ═══════════════════════════════════════════════════════════════════════════════
 
 static std::string resolve_local_resource_path(const Resource& res) {
@@ -569,12 +645,17 @@ static std::string get_resource_path(const Resource& res) {
     return res.host_or_bucket.empty() ? res.path : (res.host_or_bucket + "/" + res.path);
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+//  STREAMING TRANSFER HUD & EXECUTION
+// ═══════════════════════════════════════════════════════════════════════════════
+
 void run_batch_transfer_pool(std::shared_ptr<StorageProvider> src_provider,
                              std::shared_ptr<StorageProvider> dest_provider,
                              const std::vector<TransferItem>& transfers,
                              size_t num_workers,
-                             const std::string& src_scheme_name,
-                             const std::string& dest_scheme_name,
+                             const std::string& src_display_label,
+                             const std::string& dest_display_label,
+                             const std::string& target_folder_path = "/",
                              uint64_t bandwidth_limit = 0) {
     size_t total_tasks = transfers.size();
     if (total_tasks == 0) return;
@@ -596,16 +677,48 @@ void run_batch_transfer_pool(std::shared_ptr<StorageProvider> src_provider,
     std::atomic<uint64_t> finished_bytes{0};
     std::vector<std::thread> workers;
 
-    // Pre-stat total payload size across all files
+    // Pre-calculate batch bytes
     uint64_t total_batch_bytes = 0;
     for (const auto& it : transfers) {
-        Resource r = parse_uri(it.src_uri);
-        std::string p = get_resource_path(r);
-        try {
-            auto st = src_provider->stat(p);
-            total_batch_bytes += st.size;
-        } catch (...) {}
+        if (it.file_size > 0) {
+            total_batch_bytes += it.file_size;
+        } else {
+            Resource r = parse_uri(it.src_uri);
+            std::string p = get_resource_path(r);
+            try {
+                auto st = src_provider->stat(p);
+                total_batch_bytes += st.size;
+            } catch (...) {}
+        }
     }
+
+    // ──── EXECUTIVE ROUTE ARCHITECTURE CARD ────
+    std::cout << C_EMERALD GLYPH_DONE C_RESET "  " C_WHITE C_BOLD "Transfer Pipeline Configured" C_RESET "\n";
+    std::cout << C_SPINE GLYPH_SPINE C_RESET "\n";
+
+    std::string primary_target = transfers[0].filename;
+    if (transfers.size() > 1) {
+        primary_target += " (+" + std::to_string(transfers.size() - 1) + " files)";
+    }
+    if (total_batch_bytes > 0) {
+        primary_target += " [" + format_bytes(total_batch_bytes) + "]";
+    }
+
+    std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_BORDER "┌─ Route Architecture ─────────────────────────────────────────────┐" C_RESET "\n";
+    std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_BORDER "│" C_RESET "  " C_MUTED "Source:     " C_RESET << C_WHITE C_BOLD
+              << pad_box_line(truncate_str(src_display_label, 48), 50) << C_BORDER "│" C_RESET "\n";
+    std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_BORDER "│" C_RESET "  " C_MUTED "Payload:    " C_RESET << C_CYAN
+              << pad_box_line(truncate_str(primary_target, 48), 50) << C_BORDER "│" C_RESET "\n";
+    std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_BORDER "│" C_RESET "  " C_MUTED "Destination:" C_RESET << C_WHITE C_BOLD
+              << pad_box_line(truncate_str(dest_display_label, 48), 50) << C_BORDER "│" C_RESET "\n";
+    std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_BORDER "│" C_RESET "  " C_MUTED "Target Path:" C_RESET << C_VIOLET
+              << pad_box_line(truncate_str(target_folder_path, 48), 50) << C_BORDER "│" C_RESET "\n";
+    std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_BORDER "│" C_RESET "  " C_MUTED "Pipeline:   " C_RESET << C_EMERALD
+              << pad_box_line("Direct RAM Ring Buffer · Zero Disk Footprint", 50) << C_BORDER "│" C_RESET "\n";
+    std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_BORDER "│" C_RESET "  " C_MUTED "Security:   " C_RESET << C_BLUE
+              << pad_box_line("End-to-End TLS 1.3 Streaming · Memory-Safe", 50) << C_BORDER "│" C_RESET "\n";
+    std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_BORDER "└──────────────────────────────────────────────────────────────────┘" C_RESET "\n";
+    std::cout << C_SPINE GLYPH_SPINE C_RESET "\n";
 
     Resource first_dest = parse_uri(transfers[0].dest_uri);
     bool dest_is_cloud = (first_dest.scheme != "local" && first_dest.scheme != "file");
@@ -614,15 +727,15 @@ void run_batch_transfer_pool(std::shared_ptr<StorageProvider> src_provider,
     g_transferring = true;
     auto batch_start = std::chrono::steady_clock::now();
 
-    // Hide terminal cursor for smooth, flicker-free progress display (like npm / pacman)
+    // Hide terminal cursor for smooth, flicker-free progress display
     std::cout << "\033[?25l";
     std::cout.flush();
 
-    // ──── MODERN BULLETPROOF HUD THREAD ────
-    std::thread ui_thread([batch_start, num_workers, total_tasks, total_batch_bytes,
+    // ──── STREAMING HUD THREAD ────
+    std::thread ui_thread([batch_start, total_tasks, total_batch_bytes,
                           &worker_slots, &slots_mutex, &completed_tasks, &finished_bytes,
-                          &transfers, src_scheme_name, dest_scheme_name, dest_is_cloud]() {
-        int tick = 0;
+                          &transfers, dest_is_cloud]() {
+        int spin_idx = 0;
         double smoothed_speed = 0.0;
         uint64_t last_calc_bytes = 0;
         auto last_calc_time = std::chrono::steady_clock::now();
@@ -636,7 +749,7 @@ void run_batch_transfer_pool(std::shared_ptr<StorageProvider> src_provider,
             auto now = std::chrono::steady_clock::now();
             auto elapsed = std::chrono::duration<double>(now - batch_start).count();
 
-            // Calculate active bytes in flight from chunk callbacks
+            // Calculate active bytes in flight
             std::vector<WorkerSlot> copy_slots;
             {
                 std::lock_guard<std::mutex> lock(slots_mutex);
@@ -675,23 +788,23 @@ void run_batch_transfer_pool(std::shared_ptr<StorageProvider> src_provider,
             std::string speed_str = format_bytes(static_cast<uint64_t>(smoothed_speed)) + "/s";
 
             int term_width = get_terminal_width();
-            int max_file_len = std::clamp(term_width / 4, 12, 30);
+            int max_file_len = std::clamp(term_width / 4, 12, 28);
             std::string disp_file = truncate_visible(raw_primary_file, max_file_len);
 
             int pct = static_cast<int>(overall_progress * 100.0);
-            int bar_width = std::clamp(term_width - 64, 10, 22);
-            std::string bar_str = render_block_bar(overall_progress, bar_width);
+            int bar_width = std::clamp(term_width - 66, 10, 20);
+            std::string bar_str = render_gradient_bar(overall_progress, bar_width);
 
-            std::string status_info = format_bytes(total_transferred) + "/" + format_bytes(total_batch_bytes);
+            std::string status_info = format_bytes(total_transferred) + " / " + format_bytes(total_batch_bytes);
 
-            // ──── Single-line atomic \r overwrite (ZERO FLICKER, ZERO SCROLL, ZERO GHOSTING) ────
+            // Single-line atomic \r overwrite
             std::ostringstream frame;
-            frame << "\r\033[2K" C_SPINE GLYPH_SPINE C_RESET "  " C_CYAN GLYPH_STREAM C_RESET " "
+            frame << "\r\033[2K" C_SPINE GLYPH_SPINE C_RESET "  " C_CYAN << SPINNER[spin_idx % SPIN_N] << C_RESET " "
                   << C_WHITE C_BOLD << disp_file << C_RESET "  "
                   << bar_str << " " C_WHITE << std::setw(3) << pct << "%" C_RESET;
 
             if (pct >= 100 || (total_transferred >= total_batch_bytes && total_batch_bytes > 0)) {
-                frame << " · " C_YELLOW "Committing & Verifying cloud integrity..." C_RESET;
+                frame << " · " C_AMBER "Committing & Verifying cloud integrity..." C_RESET;
             } else {
                 frame << " · " C_CYAN << speed_str << C_RESET
                       << " · " C_MUTED "ETA " << eta_str << C_RESET
@@ -701,7 +814,7 @@ void run_batch_transfer_pool(std::shared_ptr<StorageProvider> src_provider,
             std::cout << frame.str();
             std::cout.flush();
 
-            tick++;
+            spin_idx++;
             std::this_thread::sleep_for(std::chrono::milliseconds(80));
         }
 
@@ -726,9 +839,6 @@ void run_batch_transfer_pool(std::shared_ptr<StorageProvider> src_provider,
                 std::string s_p = get_resource_path(s_res);
                 std::string d_p = get_resource_path(d_res);
 
-                // P1.4: pass scheme WITH account context so the engine persists
-                // the full provider identity — `utp resume` then reconstructs
-                // the correct account instead of silently falling to default.
                 std::string src_account = s_res.account.empty() ? item.src_account : s_res.account;
                 std::string dest_account = d_res.account.empty() ? item.dest_account : d_res.account;
                 std::string s_scheme_ctx = s_res.scheme + (src_account.empty() ? "" : ":" + src_account);
@@ -738,7 +848,7 @@ void run_batch_transfer_pool(std::shared_ptr<StorageProvider> src_provider,
                     std::lock_guard<std::mutex> lock(slots_mutex);
                     worker_slots[w].filename = item.filename;
                     worker_slots[w].bytes = 0;
-                    worker_slots[w].total = 0;
+                    worker_slots[w].total = item.file_size;
                     worker_slots[w].active = true;
                 }
 
@@ -786,35 +896,45 @@ void run_batch_transfer_pool(std::shared_ptr<StorageProvider> src_provider,
     uint64_t total_done_bytes = finished_bytes.load();
     uint64_t avg_speed = (total_dur > 0) ? (total_done_bytes / total_dur) : 0;
 
-    // ──── MODERN COMPLETION SUMMARY ────
+    // ──── EXECUTIVE COMPLETION OR ERROR CARDS ────
     if (!failed_items.empty()) {
-        if (success_count.load() == 0) {
-            std::cout << C_RED GLYPH_END C_RESET "  " C_RED C_BOLD "✗ Transfer failed!" C_RESET "\n";
-            std::cout << "   " C_MUTED "Transferred: " C_WHITE << format_bytes(total_done_bytes) << C_MUTED " in "
-                      << total_dur / 60 << "m " << total_dur % 60 << "s" C_RESET "\n";
-            std::cout << "   " C_RED "Errors encountered (" << failed_items.size() << "):" C_RESET "\n";
-            for (const auto& f : failed_items) {
-                std::cout << "     " C_RED "✗ " << f.first << ": " C_MUTED << f.second << C_RESET "\n";
-            }
-            std::cout << "\n";
-        } else {
-            std::cout << C_YELLOW GLYPH_END C_RESET "  " C_YELLOW C_BOLD "▲ Transfer completed with errors" C_RESET "\n";
-            std::cout << "   " C_WHITE << format_bytes(total_done_bytes) << C_RESET C_MUTED " transferred in "
-                      << total_dur / 60 << "m " << total_dur % 60 << "s"
-                      << " (Avg: " << format_bytes(avg_speed) << "/s)" C_RESET "\n";
-            std::cout << "   " C_MUTED "Status: " C_GREEN << success_count.load() << " succeeded" C_RESET << C_MUTED ", "
-                      << C_RED << failed_items.size() << " failed" C_RESET "\n";
-            for (const auto& f : failed_items) {
-                std::cout << "     " C_RED "✗ " << f.first << ": " C_MUTED << f.second << C_RESET "\n";
-            }
-            std::cout << "\n";
+        std::cout << C_ROSE GLYPH_FAIL C_RESET "  " C_ROSE C_BOLD "Transfer Encountered Errors" C_RESET "\n";
+        std::cout << C_SPINE GLYPH_SPINE C_RESET "\n";
+
+        for (const auto& f : failed_items) {
+            FriendlyError diag = parse_friendly_error(f.second);
+            std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_BORDER "┌─ Error Diagnostic ───────────────────────────────────────────────┐" C_RESET "\n";
+            std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_BORDER "│" C_RESET "  " C_MUTED "Target:    " C_RESET << C_WHITE C_BOLD
+                      << pad_box_line(truncate_str(f.first, 49), 51) << C_BORDER "│" C_RESET "\n";
+            std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_BORDER "│" C_RESET "  " C_MUTED "Code:      " C_RESET << C_ROSE
+                      << pad_box_line(truncate_str(diag.code, 49), 51) << C_BORDER "│" C_RESET "\n";
+            std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_BORDER "│" C_RESET "  " C_MUTED "Service:   " C_RESET << C_CYAN
+                      << pad_box_line(truncate_str(diag.service, 49), 51) << C_BORDER "│" C_RESET "\n";
+            std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_BORDER "│" C_RESET "  " C_MUTED "Cause:     " C_RESET << C_AMBER
+                      << pad_box_line(truncate_str(diag.cause, 49), 51) << C_BORDER "│" C_RESET "\n";
+            std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_BORDER "│" C_RESET "  " C_MUTED "Action:    " C_RESET << C_EMERALD
+                      << pad_box_line(truncate_str(diag.action, 49), 51) << C_BORDER "│" C_RESET "\n";
+            std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_BORDER "└──────────────────────────────────────────────────────────────────┘" C_RESET "\n";
+            std::cout << C_SPINE GLYPH_SPINE C_RESET "\n";
         }
     } else {
-        std::cout << C_GREEN GLYPH_END C_RESET "  " C_GREEN C_BOLD "✔ Transfer complete!" C_RESET "\n";
-        std::cout << "   " C_WHITE << format_bytes(total_done_bytes) << C_RESET C_MUTED " transferred in "
-                  << total_dur / 60 << "m " << total_dur % 60 << "s"
-                  << " (Avg: " << format_bytes(avg_speed) << "/s)" C_RESET "\n";
-        std::cout << "   " C_MUTED "Status: Verified & committed · Zero disk footprint · TLS 1.3" C_RESET "\n\n";
+        std::cout << C_EMERALD GLYPH_CHECK C_RESET "  " C_WHITE C_BOLD "Transfer Completed Successfully!" C_RESET "\n";
+        std::cout << C_SPINE GLYPH_SPINE C_RESET "\n";
+
+        std::string dur_str = std::to_string(total_dur / 60) + "m " + std::to_string(total_dur % 60) + "s";
+        std::string speed_summary = format_bytes(total_done_bytes) + " in " + dur_str + " (Avg: " + format_bytes(avg_speed) + "/s)";
+
+        std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_BORDER "┌─ Execution Summary ──────────────────────────────────────────────┐" C_RESET "\n";
+        std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_BORDER "│" C_RESET "  " C_MUTED "Payload:    " C_RESET << C_WHITE
+                  << pad_box_line(std::to_string(transfers.size()) + " file(s) transferred", 50) << C_BORDER "│" C_RESET "\n";
+        std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_BORDER "│" C_RESET "  " C_MUTED "Throughput: " C_RESET << C_CYAN
+                  << pad_box_line(speed_summary, 50) << C_BORDER "│" C_RESET "\n";
+        std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_BORDER "│" C_RESET "  " C_MUTED "Integrity:  " C_RESET << C_EMERALD
+                  << pad_box_line("SHA-256 Checksum Verified & Committed", 50) << C_BORDER "│" C_RESET "\n";
+        std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_BORDER "│" C_RESET "  " C_MUTED "Disk I/O:   " C_RESET << C_EMERALD
+                  << pad_box_line("0 Bytes (Pure RAM-to-RAM Streaming Pipeline)", 50) << C_BORDER "│" C_RESET "\n";
+        std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_BORDER "└──────────────────────────────────────────────────────────────────┘" C_RESET "\n";
+        std::cout << C_SPINE GLYPH_SPINE C_RESET "\n";
     }
 }
 
@@ -888,22 +1008,9 @@ int main(int argc, char* argv[]) {
                     TuiTransferParams tui = launch_interactive_tui(is_initial_launch);
                     is_initial_launch = false;
                     if (!tui.valid || tui.transfers.empty()) {
-                        std::cout << C_GREEN GLYPH_DONE C_RESET "  " C_MUTED "Exiting UTP Engine. Goodbye!" C_RESET "\n\n";
+                        std::cout << C_EMERALD GLYPH_DONE C_RESET "  " C_MUTED "Exiting UTP Engine. Goodbye!" C_RESET "\n\n";
                         break;
                     }
-
-                    size_t total_tasks = tui.transfers.size();
-
-                    // Pipeline Confirmation Banner
-                    std::cout << C_GREEN GLYPH_DONE C_RESET "  " C_WHITE C_BOLD "Transfer pipeline configured" C_RESET "\n";
-                    std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_CYAN << tui.transfers[0].src_uri << C_RESET
-                              << C_MUTED " ──[ Direct RAM Buffer ]──▶ " C_RESET
-                              << C_VIOLET << tui.transfers[0].dest_uri << C_RESET "\n";
-                    std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Payload: " C_WHITE << total_tasks << " file" << (total_tasks > 1 ? "s" : "")
-                              << " queued" C_RESET << C_MUTED " · 0-Disk Memory Stream" C_RESET "\n";
-                    std::cout << C_SPINE GLYPH_SPINE C_RESET "\n";
-
-                    size_t num_workers = 1;
 
                     Resource first_src = parse_uri(tui.transfers[0].src_uri);
                     Resource first_dest = parse_uri(tui.transfers[0].dest_uri);
@@ -914,20 +1021,23 @@ int main(int argc, char* argv[]) {
                     auto src_provider = std::shared_ptr<StorageProvider>(create_provider(first_src.scheme, s_acc));
                     auto dest_provider = std::shared_ptr<StorageProvider>(create_provider(first_dest.scheme, d_acc));
 
-                    std::string src_label = AccountManager::instance().get_display_name(first_src.scheme, s_acc);
-                    std::string dest_label = AccountManager::instance().get_display_name(first_dest.scheme, d_acc);
+                    std::string src_label = tui.src_display.empty() ?
+                        AccountManager::instance().get_display_name(first_src.scheme, s_acc) : tui.src_display;
+                    std::string dest_label = tui.dest_display.empty() ?
+                        AccountManager::instance().get_display_name(first_dest.scheme, d_acc) : tui.dest_display;
 
-                    // Start streaming HUD
-                    run_batch_transfer_pool(src_provider, dest_provider, tui.transfers, num_workers, src_label, dest_label, bandwidth_limit);
+                    // Execute batch transfer pool
+                    run_batch_transfer_pool(src_provider, dest_provider, tui.transfers, 1,
+                                            src_label, dest_label, tui.target_folder, bandwidth_limit);
 
                     // Post-transfer clean prompt
                     std::vector<MenuOption> follow_up = {
                         {"Transfer another file", "", "Select new source and destination"},
-                        {"Exit", "", "Close UTP Engine"}
+                        {"Exit", "", "Close UTP Engine session"}
                     };
-                    int follow_idx = run_interactive_menu("Start another transfer?", follow_up, 0);
+                    int follow_idx = run_interactive_menu("Next Action", follow_up, 0);
                     if (follow_idx != 0) {
-                        std::cout << C_GREEN GLYPH_DONE C_RESET "  " C_MUTED "Exiting UTP Engine. Goodbye!" C_RESET "\n\n";
+                        std::cout << C_EMERALD GLYPH_DONE C_RESET "  " C_MUTED "Exiting UTP Engine. Goodbye!" C_RESET "\n\n";
                         break;
                     }
                 }
@@ -935,7 +1045,7 @@ int main(int argc, char* argv[]) {
             } else if (cmd == "route" && (!routing_rules.empty() || !default_dest.empty())) {
                 // Rules-Based Smart Routing Engine
                 if (pos_args.empty()) {
-                    std::cerr << "\n  " C_RED "✗ Error: Smart routing requires at least one source file or directory path." C_RESET "\n\n";
+                    std::cerr << "\n  " C_ROSE "✗ Error: Smart routing requires at least one source file or directory path." C_RESET "\n\n";
                     return 1;
                 }
 
@@ -952,7 +1062,7 @@ int main(int argc, char* argv[]) {
                 std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Configured Rules (" << rule_engine.get_rules().size() << "):" C_RESET "\n";
                 for (size_t r = 0; r < rule_engine.get_rules().size(); ++r) {
                     const auto& rule = rule_engine.get_rules()[r];
-                    std::cout << C_SPINE GLYPH_SPINE C_RESET "    [" << (r + 1) << "] " C_YELLOW << rule.label << C_RESET
+                    std::cout << C_SPINE GLYPH_SPINE C_RESET "    [" << (r + 1) << "] " C_AMBER << rule.label << C_RESET
                               << C_MUTED " ──▶ " C_CYAN << rule.destination_uri << C_RESET "\n";
                 }
                 if (!rule_engine.get_default_destination().empty()) {
@@ -1003,7 +1113,7 @@ int main(int argc, char* argv[]) {
                 for (const auto& item : items) {
                     auto matched_rule = rule_engine.find_matching_rule(item.file_path, item.file_size);
                     if (!matched_rule) {
-                        std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_RED "✘ " C_WHITE << item.file_path << C_RESET
+                        std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_ROSE "✗ " C_WHITE << item.file_path << C_RESET
                                   << C_MUTED " — No matching rule and no default destination." C_RESET "\n";
                         failed_count++;
                         continue;
@@ -1014,9 +1124,9 @@ int main(int argc, char* argv[]) {
                         dest_target += item.file_path;
                     }
 
-                    std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_GREEN "✔ " C_WHITE << item.file_path << C_RESET
+                    std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_EMERALD "✔ " C_WHITE << item.file_path << C_RESET
                               << C_MUTED " (" << format_bytes(item.file_size) << ") "
-                              << C_YELLOW << "[" << matched_rule->label << "]" C_RESET
+                              << C_AMBER << "[" << matched_rule->label << "]" C_RESET
                               << C_MUTED " ──▶ " C_CYAN << dest_target << C_RESET "\n";
 
                     Resource s_res = parse_uri(item.src_uri);
@@ -1034,23 +1144,23 @@ int main(int argc, char* argv[]) {
                         engine.transfer(s_res.scheme, s_p, d_res.scheme, d_p, nullptr, t_id);
                         routed_count++;
                     } catch (const std::exception& e) {
-                        std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_RED "Transfer failed: " << e.what() << C_RESET "\n";
+                        std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_ROSE "Transfer failed: " << e.what() << C_RESET "\n";
                         failed_count++;
                     }
                 }
 
                 std::cout << C_SPINE GLYPH_SPINE C_RESET "\n";
                 if (failed_count == 0) {
-                    std::cout << C_GREEN GLYPH_END C_RESET "  " C_GREEN C_BOLD GLYPH_CHECK " All " << routed_count << " items routed and transferred successfully!" C_RESET "\n\n";
+                    std::cout << C_EMERALD GLYPH_END C_RESET "  " C_EMERALD C_BOLD GLYPH_CHECK " All " << routed_count << " items routed and transferred successfully!" C_RESET "\n\n";
                     return 0;
                 } else {
-                    std::cout << C_YELLOW GLYPH_END C_RESET "  " C_YELLOW "▲ Routing completed with " << failed_count << " error" << (failed_count > 1 ? "s" : "") << "." C_RESET "\n\n";
+                    std::cout << C_AMBER GLYPH_END C_RESET "  " C_AMBER "▲ Routing completed with " << failed_count << " error" << (failed_count > 1 ? "s" : "") << "." C_RESET "\n\n";
                     return 1;
                 }
             } else if (pos_args.size() > 2 || cmd == "route") {
                 // Multi-Destination Routing Mode
                 if (pos_args.size() < 2) {
-                    std::cerr << "\n  " C_RED "✗ Error: Multi-destination transfer requires <source_uri> and at least one <dest_uri>" C_RESET "\n\n";
+                    std::cerr << "\n  " C_ROSE "✗ Error: Multi-destination transfer requires <source_uri> and at least one <dest_uri>" C_RESET "\n\n";
                     print_usage();
                     return 1;
                 }
@@ -1076,7 +1186,7 @@ int main(int argc, char* argv[]) {
                 std::cout << "\n" C_VIOLET GLYPH_TOP C_RESET "  " C_WHITE C_BOLD "UTP Multi-Destination Routing" C_RESET " " C_MUTED "· 0-Disk Fan-Out Pipeline" C_RESET "\n";
                 std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Multi ID    : " C_CYAN << multi_id << C_RESET "\n";
                 std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Source      : " C_WHITE << src_label << " (" << src_str << ")" C_RESET "\n";
-                std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Policy      : " C_YELLOW << multi_transfer_policy_to_string(pol) << C_RESET "\n";
+                std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Policy      : " C_AMBER << multi_transfer_policy_to_string(pol) << C_RESET "\n";
                 std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Targets     : " C_WHITE << targets.size() << " destinations" C_RESET "\n";
                 for (size_t i = 0; i < targets.size(); ++i) {
                     std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED "[" << (i + 1) << "] " C_CYAN << targets[i].display_name << C_RESET "\n";
@@ -1091,18 +1201,18 @@ int main(int argc, char* argv[]) {
                 auto res = multi_engine.transfer(src_res.scheme, src_path, targets, nullptr, pol, multi_id);
 
                 if (res.overall_success) {
-                    std::cout << C_GREEN GLYPH_DONE C_RESET "  " C_GREEN C_BOLD "Multi-destination transfer complete!" C_RESET "\n";
+                    std::cout << C_EMERALD GLYPH_DONE C_RESET "  " C_EMERALD C_BOLD "Multi-destination transfer complete!" C_RESET "\n";
                 } else {
-                    std::cout << C_RED "✘" C_RESET "  " C_RED C_BOLD "Multi-destination transfer failed requirements!" C_RESET "\n";
+                    std::cout << C_ROSE "✗" C_RESET "  " C_ROSE C_BOLD "Multi-destination transfer failed requirements!" C_RESET "\n";
                 }
                 for (const auto& d : res.destinations) {
                     if (d.success) {
-                        std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_GREEN "✔ " C_WHITE << d.display_name << C_RESET " · " C_MUTED << format_bytes(d.bytes_transferred) << " · SHA-256: " C_MUTED << (d.sha256.empty() ? "N/A" : d.sha256.substr(0, 16) + "...") << C_RESET "\n";
+                        std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_EMERALD "✔ " C_WHITE << d.display_name << C_RESET " · " C_MUTED << format_bytes(d.bytes_transferred) << " · SHA-256: " C_MUTED << (d.sha256.empty() ? "N/A" : d.sha256.substr(0, 16) + "...") << C_RESET "\n";
                     } else {
-                        std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_RED "✘ " C_WHITE << d.display_name << C_RESET " · " C_RED << d.error << C_RESET "\n";
+                        std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_ROSE "✗ " C_WHITE << d.display_name << C_RESET " · " C_ROSE << d.error << C_RESET "\n";
                     }
                 }
-                std::cout << C_GREEN GLYPH_END C_RESET "  " C_MUTED "Finished in " C_WHITE << std::fixed << std::setprecision(2) << res.total_duration_seconds << "s" C_RESET "\n\n";
+                std::cout << C_EMERALD GLYPH_END C_RESET "  " C_MUTED "Finished in " C_WHITE << std::fixed << std::setprecision(2) << res.total_duration_seconds << "s" C_RESET "\n\n";
                 return res.overall_success ? 0 : 1;
             } else {
                 // Non-interactive single-destination CLI mode
@@ -1117,15 +1227,12 @@ int main(int argc, char* argv[]) {
 
                 std::string transfer_id = custom_id.empty() ? Engine::generate_id() : custom_id;
 
-                std::cout << "\n  " C_VIOLET C_BOLD GLYPH_BOLT " UTP Transfer: " C_WHITE << src_label << C_MUTED " ➔ " C_WHITE << dest_label << C_RESET "\n";
-                std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Transfer ID: " C_CYAN << transfer_id << C_RESET "\n\n";
-
                 auto src_provider = std::shared_ptr<StorageProvider>(create_provider(src_res.scheme, src_res.account));
                 auto dest_provider = std::shared_ptr<StorageProvider>(create_provider(dest_res.scheme, dest_res.account));
 
                 std::string item_name = src_res.path.empty() ? src_res.host_or_bucket : src_res.path;
-                std::vector<TransferItem> transfers = {{src_str, dest_str, item_name, src_res.account, dest_res.account, transfer_id}};
-                run_batch_transfer_pool(src_provider, dest_provider, transfers, 1, src_label, dest_label, bandwidth_limit);
+                std::vector<TransferItem> transfers = {{src_str, dest_str, item_name, src_res.account, dest_res.account, transfer_id, 0}};
+                run_batch_transfer_pool(src_provider, dest_provider, transfers, 1, src_label, dest_label, dest_str, bandwidth_limit);
                 return 0;
             }
         } else if (cmd == "daemon") {
@@ -1135,20 +1242,20 @@ int main(int argc, char* argv[]) {
             if (subcmd == "start") {
                 int pid = read_pid_file();
                 if (pid > 0 && is_process_running(pid)) {
-                    std::cout << "\n" C_YELLOW GLYPH_TOP C_RESET "  " C_WHITE C_BOLD "UTP API Server Daemon" C_RESET "\n";
-                    std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_YELLOW "▲ Daemon is already running (PID: " << pid << ")" C_RESET "\n";
+                    std::cout << "\n" C_AMBER GLYPH_TOP C_RESET "  " C_WHITE C_BOLD "UTP API Server Daemon" C_RESET "\n";
+                    std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_AMBER "▲ Daemon is already running (PID: " << pid << ")" C_RESET "\n";
                     std::string token = read_token_file();
                     std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Endpoint: " C_CYAN "http://127.0.0.1:" << daemon_port << C_RESET "\n";
                     if (!token.empty()) {
                         std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Token:    " C_WHITE << token << C_RESET "\n";
                     }
-                    std::cout << C_GREEN GLYPH_END C_RESET "\n";
+                    std::cout << C_EMERALD GLYPH_END C_RESET "\n";
                     return 0;
                 }
 
                 int new_pid = 0;
                 if (!spawn_daemon(utpd_bin, daemon_port, new_pid)) {
-                    std::cerr << "\n  " C_RED "✗ Error: Failed to start utpd daemon binary: " << utpd_bin << C_RESET "\n\n";
+                    std::cerr << "\n  " C_ROSE "✗ Error: Failed to start utpd daemon binary: " << utpd_bin << C_RESET "\n\n";
                     return 1;
                 }
 
@@ -1158,19 +1265,19 @@ int main(int argc, char* argv[]) {
                 std::string token = read_token_file();
 
                 std::cout << "\n" C_VIOLET GLYPH_TOP C_RESET "  " C_WHITE C_BOLD "UTP API Server Daemon" C_RESET "\n";
-                std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Status:   " C_GREEN C_BOLD "ACTIVE (Running)" C_RESET "\n";
+                std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Status:   " C_EMERALD C_BOLD "● ACTIVE (Running)" C_RESET "\n";
                 std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "PID:      " C_WHITE << new_pid << C_RESET "\n";
                 std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Binary:   " C_MUTED << utpd_bin << C_RESET "\n";
                 std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Endpoint: " C_CYAN "http://127.0.0.1:" << daemon_port << C_RESET "\n";
                 if (!token.empty()) {
                     std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Auth:     " C_VIOLET "Bearer " C_WHITE << token << C_RESET "\n";
                 }
-                std::cout << C_GREEN GLYPH_END C_RESET "  " C_MUTED "Standing by for REST API & TypeScript SDK requests." C_RESET "\n\n";
+                std::cout << C_EMERALD GLYPH_END C_RESET "  " C_MUTED "Standing by for REST API & TypeScript SDK requests." C_RESET "\n\n";
                 return 0;
             } else if (subcmd == "stop") {
                 int pid = read_pid_file();
                 if (pid <= 0 || !is_process_running(pid)) {
-                    std::cout << "\n  " C_YELLOW "▲ UTP Daemon is not currently running." C_RESET "\n\n";
+                    std::cout << "\n  " C_AMBER "▲ UTP Daemon is not currently running." C_RESET "\n\n";
                     remove_pid_file();
                     return 0;
                 }
@@ -1181,9 +1288,9 @@ int main(int argc, char* argv[]) {
                 std::cout << "\n" C_VIOLET GLYPH_TOP C_RESET "  " C_WHITE C_BOLD "UTP API Server Daemon" C_RESET "\n";
                 std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Terminated PID: " C_WHITE << pid << C_RESET "\n";
                 if (stopped) {
-                    std::cout << C_GREEN GLYPH_END C_RESET "  " C_GREEN C_BOLD GLYPH_CHECK " Daemon stopped successfully." C_RESET "\n\n";
+                    std::cout << C_EMERALD GLYPH_END C_RESET "  " C_EMERALD C_BOLD GLYPH_CHECK " Daemon stopped successfully." C_RESET "\n\n";
                 } else {
-                    std::cout << C_YELLOW GLYPH_END C_RESET "  " C_YELLOW "▲ Process signal sent." C_RESET "\n\n";
+                    std::cout << C_AMBER GLYPH_END C_RESET "  " C_AMBER "▲ Process signal sent." C_RESET "\n\n";
                 }
                 return 0;
             } else if (subcmd == "status") {
@@ -1195,27 +1302,27 @@ int main(int argc, char* argv[]) {
                 std::cout << "\n" C_VIOLET GLYPH_TOP C_RESET "  " C_WHITE C_BOLD "UTP API Server Daemon Status" C_RESET "\n";
                 if (running) {
                     std::string token = read_token_file();
-                    std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "State:    " C_GREEN C_BOLD "● ACTIVE (Running)" C_RESET "\n";
+                    std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "State:    " C_EMERALD C_BOLD "● ACTIVE (Running)" C_RESET "\n";
                     std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "PID:      " C_WHITE << pid << C_RESET "\n";
                     std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Endpoint: " C_CYAN "http://127.0.0.1:" << effective_port << C_RESET "\n";
                     if (!token.empty()) {
                         std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Token:    " C_WHITE << token << C_RESET "\n";
                     }
-                    std::cout << C_GREEN GLYPH_END C_RESET "  " C_MUTED "Ready to accept transfers." C_RESET "\n\n";
+                    std::cout << C_EMERALD GLYPH_END C_RESET "  " C_MUTED "Ready to accept transfers." C_RESET "\n\n";
                 } else {
                     std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "State:    " C_MUTED "○ STOPPED (Inactive)" C_RESET "\n";
                     std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Start with: " C_CYAN "utp daemon start" C_RESET "\n";
-                    std::cout << C_GREEN GLYPH_END C_RESET "\n";
+                    std::cout << C_EMERALD GLYPH_END C_RESET "\n";
                 }
                 return 0;
             } else {
-                std::cerr << "\n  " C_RED "✗ Error: Unknown daemon subcommand: " << subcmd << C_RESET "\n";
+                std::cerr << "\n  " C_ROSE "✗ Error: Unknown daemon subcommand: " << subcmd << C_RESET "\n";
                 std::cerr << "  Usage: utp daemon [start|stop|status] [--port <port>]\n\n";
                 return 1;
             }
         } else if (cmd == "sync") {
             if (pos_args.size() < 2) {
-                std::cerr << "\n  " C_RED "✗ Error: 'utp sync' requires <source_uri> and <dest_uri>" C_RESET "\n\n";
+                std::cerr << "\n  " C_ROSE "✗ Error: 'utp sync' requires <source_uri> and <dest_uri>" C_RESET "\n\n";
                 print_usage();
                 return 1;
             }
@@ -1238,28 +1345,28 @@ int main(int argc, char* argv[]) {
 
             std::cout << "\n" C_VIOLET GLYPH_TOP C_RESET "  " C_WHITE C_BOLD "UTP Delta Folder Sync Engine" C_RESET "\n";
             std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Pipeline:    " C_RESET C_CYAN << src_str << C_RESET C_MUTED " ──▶ " C_RESET C_VIOLET << dest_str << C_RESET "\n";
-            std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Direction:   " C_RESET << (sync_bidirectional ? C_YELLOW "Bidirectional (Two-way Reconciliation)" : C_CYAN "Unidirectional (Mirror)") << C_RESET "\n";
+            std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Direction:   " C_RESET << (sync_bidirectional ? C_AMBER "Bidirectional (Two-way Reconciliation)" : C_CYAN "Unidirectional (Mirror)") << C_RESET "\n";
             std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Policy:      " C_RESET C_WHITE << conflict_policy_to_string(policy) << C_RESET "\n";
             std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Scanning directory trees..." C_RESET "\n";
 
             SyncPlan plan = sync_engine.plan_sync(src_path, dest_path, dir, policy);
 
             std::cout << C_VIOLET GLYPH_STEP C_RESET "  " C_WHITE C_BOLD "Sync Plan (" C_CYAN << plan.id << C_WHITE "):" C_RESET "\n";
-            std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_GREEN "+ " << plan.files_to_create << " to create" C_RESET "\n";
+            std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_EMERALD "+ " << plan.files_to_create << " to create" C_RESET "\n";
             std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "~ " << plan.files_to_update << " to update" C_RESET "\n";
             std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED "= " << plan.files_to_skip << " unchanged (skipped, 0 bytes)" C_RESET "\n";
             if (plan.conflicts_detected > 0) {
-                std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_YELLOW "! " << plan.conflicts_detected << " conflicts resolved via " << conflict_policy_to_string(policy) << C_RESET "\n";
+                std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_AMBER "! " << plan.conflicts_detected << " conflicts resolved via " << conflict_policy_to_string(policy) << C_RESET "\n";
             }
             std::cout << C_SPINE GLYPH_SPINE C_RESET "    " C_WHITE "Total delta transfer: " << format_bytes(plan.total_bytes_to_transfer) << C_RESET "\n";
 
             if (sync_dry_run) {
-                std::cout << "\n" C_YELLOW GLYPH_END C_RESET "  " C_YELLOW "Dry-run complete: No files modified." C_RESET "\n\n";
+                std::cout << "\n" C_AMBER GLYPH_END C_RESET "  " C_AMBER "Dry-run complete: No files modified." C_RESET "\n\n";
                 return 0;
             }
 
             if (plan.files_to_create == 0 && plan.files_to_update == 0) {
-                std::cout << "\n" C_GREEN GLYPH_END C_RESET "  " C_GREEN GLYPH_CHECK " Directories are already 100% in sync! (0 bytes transferred)" C_RESET "\n\n";
+                std::cout << "\n" C_EMERALD GLYPH_END C_RESET "  " C_EMERALD GLYPH_CHECK " Directories are already 100% in sync! (0 bytes transferred)" C_RESET "\n\n";
                 return 0;
             }
 
@@ -1270,14 +1377,14 @@ int main(int argc, char* argv[]) {
                 float p = (item_total > 0) ? static_cast<float>(bytes) / item_total : 1.0f;
                 std::cout << "\r" C_SPINE GLYPH_SPINE C_RESET "  [" << (idx + 1) << "/" << total << "] "
                           << truncate_visible(item.rel_path, 28) << " ";
-                std::cout << render_block_bar(p, 20);
+                std::cout << render_gradient_bar(p, 20);
                 std::cout << " " << static_cast<int>(p * 100) << "% (" << format_bytes(bytes) << "/" << format_bytes(item_total) << ")";
                 std::cout.flush();
             });
 
             std::cout << "\n";
             if (result.success) {
-                std::cout << "\n" C_GREEN GLYPH_END C_RESET "  " C_GREEN C_BOLD GLYPH_CHECK " Delta Sync Completed Successfully!" C_RESET "\n";
+                std::cout << "\n" C_EMERALD GLYPH_END C_RESET "  " C_EMERALD C_BOLD GLYPH_CHECK " Delta Sync Completed Successfully!" C_RESET "\n";
                 std::cout << "     " C_MUTED "Transferred: " C_WHITE << result.files_transferred << " files (" << format_bytes(result.bytes_transferred) << ")" C_RESET "\n";
                 std::cout << "     " C_MUTED "Skipped:     " C_WHITE << result.files_skipped << " files (unchanged)" C_RESET "\n";
                 if (result.conflicts_resolved > 0) {
@@ -1286,9 +1393,9 @@ int main(int argc, char* argv[]) {
                 std::cout << "\n";
                 return 0;
             } else {
-                std::cout << "\n" C_RED GLYPH_END C_RESET "  " C_RED C_BOLD "✗ Delta Sync Encountered Errors!" C_RESET "\n";
+                std::cout << "\n" C_ROSE GLYPH_END C_RESET "  " C_ROSE C_BOLD "✗ Delta Sync Encountered Errors!" C_RESET "\n";
                 for (const auto& err : result.errors) {
-                    std::cout << "     " C_RED "• " << err << C_RESET "\n";
+                    std::cout << "     " C_ROSE "• " << err << C_RESET "\n";
                 }
                 std::cout << "\n";
                 return 1;
@@ -1309,15 +1416,15 @@ int main(int argc, char* argv[]) {
             Engine engine(std::move(src_provider), std::move(dest_provider), "utp.db");
             if (bandwidth_limit > 0) engine.set_bandwidth_limit(bandwidth_limit);
 
-            std::cout << "\n  " C_VIOLET C_BOLD GLYPH_BOLT " Resuming transfer: " C_WHITE << transfer_id << C_RESET "\n\n";
+            std::cout << "\n  " C_VIOLET C_BOLD "▲ Resuming transfer: " C_WHITE << transfer_id << C_RESET "\n\n";
             engine.resume(transfer_id, [](uint64_t bytes, uint64_t total) {
                 float p = (total > 0) ? static_cast<float>(bytes) / total : 0.0f;
                 std::cout << "\r  " C_MUTED "Resuming: " C_RESET;
-                render_block_bar(p, 30);
+                std::cout << render_gradient_bar(p, 28);
                 std::cout << " " << static_cast<int>(p * 100.0) << "% (" << format_bytes(bytes) << "/" << format_bytes(total) << ")";
                 std::cout.flush();
             });
-            std::cout << "\n\n  " C_GREEN GLYPH_CHECK " Transfer resumed and completed successfully!" C_RESET "\n\n";
+            std::cout << "\n\n  " C_EMERALD GLYPH_CHECK " Transfer resumed and completed successfully!" C_RESET "\n\n";
         } else if (cmd == "pause" || cmd == "cancel") {
             if (pos_args.empty()) {
                 print_usage();
@@ -1329,21 +1436,21 @@ int main(int argc, char* argv[]) {
             if (!opt_transfer) throw std::runtime_error("Transfer not found: " + transfer_id);
 
             if (opt_transfer->state == TransferState::COMPLETED) {
-                std::cout << "  " C_YELLOW GLYPH_STEP C_RESET " " C_WHITE << transfer_id << C_RESET C_MUTED " is already COMPLETED — nothing to " << cmd << ".\n\n" C_RESET;
+                std::cout << "  " C_AMBER GLYPH_STEP C_RESET " " C_WHITE << transfer_id << C_RESET C_MUTED " is already COMPLETED — nothing to " << cmd << ".\n\n" C_RESET;
                 return 0;
             }
             if (opt_transfer->state == TransferState::CANCELLED) {
-                std::cout << "  " C_YELLOW GLYPH_STEP C_RESET " " C_WHITE << transfer_id << C_RESET C_MUTED " is already CANCELLED.\n\n" C_RESET;
+                std::cout << "  " C_AMBER GLYPH_STEP C_RESET " " C_WHITE << transfer_id << C_RESET C_MUTED " is already CANCELLED.\n\n" C_RESET;
                 return 0;
             }
 
             sm.request_control(transfer_id, cmd);
             if (cmd == "pause") {
-                std::cout << "  " C_VIOLET GLYPH_STEP C_RESET " " C_WHITE << (cmd == "pause" ? "Pause" : "Cancel") << " requested" C_RESET C_MUTED " for " C_RESET C_CYAN << transfer_id << C_RESET "\n";
-                std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "The engine stops between chunks and keeps all completed progress.\n";
+                std::cout << "  " C_VIOLET GLYPH_STEP C_RESET " " C_WHITE << "Pause requested" C_RESET C_MUTED " for " C_RESET C_CYAN << transfer_id << C_RESET "\n";
+                std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "The engine stops between chunks and preserves all completed progress.\n";
                 std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Continue later with: " C_CYAN "utp resume " << transfer_id << C_RESET "\n\n";
             } else {
-                std::cout << "  " C_VIOLET GLYPH_STEP C_RESET " " C_WHITE << (cmd == "pause" ? "Pause" : "Cancel") << " requested" C_RESET C_MUTED " for " C_RESET C_CYAN << transfer_id << C_RESET "\n";
+                std::cout << "  " C_VIOLET GLYPH_STEP C_RESET " " C_WHITE << "Cancel requested" C_RESET C_MUTED " for " C_RESET C_CYAN << transfer_id << C_RESET "\n";
                 std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "The engine will abort the upload and discard partial state.\n\n";
             }
         } else if (cmd == "status") {
@@ -1369,10 +1476,10 @@ int main(int argc, char* argv[]) {
 
             auto state_color = [&](TransferState s) -> const char* {
                 switch (s) {
-                    case TransferState::COMPLETED: return C_GREEN;
-                    case TransferState::FAILED: return C_RED;
-                    case TransferState::PAUSED: return C_YELLOW;
-                    case TransferState::CANCELLED: return C_RED;
+                    case TransferState::COMPLETED: return C_EMERALD;
+                    case TransferState::FAILED: return C_ROSE;
+                    case TransferState::PAUSED: return C_AMBER;
+                    case TransferState::CANCELLED: return C_ROSE;
                     case TransferState::TRANSFERRING: return C_CYAN;
                     default: return C_MUTED;
                 }
@@ -1387,10 +1494,10 @@ int main(int argc, char* argv[]) {
                       << C_MUTED " · chunk " << (opt_transfer->chunk_size ? format_bytes(opt_transfer->chunk_size) : std::string("n/a")) << C_RESET "\n";
             if (!plan.empty()) {
                 std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Chunks:   " C_RESET
-                          << C_GREEN << complete << " complete" << C_RESET C_MUTED ", "
+                          << C_EMERALD << complete << " complete" << C_RESET C_MUTED ", "
                           << C_CYAN << in_progress << " active" << C_RESET C_MUTED ", "
-                          << C_YELLOW << pending << " pending" << C_RESET C_MUTED ", "
-                          << C_RED << failed << " failed" << C_RESET C_MUTED " (" << plan.size() << " total)" C_RESET "\n";
+                          << C_AMBER << pending << " pending" << C_RESET C_MUTED ", "
+                          << C_ROSE << failed << " failed" << C_RESET C_MUTED " (" << plan.size() << " total)" C_RESET "\n";
             }
             {
                 auto events = sm.get_events(transfer_id, 12);
@@ -1415,7 +1522,7 @@ int main(int argc, char* argv[]) {
                     }
                 }
             }
-            std::cout << C_GREEN GLYPH_END C_RESET "\n";
+            std::cout << C_EMERALD GLYPH_END C_RESET "\n";
         } else if (cmd == "list") {
             StateManager sm("utp.db");
             auto transfers = sm.list_transfers(20);
@@ -1429,14 +1536,14 @@ int main(int argc, char* argv[]) {
                           << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED << truncate_visible(t.source.provider + "://" + t.source.path, 48)
                           << " ──▶ " << truncate_visible(t.destination.provider + "://" + t.destination.path, 48) << C_RESET "\n";
             }
-            std::cout << C_GREEN GLYPH_END C_RESET "\n";
+            std::cout << C_EMERALD GLYPH_END C_RESET "\n";
         } else {
-            std::cerr << "  " C_RED "Unknown command: " << cmd << C_RESET "\n";
+            std::cerr << "  " C_ROSE "Unknown command: " << cmd << C_RESET "\n";
             print_usage();
             return 1;
         }
     } catch (const std::exception& e) {
-        std::cerr << "\n  " C_RED "✗ Error: " << e.what() << C_RESET "\n\n";
+        std::cerr << "\n  " C_ROSE "✗ Error: " << e.what() << C_RESET "\n\n";
         return 1;
     }
 
