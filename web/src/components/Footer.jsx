@@ -13,8 +13,15 @@ export default function Footer({ onOpenLegal }) {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-10 mb-12">
           {/* Col 1: Brand */}
           <div className="space-y-3">
-            <div className="text-[#F5F4F0] font-bold text-sm">
-              /*ctp*/<span className="text-[#FF5B1F]">.</span>
+            <div className="flex items-center gap-2.5">
+              <img
+                src="/logo.png"
+                alt="CTP Logo"
+                className="w-7 h-7 rounded-full object-cover border border-[#33302C]"
+              />
+              <div className="text-[#F5F4F0] font-bold text-sm">
+                /*ctp*/<span className="text-[#FF5B1F]">.</span>
+              </div>
             </div>
             <p className="text-[#66635C] leading-relaxed font-sans text-xs">
               Universal Cloud Transfer Protocol (UTP). Direct zero-disk volatile RAM memory streaming across 10 cloud providers.
@@ -100,9 +107,9 @@ export default function Footer({ onOpenLegal }) {
                   href="https://arpitnayak.tech"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-[#FF5B1F] hover:underline flex items-center gap-1"
+                  className="text-[#FF5B1F] hover:underline flex items-center gap-1 font-semibold"
                 >
-                  <span>Author: arpitnayak.tech</span>
+                  <span>Built by Nayak & Nayak Co.</span>
                   <ArrowUpRight className="w-3 h-3" />
                 </a>
               </li>
@@ -115,8 +122,18 @@ export default function Footer({ onOpenLegal }) {
           <div>
             © {new Date().getFullYear()} Universal Cloud Transfer Protocol (CTP/UTP). MIT License.
           </div>
-          <div className="flex items-center gap-4">
-            <span>// ctp.arpitnayak.tech</span>
+          <div className="flex items-center gap-6">
+            <span>
+              Built by{' '}
+              <a
+                href="https://arpitnayak.tech"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[#FF5B1F] hover:underline font-semibold transition-colors"
+              >
+                Nayak & Nayak Co.
+              </a>
+            </span>
             <button
               onClick={scrollToTop}
               className="text-[#9E9B94] hover:text-[#F5F4F0] cursor-pointer flex items-center gap-1"

@@ -32,7 +32,12 @@ export default function Navbar({ onOpenLegal }) {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Brand Mark */}
-          <a href="#" className="flex items-center gap-3 group">
+          <a href="#" className="flex items-center gap-2.5 group">
+            <img
+              src="/logo.png"
+              alt="CTP Logo"
+              className="w-8 h-8 rounded-full object-cover border border-[#33302C] shadow-sm group-hover:border-[#FF5B1F]/70 transition-colors"
+            />
             <span className="font-mono text-sm font-semibold tracking-tight text-[#F5F4F0] group-hover:text-[#FF5B1F] transition-colors">
               /*ctp*/<span className="text-[#FF5B1F]">.</span>
             </span>

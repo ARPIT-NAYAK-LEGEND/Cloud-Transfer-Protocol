@@ -170,7 +170,17 @@ export default function LegalModals({ activeTab, onClose, onSelectTab }) {
 
         {/* Bottom Footer */}
         <div className="px-6 py-3 bg-[#141312] border-t border-[#242220] flex items-center justify-between text-[#66635C]">
-          <span>DOMAIN: ctp.arpitnayak.tech</span>
+          <span>
+            Built by{' '}
+            <a
+              href="https://arpitnayak.tech"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[#FF5B1F] hover:underline font-semibold"
+            >
+              Nayak & Nayak Co.
+            </a>
+          </span>
           <button
             onClick={onClose}
             className="text-[#9E9B94] hover:text-[#F5F4F0] cursor-pointer"
