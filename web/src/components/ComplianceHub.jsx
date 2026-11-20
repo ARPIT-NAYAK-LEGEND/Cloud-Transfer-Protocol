@@ -1,84 +1,92 @@
 import React from 'react';
-import { Shield, FileText, Lock, CheckCircle2, ExternalLink, ArrowRight } from 'lucide-react';
+import { ArrowRight, Shield, FileText, Lock, Check } from 'lucide-react';
 
 export default function ComplianceHub({ onOpenLegal }) {
   return (
-    <section id="compliance" className="py-24 relative">
+    <section id="compliance" className="py-20 border-b border-[#242220]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center max-w-3xl mx-auto mb-16">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-mono font-medium mb-3">
-            <Shield className="w-3.5 h-3.5" />
-            Store Review & Enterprise Compliance
+        {/* Section Header */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-6 border-b border-[#242220] font-mono text-xs text-[#9E9B94] mb-12">
+          <div className="flex items-center gap-2">
+            <span className="text-[#FF5B1F] font-semibold">// 06 / COMPLIANCE & LEGAL HUB</span>
+            <span className="text-[#66635C]">—</span>
+            <span>STORE REVIEW & ENTERPRISE AUDIT APPROVAL</span>
           </div>
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
-            Built for Privacy, Security & Compliance
-          </h2>
-          <p className="mt-4 text-slate-400 text-base">
-            Whether for App Store and Google Play review approval, Stripe verification, or enterprise data auditing—CTP is designed with verifiable zero-knowledge privacy from day one.
-          </p>
+          <div className="text-[#66635C]">
+            [100% ZERO-KNOWLEDGE ARCHITECTURE]
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        {/* 3-Column Compliance Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-[#242220] border border-[#242220] rounded-lg overflow-hidden">
           {/* Card 1: Privacy Policy */}
-          <div className="p-8 rounded-2xl bg-slate-900/50 border border-slate-800 hover:border-cyan-500/40 transition-all flex flex-col justify-between group">
+          <div className="bg-[#121110] hover:bg-[#161513] transition-colors p-8 flex flex-col justify-between group">
             <div>
-              <div className="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 mb-6 group-hover:scale-110 transition-transform">
-                <Shield className="w-6 h-6" />
+              <div className="text-[#66635C] font-mono text-xs pb-3 border-b border-[#242220] flex items-center justify-between mb-5">
+                <span>// COMPLIANCE: 01</span>
+                <span className="text-[#FF5B1F]">[ZERO LOGS]</span>
               </div>
-              <h3 className="text-xl font-bold text-white group-hover:text-cyan-300 transition-colors">
+
+              <h3 className="text-xl font-bold text-[#F5F4F0] group-hover:text-[#FF5B1F] transition-colors">
                 Zero-Knowledge Privacy Policy
               </h3>
-              <p className="mt-3 text-slate-400 text-sm leading-relaxed">
-                Zero telemetry, zero analytics, zero external logging. All transfers stream directly from cloud to cloud without any intermediary relay servers or diagnostic pings.
+
+              <p className="mt-3 text-sm text-[#9E9B94] leading-relaxed">
+                Zero telemetry, zero external logging, zero tracking cookies. Direct peer-to-cloud streams ensure credentials and payloads never touch intermediate servers.
               </p>
-              <div className="mt-5 space-y-2 text-xs text-slate-300">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  <span>No account creation or tracking cookies</span>
+
+              <div className="mt-6 space-y-2 font-mono text-xs text-[#9E9B94]">
+                <div className="flex items-center gap-2 text-emerald-400">
+                  <Check className="w-3.5 h-3.5" />
+                  <span>No analytics or tracking cookies</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  <span>Tokens saved locally in user directory</span>
+                <div className="flex items-center gap-2 text-emerald-400">
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Local tokens: ~/.utp_*_token.json</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  <span>100% GDPR & CCPA compliant</span>
+                <div className="flex items-center gap-2 text-emerald-400">
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Fully GDPR & CCPA compliant</span>
                 </div>
               </div>
             </div>
 
             <button
               onClick={() => onOpenLegal('privacy')}
-              className="mt-8 pt-4 border-t border-slate-800/80 flex items-center justify-between text-sm font-semibold text-cyan-400 group-hover:text-cyan-300 cursor-pointer"
+              className="mt-8 pt-4 border-t border-[#242220] font-mono text-xs text-[#FF5B1F] flex items-center justify-between cursor-pointer group-hover:text-[#FF7036]"
             >
-              <span>Read Full Privacy Policy</span>
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              <span>Read Privacy Policy</span>
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
             </button>
           </div>
 
           {/* Card 2: Terms of Service */}
-          <div className="p-8 rounded-2xl bg-slate-900/50 border border-slate-800 hover:border-violet-500/40 transition-all flex flex-col justify-between group">
+          <div className="bg-[#121110] hover:bg-[#161513] transition-colors p-8 flex flex-col justify-between group">
             <div>
-              <div className="w-12 h-12 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400 mb-6 group-hover:scale-110 transition-transform">
-                <FileText className="w-6 h-6" />
+              <div className="text-[#66635C] font-mono text-xs pb-3 border-b border-[#242220] flex items-center justify-between mb-5">
+                <span>// COMPLIANCE: 02</span>
+                <span className="text-violet-400">[MIT LICENSE]</span>
               </div>
-              <h3 className="text-xl font-bold text-white group-hover:text-violet-300 transition-colors">
+
+              <h3 className="text-xl font-bold text-[#F5F4F0] group-hover:text-[#FF5B1F] transition-colors">
                 Terms of Service & Licensing
               </h3>
-              <p className="mt-3 text-slate-400 text-sm leading-relaxed">
+
+              <p className="mt-3 text-sm text-[#9E9B94] leading-relaxed">
                 Licensed under the permissive MIT Open Source License. Complete terms governing personal, commercial, and enterprise usage of the CTP engine and SDKs.
               </p>
-              <div className="mt-5 space-y-2 text-xs text-slate-300">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  <span>Permissive MIT License for personal & commercial</span>
+
+              <div className="mt-6 space-y-2 font-mono text-xs text-[#9E9B94]">
+                <div className="flex items-center gap-2 text-emerald-400">
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Permissive MIT license terms</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  <span>Clear liability & warranty disclaimers</span>
+                <div className="flex items-center gap-2 text-emerald-400">
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Clear limitation of liability</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                <div className="flex items-center gap-2 text-emerald-400">
+                  <Check className="w-3.5 h-3.5" />
                   <span>Official cloud provider API compliance</span>
                 </div>
               </div>
@@ -86,36 +94,40 @@ export default function ComplianceHub({ onOpenLegal }) {
 
             <button
               onClick={() => onOpenLegal('terms')}
-              className="mt-8 pt-4 border-t border-slate-800/80 flex items-center justify-between text-sm font-semibold text-violet-400 group-hover:text-violet-300 cursor-pointer"
+              className="mt-8 pt-4 border-t border-[#242220] font-mono text-xs text-violet-400 flex items-center justify-between cursor-pointer group-hover:text-violet-300"
             >
               <span>Read Terms of Service</span>
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
             </button>
           </div>
 
-          {/* Card 3: Security & Token Isolation */}
-          <div className="p-8 rounded-2xl bg-slate-900/50 border border-slate-800 hover:border-emerald-500/40 transition-all flex flex-col justify-between group">
+          {/* Card 3: Security Whitepaper */}
+          <div className="bg-[#121110] hover:bg-[#161513] transition-colors p-8 flex flex-col justify-between group">
             <div>
-              <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 mb-6 group-hover:scale-110 transition-transform">
-                <Lock className="w-6 h-6" />
+              <div className="text-[#66635C] font-mono text-xs pb-3 border-b border-[#242220] flex items-center justify-between mb-5">
+                <span>// COMPLIANCE: 03</span>
+                <span className="text-emerald-400">[TLS 1.3]</span>
               </div>
-              <h3 className="text-xl font-bold text-white group-hover:text-emerald-300 transition-colors">
-                Security & Data Handling
+
+              <h3 className="text-xl font-bold text-[#F5F4F0] group-hover:text-[#FF5B1F] transition-colors">
+                Security & Token Isolation
               </h3>
-              <p className="mt-3 text-slate-400 text-sm leading-relaxed">
-                Cryptographic specifications, TLS 1.3 socket validation, client-side OAuth secret resolution, and background daemon process isolation parameters.
+
+              <p className="mt-3 text-sm text-[#9E9B94] leading-relaxed">
+                Cryptographic specifications, TLS 1.3 socket validation, client-side OAuth secret resolution, and detached API daemon security parameters.
               </p>
-              <div className="mt-5 space-y-2 text-xs text-slate-300">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  <span>In-flight SHA-256 + MD5 dual pipeline</span>
+
+              <div className="mt-6 space-y-2 font-mono text-xs text-[#9E9B94]">
+                <div className="flex items-center gap-2 text-emerald-400">
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Dual in-flight SHA-256 + MD5 pipeline</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  <span>Daemon Bearer token authentication</span>
+                <div className="flex items-center gap-2 text-emerald-400">
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Daemon CSPRNG Bearer token auth</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                <div className="flex items-center gap-2 text-emerald-400">
+                  <Check className="w-3.5 h-3.5" />
                   <span>Zero local temp-file residue</span>
                 </div>
               </div>
@@ -123,10 +135,10 @@ export default function ComplianceHub({ onOpenLegal }) {
 
             <button
               onClick={() => onOpenLegal('security')}
-              className="mt-8 pt-4 border-t border-slate-800/80 flex items-center justify-between text-sm font-semibold text-emerald-400 group-hover:text-emerald-300 cursor-pointer"
+              className="mt-8 pt-4 border-t border-[#242220] font-mono text-xs text-emerald-400 flex items-center justify-between cursor-pointer group-hover:text-emerald-300"
             >
               <span>View Security Specs</span>
-              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
             </button>
           </div>
         </div>

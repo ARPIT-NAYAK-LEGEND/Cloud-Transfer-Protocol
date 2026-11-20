@@ -1,113 +1,97 @@
 import React from 'react';
-import { Cpu, Server, HardDrive, ShieldCheck, Database, ArrowRight, Lock } from 'lucide-react';
+import { Server, Cpu, HardDrive, ShieldCheck, Lock, ArrowRight } from 'lucide-react';
 
 export default function ArchitectureDiagram() {
   return (
-    <section id="architecture" className="py-24 relative bg-slate-950/70 border-t border-slate-900">
+    <section id="architecture" className="py-20 border-b border-[#242220]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center max-w-3xl mx-auto mb-16">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-xs font-mono font-medium mb-3">
-            <Cpu className="w-3.5 h-3.5" />
-            Under the Hood
+        {/* Section Header */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-6 border-b border-[#242220] font-mono text-xs text-[#9E9B94] mb-12">
+          <div className="flex items-center gap-2">
+            <span className="text-[#FF5B1F] font-semibold">// 05 / TECHNICAL SPECIFICATION</span>
+            <span className="text-[#66635C]">—</span>
+            <span>DIRECT VOLATILE RAM STREAMING PIPELINE</span>
           </div>
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
-            How Zero-Disk Memory Streaming Works
-          </h2>
-          <p className="mt-4 text-slate-400 text-base">
-            Traditional tools download files to a local temp folder before uploading. UTP eliminates intermediate disk I/O entirely using a high-throughput volatile RAM ring pipeline.
-          </p>
+          <div className="text-[#66635C]">
+            [ZERO DISK RESIDUE]
+          </div>
         </div>
 
-        {/* Visual Architecture Flow */}
-        <div className="max-w-5xl mx-auto p-8 rounded-3xl bg-slate-900/50 border border-slate-800 shadow-2xl relative overflow-hidden backdrop-blur-xl">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-center relative z-10">
-            {/* Step 1: Source */}
-            <div className="p-6 rounded-2xl bg-slate-950/90 border border-slate-800 text-center flex flex-col items-center">
-              <div className="w-14 h-14 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 mb-4 shadow-lg shadow-cyan-500/10">
-                <Server className="w-7 h-7" />
-              </div>
-              <h3 className="font-bold text-lg text-white">Source Cloud</h3>
-              <p className="text-xs font-mono text-cyan-300 mt-1">Google Drive / S3 / R2</p>
-              <div className="mt-4 text-xs text-slate-400 leading-relaxed text-left space-y-1.5 w-full pt-3 border-t border-slate-800/80">
-                <div className="flex items-center gap-1.5 text-slate-300">
-                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
-                  <span>HTTP Range Stream</span>
+        {/* Technical Wireframe Frame */}
+        <div className="border border-[#242220] rounded-lg bg-[#11100F] p-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
+            {/* Step 1: Ingress */}
+            <div className="p-6 rounded border border-[#242220] bg-[#0E0D0C] flex flex-col justify-between font-mono text-xs">
+              <div>
+                <div className="text-[#66635C] flex items-center justify-between pb-3 border-b border-[#242220] mb-4">
+                  <span>// SOURCE INGRESS</span>
+                  <span className="text-[#FF5B1F]">[STAGE 01]</span>
                 </div>
-                <div className="flex items-center gap-1.5 text-slate-300">
-                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
-                  <span>TLS 1.3 Direct Socket</span>
-                </div>
-                <div className="flex items-center gap-1.5 text-slate-300">
-                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
-                  <span>Adaptive Chunk Fetch</span>
+                <h4 className="font-bold text-base text-[#F5F4F0] mb-2">HTTP Range Stream</h4>
+                <p className="text-[#9E9B94] text-xs leading-relaxed font-sans mb-4">
+                  Pulls adaptive byte slices (2.5MB - 40MB) directly from source cloud over TLS 1.3 encrypted sockets.
+                </p>
+                <div className="space-y-1.5 text-[#66635C]">
+                  <div>• TLS 1.3 socket negotiation</div>
+                  <div>• Resumable Range: bytes=X-Y</div>
+                  <div>• Google Drive / S3 / R2 / WebDAV</div>
                 </div>
               </div>
-            </div>
-
-            {/* Step 2: The Core Ring Buffer (Center Highlight) */}
-            <div className="p-6 rounded-2xl bg-gradient-to-b from-slate-900 to-slate-950 border-2 border-cyan-500/40 text-center flex flex-col items-center shadow-xl shadow-cyan-950/40 relative">
-              <div className="absolute -top-3 px-3 py-0.5 rounded-full bg-cyan-500 text-white text-[10px] font-mono font-bold uppercase tracking-wider">
-                0-Disk RAM Core
-              </div>
-
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-cyan-500 to-violet-600 p-[1px] mb-4 shadow-xl shadow-cyan-500/30">
-                <div className="w-full h-full bg-[#0a0e14] rounded-[15px] flex items-center justify-center text-cyan-300">
-                  <Cpu className="w-8 h-8" />
-                </div>
-              </div>
-
-              <h3 className="font-bold text-lg text-white">UTP Memory Ring</h3>
-              <p className="text-xs font-mono text-violet-300 mt-1">Adaptive 2.5–40MB Ring</p>
-
-              <div className="mt-4 text-xs text-slate-300 leading-relaxed text-left space-y-2 w-full pt-3 border-t border-slate-800/80">
-                <div className="p-2 rounded-lg bg-slate-900/90 border border-slate-800 text-[11px] font-mono text-cyan-300">
-                  Dual In-Flight Hasher
-                  <div className="text-[10px] text-slate-400 font-sans">Simultaneous SHA-256 + MD5</div>
-                </div>
-                <div className="p-2 rounded-lg bg-slate-900/90 border border-slate-800 text-[11px] font-mono text-violet-300">
-                  ACID Ledger (utp.db)
-                  <div className="text-[10px] text-slate-400 font-sans">SQLite WAL chunk checkpoints</div>
-                </div>
+              <div className="mt-6 pt-3 border-t border-[#242220] text-[#FF5B1F]">
+                Stream Ingress ──▶
               </div>
             </div>
 
-            {/* Step 3: Destination */}
-            <div className="p-6 rounded-2xl bg-slate-950/90 border border-slate-800 text-center flex flex-col items-center">
-              <div className="w-14 h-14 rounded-2xl bg-violet-500/10 border border-violet-500/30 flex items-center justify-center text-violet-400 mb-4 shadow-lg shadow-violet-500/10">
-                <Server className="w-7 h-7" />
+            {/* Step 2: In-Memory Ring Buffer (Center Highlight) */}
+            <div className="p-6 rounded border border-[#FF5B1F]/40 bg-[#161413] flex flex-col justify-between font-mono text-xs relative">
+              <div className="absolute -top-3 left-4 px-2 py-0.5 rounded bg-[#FF5B1F] text-[#0E0D0C] font-bold text-[10px] uppercase">
+                Zero-Disk RAM Ring
               </div>
-              <h3 className="font-bold text-lg text-white">Destination Cloud</h3>
-              <p className="text-xs font-mono text-violet-300 mt-1">OneDrive / S3 / WebDAV</p>
-              <div className="mt-4 text-xs text-slate-400 leading-relaxed text-left space-y-1.5 w-full pt-3 border-t border-slate-800/80">
-                <div className="flex items-center gap-1.5 text-slate-300">
-                  <span className="w-1.5 h-1.5 rounded-full bg-violet-400" />
-                  <span>Chunked Upload Session</span>
+              <div>
+                <div className="text-[#FF5B1F] flex items-center justify-between pb-3 border-b border-[#2D2A27] mb-4">
+                  <span>// MEMORY ENGINE</span>
+                  <span>[STAGE 02]</span>
                 </div>
-                <div className="flex items-center gap-1.5 text-slate-300">
-                  <span className="w-1.5 h-1.5 rounded-full bg-violet-400" />
-                  <span>Fast-Path Hash Commit</span>
+                <h4 className="font-bold text-base text-[#F5F4F0] mb-2">Volatile Ring Buffer</h4>
+                <p className="text-[#9E9B94] text-xs leading-relaxed font-sans mb-4">
+                  Never touches storage drive. Concurrently runs in-flight SHA-256 / MD5 digest streams while relaying bytes.
+                </p>
+                <div className="space-y-2">
+                  <div className="p-2 rounded bg-[#0E0D0C] border border-[#242220]">
+                    <div className="text-[#FF5B1F] font-semibold">Dual In-Flight Digest</div>
+                    <div className="text-[#66635C] text-[11px] font-sans">Simultaneous SHA-256 + MD5</div>
+                  </div>
+                  <div className="p-2 rounded bg-[#0E0D0C] border border-[#242220]">
+                    <div className="text-emerald-400 font-semibold">SQLite WAL Ledger</div>
+                    <div className="text-[#66635C] text-[11px] font-sans">ACID crash recovery state</div>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1.5 text-slate-300">
-                  <span className="w-1.5 h-1.5 rounded-full bg-violet-400" />
-                  <span>Zero-Readback Egress</span>
-                </div>
+              </div>
+              <div className="mt-6 pt-3 border-t border-[#2D2A27] text-emerald-400">
+                0 Bytes Disk I/O ──▶
               </div>
             </div>
-          </div>
 
-          {/* Bottom Security Banner */}
-          <div className="mt-8 pt-6 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-4 text-xs font-mono text-slate-400">
-            <div className="flex items-center gap-2 text-emerald-400">
-              <ShieldCheck className="w-4 h-4" />
-              <span>TLS 1.3 Direct Socket Stream</span>
-            </div>
-            <div className="flex items-center gap-2 text-cyan-400">
-              <HardDrive className="w-4 h-4" />
-              <span>0 Bytes Local Temp Disk Storage</span>
-            </div>
-            <div className="flex items-center gap-2 text-violet-400">
-              <Lock className="w-4 h-4" />
-              <span>Local-Only Credentials (.utp_*_token.json)</span>
+            {/* Step 3: Destination Egress */}
+            <div className="p-6 rounded border border-[#242220] bg-[#0E0D0C] flex flex-col justify-between font-mono text-xs">
+              <div>
+                <div className="text-[#66635C] flex items-center justify-between pb-3 border-b border-[#242220] mb-4">
+                  <span>// TARGET EGRESS</span>
+                  <span className="text-[#FF5B1F]">[STAGE 03]</span>
+                </div>
+                <h4 className="font-bold text-base text-[#F5F4F0] mb-2">Chunked Upload Session</h4>
+                <p className="text-[#9E9B94] text-xs leading-relaxed font-sans mb-4">
+                  Writes bytes directly to cloud API sessions. Server response hash matches memory digest with zero read-back.
+                </p>
+                <div className="space-y-1.5 text-[#66635C]">
+                  <div>• Microsoft Graph / S3 Multipart</div>
+                  <div>• Fast-path server checksum match</div>
+                  <div>• Verified & committed to ledger</div>
+                </div>
+              </div>
+              <div className="mt-6 pt-3 border-t border-[#242220] text-emerald-400">
+                ✓ Transfer Committed
+              </div>
             </div>
           </div>
         </div>

@@ -1,84 +1,84 @@
 import React, { useState } from 'react';
-import { Cloud, Check, ExternalLink, ShieldCheck, Zap } from 'lucide-react';
+import { Check } from 'lucide-react';
 
 const PROTOCOLS = [
   {
+    num: '01',
     name: 'Google Drive',
     scheme: 'gdrive://<id>',
-    category: 'Core Production MVP',
-    status: 'Production Ready',
+    category: 'Core Production',
     auth: 'OAuth 2.0 PKCE + Token Refresh',
     features: ['Multi-Account Switching', 'Resumable Upload Sessions', 'Server-Side MD5 Match', 'Folder Recursion']
   },
   {
+    num: '02',
     name: 'Microsoft OneDrive',
     scheme: 'onedrive://<path>',
-    category: 'Core Production MVP',
-    status: 'Production Ready',
+    category: 'Core Production',
     auth: 'Microsoft Graph OAuth 2.0',
-    features: ['Personal & Microsoft 365', 'Parent Folder Auto-Creation', 'Server-Side SHA-256 Match', 'Vault Protection']
+    features: ['Personal & Microsoft 365', 'Parent Folder Auto-Creation', 'Server-Side SHA-256 Match', 'Personal Vault Protection']
   },
   {
+    num: '03',
     name: 'Local Storage',
     scheme: 'file://<path>',
-    category: 'Core Production MVP',
-    status: 'Production Ready',
+    category: 'Core Production',
     auth: 'OS File Permissions',
-    features: ['NVMe / SSD Direct DMA', 'POSIX & Windows Pathing', 'Symlink Preservation', 'Zero-Copy OS Read']
+    features: ['NVMe / SSD Direct DMA', 'POSIX & Windows Paths', 'Symlink Preservation', 'Zero-Copy OS Read']
   },
   {
+    num: '04',
     name: 'Amazon S3',
     scheme: 's3://<bucket>/<key>',
-    category: 'Extended Cloud Adapter',
-    status: 'Post-MVP Extension',
+    category: 'Extended Adapter',
     auth: 'AWS SigV4 HMAC / IAM Roles',
-    features: ['Multipart S3 Uploads', 'Server-Side ETag Validation', 'All Global AWS Regions', 'Storage Class Tiering']
+    features: ['Multipart S3 Uploads', 'Server-Side ETag Validation', 'All AWS Regions', 'Storage Class Tiering']
   },
   {
+    num: '05',
     name: 'Cloudflare R2',
     scheme: 'r2://<bucket>/<key>',
-    category: 'Extended Cloud Adapter',
-    status: 'Post-MVP Extension',
+    category: 'Extended Adapter',
     auth: 'S3-Compatible Token Auth',
     features: ['Zero Egress Bandwidth Fees', 'Low Latency Edge Endpoints', 'Chunked Object Streams', 'S3 API Mirroring']
   },
   {
+    num: '06',
     name: 'Backblaze B2',
     scheme: 'b2://<bucket>/<key>',
-    category: 'Extended Cloud Adapter',
-    status: 'Post-MVP Extension',
+    category: 'Extended Adapter',
     auth: 'B2 Native / S3 API Tokens',
     features: ['Cold Storage Archival', 'Cost-Effective Backups', 'Large File Multipart Sessions', 'High Concurrency']
   },
   {
+    num: '07',
     name: 'Apple iCloud Drive',
     scheme: 'icloud://<path>',
-    category: 'Extended Cloud Adapter',
-    status: 'Post-MVP Extension',
+    category: 'Extended Adapter',
     auth: 'Direct Web API & CloudKit Bridge',
     features: ['Dual-Mode Sync Bridge', 'macOS & Windows iCloud', 'Document Storage Mirror', 'Selective Sync']
   },
   {
+    num: '08',
     name: 'Dropbox',
     scheme: 'dropbox://<path>',
-    category: 'Extended Cloud Adapter',
-    status: 'Post-MVP Extension',
+    category: 'Extended Adapter',
     auth: 'Dropbox v2 OAuth Token',
     features: ['files/copy_v2 Server Copy', 'Chunked Upload Sessions', 'Personal & Team Workspaces', 'Delta Tracking']
   },
   {
+    num: '09',
     name: 'Nextcloud / WebDAV',
     scheme: 'webdav://<path>',
-    category: 'Extended Cloud Adapter',
-    status: 'Post-MVP Extension',
+    category: 'Extended Adapter',
     auth: 'HTTP Basic / App Password',
     features: ['RFC 4918 Compliant', 'ownCloud, Synology, TrueNAS', 'Self-Hosted Privacy', 'Chunked MKCOL / PUT']
   },
   {
+    num: '10',
     name: 'Microsoft Azure Blob',
     scheme: 'azure://<container>/<blob>',
-    category: 'Extended Cloud Adapter',
-    status: 'Post-MVP Extension',
+    category: 'Extended Adapter',
     auth: 'Shared Access Signatures (SAS)',
     features: ['Block Blob Streaming', 'Container Auto-Provisioning', 'Hot / Cool / Cold Tiers', 'Enterprise Security']
   }
@@ -94,86 +94,84 @@ export default function ProtocolMatrix() {
   });
 
   return (
-    <section id="protocols" className="py-24 relative">
+    <section id="protocols" className="py-20 border-b border-[#242220]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center max-w-3xl mx-auto mb-12">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-xs font-mono font-medium mb-3">
-            <Cloud className="w-3.5 h-3.5" />
-            10-Cloud Ecosystem
+        {/* Section Header */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-6 border-b border-[#242220] font-mono text-xs text-[#9E9B94] mb-12">
+          <div className="flex items-center gap-2">
+            <span className="text-[#FF5B1F] font-semibold">// 04 / UNIFIED STORAGE PROTOCOLS</span>
+            <span className="text-[#66635C]">—</span>
+            <span>10 CLOUD STORAGE INTEGRATIONS</span>
           </div>
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
-            One Unified Protocol for Every Cloud
-          </h2>
-          <p className="mt-4 text-slate-400 text-base">
-            No vendor lock-in. Move data seamlessly across consumer storage, enterprise object buckets, and self-hosted private servers.
-          </p>
 
-          {/* Filter pills */}
-          <div className="mt-8 flex items-center justify-center gap-2">
+          {/* Filter Pills */}
+          <div className="flex items-center gap-1">
             <button
               onClick={() => setFilter('all')}
-              className={`px-4 py-1.5 rounded-full text-xs font-medium transition-colors cursor-pointer ${
+              className={`px-2.5 py-1 rounded transition-colors cursor-pointer ${
                 filter === 'all'
-                  ? 'bg-cyan-500 text-white font-semibold shadow-lg shadow-cyan-500/20'
-                  : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                  ? 'bg-[#242220] text-[#FF5B1F] font-semibold'
+                  : 'text-[#66635C] hover:text-[#F5F4F0]'
               }`}
             >
-              All 10 Providers
+              [all 10]
             </button>
             <button
               onClick={() => setFilter('core')}
-              className={`px-4 py-1.5 rounded-full text-xs font-medium transition-colors cursor-pointer ${
+              className={`px-2.5 py-1 rounded transition-colors cursor-pointer ${
                 filter === 'core'
-                  ? 'bg-cyan-500 text-white font-semibold shadow-lg shadow-cyan-500/20'
-                  : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                  ? 'bg-[#242220] text-[#FF5B1F] font-semibold'
+                  : 'text-[#66635C] hover:text-[#F5F4F0]'
               }`}
             >
-              Core MVP (Production)
+              [core mvp]
             </button>
             <button
               onClick={() => setFilter('extended')}
-              className={`px-4 py-1.5 rounded-full text-xs font-medium transition-colors cursor-pointer ${
+              className={`px-2.5 py-1 rounded transition-colors cursor-pointer ${
                 filter === 'extended'
-                  ? 'bg-cyan-500 text-white font-semibold shadow-lg shadow-cyan-500/20'
-                  : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
+                  ? 'bg-[#242220] text-[#FF5B1F] font-semibold'
+                  : 'text-[#66635C] hover:text-[#F5F4F0]'
               }`}
             >
-              Extended Adapters
+              [extended]
             </button>
           </div>
         </div>
 
         {/* Matrix Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-px bg-[#242220] border border-[#242220] rounded-lg overflow-hidden">
           {filtered.map((item, idx) => (
             <div
               key={idx}
-              className="p-6 rounded-2xl bg-slate-900/40 border border-slate-800/80 hover:border-slate-700 transition-all flex flex-col justify-between"
+              className="bg-[#121110] hover:bg-[#161513] transition-colors p-6 flex flex-col justify-between"
             >
               <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-lg font-bold text-white">{item.name}</h3>
-                  <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-semibold ${
+                <div className="flex items-center justify-between font-mono text-xs mb-3">
+                  <span className="text-[#66635C]">{item.num}</span>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-medium ${
                     item.category.includes('Core')
-                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
-                      : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                      ? 'bg-emerald-950/40 border border-emerald-500/30 text-emerald-400'
+                      : 'bg-[#1C1A18] border border-[#282624] text-[#9E9B94]'
                   }`}>
-                    {item.status}
+                    {item.category}
                   </span>
                 </div>
 
-                <div className="font-mono text-xs text-cyan-300 bg-slate-950/80 px-3 py-1.5 rounded-lg border border-slate-800 mb-4 flex items-center justify-between">
+                <h3 className="text-base font-bold text-[#F5F4F0]">{item.name}</h3>
+
+                <div className="mt-2 p-2 rounded bg-[#0E0D0C] border border-[#242220] font-mono text-xs text-[#FF5B1F] flex items-center justify-between">
                   <span>{item.scheme}</span>
                 </div>
 
-                <div className="text-xs text-slate-400 mb-4 font-mono">
-                  <span className="text-slate-500">Auth:</span> {item.auth}
+                <div className="mt-2 text-xs font-mono text-[#66635C]">
+                  AUTH: <span className="text-[#9E9B94]">{item.auth}</span>
                 </div>
 
-                <div className="space-y-1.5 pt-2 border-t border-slate-800/60">
+                <div className="mt-4 pt-3 border-t border-[#242220] space-y-1.5 font-mono text-xs">
                   {item.features.map((f, fi) => (
-                    <div key={fi} className="flex items-center gap-2 text-xs text-slate-300">
-                      <Check className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                    <div key={fi} className="flex items-center gap-2 text-[#9E9B94]">
+                      <Check className="w-3 h-3 text-[#FF5B1F] shrink-0" />
                       <span>{f}</span>
                     </div>
                   ))}

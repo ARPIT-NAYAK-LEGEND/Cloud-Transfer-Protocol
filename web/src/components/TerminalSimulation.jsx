@@ -1,57 +1,57 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Pause, RotateCcw, Terminal as TerminalIcon, CheckCircle2, ShieldCheck, Cpu, HardDrive } from 'lucide-react';
+import { Play, Pause, RotateCcw, CheckCircle2 } from 'lucide-react';
 
 const SCENARIOS = [
   {
     id: 'transfer',
-    title: 'Cloud-to-Cloud RAM Transfer',
+    tabName: '01 / transfer',
+    title: 'Cloud-to-Cloud Volatile RAM Transfer',
     cmd: 'utp transfer gdrive://1GwVK676IBt... onedrive://Backups/dataset.tar.gz',
     pipeline: 'gdrive://1GwVK676IBt10iBEdRzh ──▶ onedrive://Backups/dataset.tar.gz',
-    totalSize: '2.40 GB',
-    totalBytes: 2576980377,
-    chunksTotal: 16,
-    speed: '142.8 MB/s',
-    integrity: 'SHA-256 Cloud Fast-Path (OneDrive sha256Hash matched)',
-    steps: [
-      { progress: 0.12, bytes: '309 MB', chunk: '2/16', log: 'Allocating volatile RAM ring buffer (32 MB chunks)...' },
-      { progress: 0.35, bytes: '901 MB', chunk: '6/16', log: 'Streaming HTTP Range chunks over TLS 1.3 socket...' },
-      { progress: 0.68, bytes: '1.63 GB', chunk: '11/16', log: 'Dual in-flight digest pipeline calculating SHA-256 + MD5...' },
-      { progress: 0.94, bytes: '2.25 GB', chunk: '15/16', log: 'Writing chunked session directly to Microsoft Graph API...' },
-      { progress: 1.00, bytes: '2.40 GB', chunk: '16/16', log: 'Verified server-side SHA-256 hash. 0 Bytes written to local disk!' }
+    payload: '2.40 GB archive',
+    velocity: '142.8 MB/s',
+    diskIo: '0 Bytes (Volatile Ring Buffer)',
+    verification: 'Server-Side SHA-256 (OneDrive sha256Hash Match)',
+    logSteps: [
+      { progress: 0.15, bytes: '360 MB', chunk: '3/16', text: 'Allocating volatile RAM ring buffer (32 MB chunks over TLS 1.3)...' },
+      { progress: 0.45, bytes: '1.08 GB', chunk: '7/16', text: 'Streaming HTTP Range chunks concurrently into upload session...' },
+      { progress: 0.75, bytes: '1.80 GB', chunk: '12/16', text: 'Dual in-flight digest pipeline calculating SHA-256 + MD5 in memory...' },
+      { progress: 0.95, bytes: '2.28 GB', chunk: '15/16', text: 'Writing final chunk to Microsoft Graph upload session...' },
+      { progress: 1.00, bytes: '2.40 GB', chunk: '16/16', text: 'Verified server-side SHA-256 hash. 0 Bytes written to local disk!' }
     ]
   },
   {
     id: 'sync',
-    title: 'Delta Folder Synchronization',
+    tabName: '02 / sync',
+    title: 'Delta Folder Synchronization (0-Byte Skip)',
     cmd: 'utp sync file://./production_assets onedrive://Assets --policy newer_wins',
     pipeline: 'file://production_assets ──▶ onedrive://Assets (Bidirectional)',
-    totalSize: '4.85 GB',
-    totalBytes: 5208442010,
-    chunksTotal: 32,
-    speed: '188.4 MB/s',
-    integrity: 'Incremental Reconciliation Matrix (0 Bytes for Unchanged)',
-    steps: [
-      { progress: 0.20, bytes: 'Scanning...', chunk: 'Planning', log: 'Scanning local tree (148 files) vs remote tree...' },
-      { progress: 0.50, bytes: '0 B Delta', chunk: 'Skip 142', log: 'Detected 142 unchanged files — SKIPPED (0 bytes transferred).' },
-      { progress: 0.85, bytes: '320 MB', chunk: '6 to update', log: 'Synchronizing 6 delta updates via policy NEWER_WINS...' },
-      { progress: 1.00, bytes: '320 MB', chunk: 'Complete', log: 'Delta sync complete: 142 unchanged skipped, 6 updated successfully.' }
+    payload: '4.85 GB (148 files)',
+    velocity: '188.4 MB/s',
+    diskIo: '0 Bytes on unchanged files',
+    verification: 'Incremental Reconciliation Matrix',
+    logSteps: [
+      { progress: 0.20, bytes: 'Scanning...', chunk: 'Planning', text: 'Traversing local tree (148 files) vs remote Microsoft Graph index...' },
+      { progress: 0.55, bytes: '0 B Delta', chunk: 'Skip 142', text: 'Identified 142 unchanged files — SKIPPED (0 bytes transferred).' },
+      { progress: 0.85, bytes: '320 MB', chunk: '6 to update', text: 'Synchronizing 6 delta modifications via policy NEWER_WINS...' },
+      { progress: 1.00, bytes: '320 MB', chunk: 'Complete', text: 'Delta sync complete: 142 unchanged skipped, 6 updated cleanly.' }
     ]
   },
   {
     id: 'route',
-    title: 'Rules-Based Smart Routing',
-    cmd: 'utp route ./raw_data --rule "ext=mp4:s3://media" --rule "ext=pdf:onedrive://docs"',
-    pipeline: 'file://raw_data ──▶ [S3 Media Vault, OneDrive Documents, B2 Cold Archive]',
-    totalSize: '12.6 GB',
-    totalBytes: 13529146982,
-    chunksTotal: 48,
-    speed: '210.5 MB/s',
-    integrity: 'Simultaneous Multi-Destination Fan-Out Stream',
-    steps: [
-      { progress: 0.15, bytes: 'Routing...', chunk: 'Rule Eval', log: 'Evaluating rule engine: 3 rules configured + 1 default fallback.' },
-      { progress: 0.45, bytes: '8.4 GB', chunk: 'ext=mp4', log: 'Routing 4 .mp4 video files ──▶ s3://media-vault/ (Direct S3 Multipart)' },
-      { progress: 0.80, bytes: '2.1 GB', chunk: 'ext=pdf', log: 'Routing 18 .pdf documents ──▶ onedrive://docs/ (Chunked Session)' },
-      { progress: 1.00, bytes: '12.6 GB', chunk: 'All routed', log: 'Fan-out execution complete: 100% matched rules routed in 1 read pass.' }
+    tabName: '03 / route',
+    title: 'Rules-Based Smart Routing Engine',
+    cmd: 'utp route ./data --rule "ext=mp4:s3://media" --rule "ext=pdf:onedrive://docs"',
+    pipeline: 'file://data ──▶ [S3 Media Vault, OneDrive Documents, B2 Cold Archive]',
+    payload: '12.6 GB dataset',
+    velocity: '210.5 MB/s',
+    diskIo: 'Single Read Pass Broadcast',
+    verification: 'Simultaneous Multi-Destination Fan-Out',
+    logSteps: [
+      { progress: 0.20, bytes: 'Routing...', chunk: 'Rule Eval', text: 'Evaluating routing engine: 3 condition rules + 1 default fallback.' },
+      { progress: 0.50, bytes: '8.4 GB', chunk: 'ext=mp4', text: 'Routing 4 .mp4 video files ──▶ s3://media-vault/ (Direct S3 Multipart)' },
+      { progress: 0.80, bytes: '2.1 GB', chunk: 'ext=pdf', text: 'Routing 18 .pdf documents ──▶ onedrive://docs/ (Chunked Session)' },
+      { progress: 1.00, bytes: '12.6 GB', chunk: 'All routed', text: 'Fan-out execution complete: 100% matched rules routed in 1 read pass.' }
     ]
   }
 ];
@@ -72,163 +72,137 @@ export default function TerminalSimulation() {
     if (!isPlaying) return;
     const interval = setInterval(() => {
       setStepIndex(prev => {
-        if (prev < scenario.steps.length - 1) return prev + 1;
+        if (prev < scenario.logSteps.length - 1) return prev + 1;
         return prev;
       });
     }, 1800);
     return () => clearInterval(interval);
-  }, [isPlaying, scenario.steps.length]);
+  }, [isPlaying, scenario.logSteps.length]);
 
-  const currentStep = scenario.steps[stepIndex] || scenario.steps[0];
+  const currentStep = scenario.logSteps[stepIndex] || scenario.logSteps[0];
   const progressPercent = Math.round(currentStep.progress * 100);
 
-  // Render gradient bar representation
-  const barBlocks = 24;
-  const filledBlocks = Math.round(barBlocks * currentStep.progress);
-
   return (
-    <section id="terminal-demo" className="py-20 relative">
+    <section id="simulator" className="py-20 border-b border-[#242220]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center max-w-3xl mx-auto mb-12">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-xs font-mono font-medium mb-3">
-            <TerminalIcon className="w-3.5 h-3.5" />
-            Live Interactive Simulator
+        {/* Section Header */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-6 border-b border-[#242220] font-mono text-xs text-[#9E9B94] mb-10">
+          <div className="flex items-center gap-2">
+            <span className="text-[#FF5B1F] font-semibold">// 02 / ENGINE SIMULATOR</span>
+            <span className="text-[#66635C]">—</span>
+            <span>INTERACTIVE RUNTIME BENCHMARK</span>
           </div>
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
-            See the Zero-Disk Memory Pipeline in Action
-          </h2>
-          <p className="mt-4 text-slate-400 text-base">
-            Watch how UTP routes chunks directly from cloud socket to cloud socket using adaptive volatile RAM buffers without ever creating temporary files.
-          </p>
+          <div className="text-[#66635C]">
+            [ADAPTIVE 2.5MB - 40MB RAM RING]
+          </div>
         </div>
 
-        {/* Terminal Window Container */}
-        <div className="max-w-4xl mx-auto rounded-2xl bg-[#0c1017] border border-slate-800 shadow-2xl shadow-cyan-950/30 overflow-hidden font-mono text-xs sm:text-sm">
-          {/* Top Title Bar */}
-          <div className="flex items-center justify-between px-4 py-3 bg-[#080b11] border-b border-slate-800/80">
-            {/* Window Controls */}
+        {/* Terminal Container */}
+        <div className="border border-[#242220] rounded-lg bg-[#11100F] overflow-hidden font-mono text-xs">
+          {/* Top Bar */}
+          <div className="flex items-center justify-between px-4 py-3 bg-[#0E0D0C] border-b border-[#242220]">
             <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-rose-500/80 inline-block" />
-              <span className="w-3 h-3 rounded-full bg-amber-500/80 inline-block" />
-              <span className="w-3 h-3 rounded-full bg-emerald-500/80 inline-block" />
-              <span className="ml-3 text-slate-400 text-xs font-mono hidden sm:inline">
-                utp-terminal-engine — v2.6.0-pro (x86_64)
+              <span className="w-2.5 h-2.5 rounded-full bg-[#383531] inline-block" />
+              <span className="w-2.5 h-2.5 rounded-full bg-[#383531] inline-block" />
+              <span className="w-2.5 h-2.5 rounded-full bg-[#383531] inline-block" />
+              <span className="ml-2 text-[#9E9B94] text-xs">
+                utp-runtime-v2.6.0-pro (x86_64)
               </span>
             </div>
 
             {/* Playback Controls */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <button
                 onClick={() => setIsPlaying(!isPlaying)}
-                className="p-1.5 rounded-md hover:bg-slate-800 text-slate-300 hover:text-white transition-colors cursor-pointer"
-                title={isPlaying ? 'Pause simulation' : 'Play simulation'}
+                className="text-[#9E9B94] hover:text-[#F5F4F0] transition-colors cursor-pointer flex items-center gap-1"
               >
-                {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 text-cyan-400" />}
+                {isPlaying ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3 text-[#FF5B1F]" />}
+                <span>{isPlaying ? 'pause' : 'resume'}</span>
               </button>
               <button
                 onClick={() => setStepIndex(0)}
-                className="p-1.5 rounded-md hover:bg-slate-800 text-slate-300 hover:text-white transition-colors cursor-pointer"
-                title="Restart simulation"
+                className="text-[#9E9B94] hover:text-[#F5F4F0] transition-colors cursor-pointer flex items-center gap-1"
               >
-                <RotateCcw className="w-3.5 h-3.5" />
+                <RotateCcw className="w-3 h-3" />
+                <span>replay</span>
               </button>
             </div>
           </div>
 
           {/* Scenario Tab Bar */}
-          <div className="flex items-center gap-1 px-4 py-2 bg-slate-900/60 border-b border-slate-800/60 overflow-x-auto">
+          <div className="flex items-center gap-1 px-4 py-2 border-b border-[#242220] bg-[#141312] overflow-x-auto">
             {SCENARIOS.map(s => (
               <button
                 key={s.id}
                 onClick={() => setActiveScenarioId(s.id)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-mono transition-all cursor-pointer whitespace-nowrap ${
+                className={`px-3 py-1.5 rounded transition-all cursor-pointer whitespace-nowrap ${
                   activeScenarioId === s.id
-                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-semibold'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 border border-transparent'
+                    ? 'bg-[#242220] text-[#FF5B1F] font-semibold'
+                    : 'text-[#9E9B94] hover:text-[#F5F4F0]'
                 }`}
               >
-                {s.title}
+                {s.tabName}
               </button>
             ))}
           </div>
 
-          {/* Terminal Console Output */}
-          <div className="p-6 space-y-4 text-slate-200 bg-[#0a0e14]">
+          {/* Console Body */}
+          <div className="p-6 space-y-4 text-[#F5F4F0] bg-[#0E0D0C]">
             {/* Command Prompt */}
-            <div className="flex items-center gap-2 text-cyan-400 font-bold">
-              <span className="text-emerald-400">arpit@utp-workstation</span>
-              <span className="text-slate-500">:</span>
-              <span className="text-sky-400">~</span>
-              <span className="text-slate-500">$</span>
-              <span className="text-white font-normal">{scenario.cmd}</span>
+            <div className="flex items-center gap-2 text-[#9E9B94]">
+              <span className="text-[#FF5B1F]">▲</span>
+              <span className="text-[#66635C]">arpit@terminal:~$</span>
+              <span className="text-[#F5F4F0]">{scenario.cmd}</span>
             </div>
 
-            {/* ASCII Engine Banner */}
-            <div className="text-slate-400 text-xs sm:text-sm pl-2 border-l-2 border-cyan-500/50 space-y-1">
+            {/* Pipeline Header */}
+            <div className="pl-4 border-l border-[#33302C] space-y-1 text-xs text-[#9E9B94]">
               <div>
-                <span className="text-violet-400 font-bold">▲ UTP Engine</span>
-                <span className="text-slate-500"> · </span>
-                <span className="text-slate-300">Universal Cloud Transfer Protocol</span>
-                <span className="text-cyan-400 font-mono ml-2">v2.6.0-pro</span>
+                <span className="text-[#FF5B1F] font-semibold">PIPELINE:</span> {scenario.pipeline}
               </div>
-              <div className="text-slate-400 text-xs">
-                Direct zero-disk memory streaming · End-to-end TLS 1.3 socket tunnel
+              <div>
+                <span className="text-[#66635C]">THROUGHPUT:</span>{' '}
+                <span className="text-emerald-400 font-semibold">{scenario.velocity}</span> •{' '}
+                <span className="text-[#66635C]">DISK I/O:</span>{' '}
+                <span className="text-[#F5F4F0]">{scenario.diskIo}</span>
               </div>
-            </div>
-
-            {/* Pipeline Info */}
-            <div className="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800/80 space-y-2 text-xs">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-slate-400">Pipeline Route:</span>
-                <span className="text-cyan-300 font-medium">{scenario.pipeline}</span>
-              </div>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-slate-400">Throughput Velocity:</span>
-                <span className="text-emerald-400 font-semibold">{scenario.speed} (Active RAM Ring)</span>
-              </div>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-slate-400">Integrity Protocol:</span>
-                <span className="text-sky-300 font-medium">{scenario.integrity}</span>
+              <div>
+                <span className="text-[#66635C]">INTEGRITY:</span> {scenario.verification}
               </div>
             </div>
 
-            {/* Live Progress Bar HUD */}
-            <div className="space-y-2 pt-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-300 font-medium">Memory Stream:</span>
-                <span className="text-cyan-400 font-mono font-bold">
-                  {progressPercent}% ({currentStep.bytes} / {scenario.totalSize})
+            {/* Progress Bar */}
+            <div className="space-y-1.5 pt-2">
+              <div className="flex items-center justify-between text-xs text-[#9E9B94]">
+                <span>STREAM BUFFER PROGRESS:</span>
+                <span className="text-[#F5F4F0] font-semibold">
+                  {progressPercent}% [{currentStep.bytes} / {scenario.payload}]
                 </span>
               </div>
 
-              {/* Graphical Progress Bar */}
-              <div className="w-full bg-slate-900 h-6 rounded-lg p-1 border border-slate-800 flex items-center overflow-hidden">
+              <div className="w-full bg-[#1C1A18] h-4 rounded overflow-hidden border border-[#242220] p-0.5">
                 <div
-                  className="h-full bg-gradient-to-r from-cyan-500 via-sky-500 to-violet-500 rounded transition-all duration-500 relative flex items-center justify-end px-2"
+                  className="h-full bg-gradient-to-r from-[#FF5B1F] to-[#FF804D] rounded transition-all duration-300"
                   style={{ width: `${progressPercent}%` }}
-                >
-                  <span className="text-[10px] text-white font-mono font-bold drop-shadow">
-                    {progressPercent > 15 ? `${progressPercent}%` : ''}
-                  </span>
-                </div>
+                />
               </div>
             </div>
 
-            {/* Live Log Message */}
-            <div className="flex items-center gap-2 text-xs pt-1">
-              <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shrink-0" />
-              <span className="text-slate-400">Status:</span>
-              <span className="text-slate-200 font-mono">{currentStep.log}</span>
+            {/* Live Status Message */}
+            <div className="flex items-center gap-2 text-xs pt-2 text-[#9E9B94]">
+              <span className="live-beacon" />
+              <span>LOG:</span>
+              <span className="text-[#F5F4F0]">{currentStep.text}</span>
             </div>
 
-            {/* Verified Box Card */}
+            {/* Verified Box */}
             {progressPercent === 100 && (
-              <div className="mt-4 p-4 rounded-xl bg-emerald-950/30 border border-emerald-500/30 text-emerald-300 flex items-start gap-3 animate-fadeIn">
-                <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+              <div className="mt-4 p-4 rounded bg-[#151413] border border-emerald-500/40 text-emerald-300 flex items-start gap-3">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                 <div>
-                  <div className="font-semibold text-white">Transfer Completed & Committed to SQLite Ledger</div>
-                  <div className="text-xs text-emerald-300/80 mt-1">
-                    SHA-256 cloud checksum verified with 0 read-back egress. Total local disk I/O: <strong className="text-white">0 Bytes</strong>.
+                  <div className="font-semibold text-[#F5F4F0]">Verified & Committed to Local SQLite Ledger (utp.db)</div>
+                  <div className="text-xs text-[#9E9B94] mt-0.5">
+                    Server-side cloud hash matched in-flight memory checksum. Zero read-back egress. Total local disk write wear: 0 Bytes.
                   </div>
                 </div>
               </div>

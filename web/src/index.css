@@ -1,68 +1,103 @@
 @import "tailwindcss";
 
 @layer base {
-  body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  :root {
+    --bg-main: #0E0D0C;
+    --bg-card: #151413;
+    --bg-card-hover: #1C1A18;
+    --border-subtle: #242220;
+    --border-strong: #33302C;
+    --accent-orange: #FF5B1F;
+    --accent-orange-hover: #FF7036;
+    --text-primary: #F5F4F0;
+    --text-secondary: #9E9B94;
+    --text-muted: #66635C;
   }
+
+  body {
+    background-color: var(--bg-main);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    letter-spacing: -0.01em;
+  }
+
   code, pre, .font-mono {
     font-family: 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   }
 }
 
-/* Cyber mesh and glow accents */
-.bg-cyber-grid {
-  background-size: 32px 32px;
-  background-image: 
-    linear-gradient(to right, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+/* Structural Hairline Grid Lines */
+.grid-frame {
+  border: 1px solid var(--border-subtle);
 }
 
-.glow-mesh {
-  background: radial-gradient(circle at 50% 0%, rgba(6, 182, 212, 0.12) 0%, rgba(139, 92, 246, 0.08) 35%, transparent 70%);
+.hairline-border {
+  border-color: #242220;
 }
 
-.glow-cyan {
-  text-shadow: 0 0 20px rgba(6, 182, 212, 0.5);
+/* Corner Crosshairs (+) */
+.corner-crosshair {
+  position: relative;
+}
+.corner-crosshair::before {
+  content: "+";
+  position: absolute;
+  top: -9px;
+  left: -5px;
+  font-family: monospace;
+  font-size: 13px;
+  color: #66635C;
+  pointer-events: none;
+}
+.corner-crosshair::after {
+  content: "+";
+  position: absolute;
+  bottom: -9px;
+  right: -5px;
+  font-family: monospace;
+  font-size: 13px;
+  color: #66635C;
+  pointer-events: none;
 }
 
-.glow-box-cyan {
-  box-shadow: 0 0 35px -5px rgba(6, 182, 212, 0.25);
+/* Pulsing Live Beacon */
+.live-beacon {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #10B981;
+  box-shadow: 0 0 8px #10B981;
+  animation: pulse-live 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-.glow-box-violet {
-  box-shadow: 0 0 35px -5px rgba(139, 92, 246, 0.25);
+.live-beacon-orange {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #FF5B1F;
+  box-shadow: 0 0 8px #FF5B1F;
+  animation: pulse-live 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
-/* Glassmorphism utility */
-.glass-panel {
-  background: rgba(15, 23, 42, 0.65);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+@keyframes pulse-live {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
 }
 
-.glass-panel-hover {
-  transition: all 0.25s ease-in-out;
-}
-.glass-panel-hover:hover {
-  background: rgba(30, 41, 59, 0.75);
-  border-color: rgba(6, 182, 212, 0.4);
-  transform: translateY(-2px);
-  box-shadow: 0 10px 25px -5px rgba(6, 182, 212, 0.15);
-}
-
-/* Custom scrollbar */
+/* Custom minimal scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #07090e;
+  background: #0E0D0C;
 }
 ::-webkit-scrollbar-thumb {
-  background: #1e293b;
-  border-radius: 4px;
+  background: #242220;
+  border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #334155;
+  background: #383531;
 }

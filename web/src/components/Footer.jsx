@@ -1,105 +1,109 @@
 import React from 'react';
-import { Shield, FileText, Lock, Terminal, Heart } from 'lucide-react';
+import { ArrowUpRight } from 'lucide-react';
 import { GithubIcon } from './Icons.jsx';
 
 export default function Footer({ onOpenLegal }) {
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   return (
-    <footer className="bg-[#05070a] border-t border-slate-900 py-16 text-xs text-slate-400">
+    <footer className="bg-[#0A0908] border-t border-[#242220] py-16 font-mono text-xs text-[#9E9B94]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-10 mb-12">
-          {/* Brand Col */}
-          <div className="space-y-4 md:col-span-1">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-violet-600 flex items-center justify-center font-bold text-white font-mono text-sm shadow-md">
-                ▲
-              </div>
-              <span className="font-bold text-lg text-white font-mono tracking-tight">CTP Engine</span>
+          {/* Col 1: Brand */}
+          <div className="space-y-3">
+            <div className="text-[#F5F4F0] font-bold text-sm">
+              /*ctp*/<span className="text-[#FF5B1F]">.</span>
             </div>
-            <p className="text-slate-400 text-xs leading-relaxed">
-              Universal Cloud Transfer Protocol (UTP). High-performance zero-disk memory pipeline for personal and enterprise cloud migration.
+            <p className="text-[#66635C] leading-relaxed font-sans text-xs">
+              Universal Cloud Transfer Protocol (UTP). Direct zero-disk volatile RAM memory streaming across 10 cloud providers.
             </p>
-            <div className="flex items-center gap-2 text-[11px] font-mono text-emerald-400">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span>v2.6.0-pro Operational</span>
+            <div className="flex items-center gap-2 text-[#9E9B94]">
+              <span className="live-beacon" />
+              <span>v2.6.0-pro operational</span>
             </div>
           </div>
 
-          {/* Nav Links */}
-          <div className="space-y-3">
-            <h4 className="font-bold text-white text-xs uppercase tracking-wider font-mono">Product</h4>
-            <ul className="space-y-2">
-              <li><a href="#features" className="hover:text-cyan-400 transition-colors">Core Features</a></li>
-              <li><a href="#terminal-demo" className="hover:text-cyan-400 transition-colors">Terminal Simulator</a></li>
-              <li><a href="#protocols" className="hover:text-cyan-400 transition-colors">Supported Protocols</a></li>
-              <li><a href="#architecture" className="hover:text-cyan-400 transition-colors">Zero-Disk Architecture</a></li>
+          {/* Col 2: Architecture & Specs */}
+          <div className="space-y-2.5">
+            <div className="text-[#66635C]">// architecture</div>
+            <ul className="space-y-1.5">
+              <li><a href="#simulator" className="hover:text-[#F5F4F0] transition-colors">01 / Runtime Simulator</a></li>
+              <li><a href="#features" className="hover:text-[#F5F4F0] transition-colors">02 / Engineering Feats</a></li>
+              <li><a href="#protocols" className="hover:text-[#F5F4F0] transition-colors">03 / Supported Protocols</a></li>
+              <li><a href="#architecture" className="hover:text-[#F5F4F0] transition-colors">04 / Zero-Disk Pipeline</a></li>
             </ul>
           </div>
 
-          {/* Legal Hub */}
-          <div className="space-y-3">
-            <h4 className="font-bold text-white text-xs uppercase tracking-wider font-mono">Compliance & Trust</h4>
-            <ul className="space-y-2">
+          {/* Col 3: Compliance & Legal */}
+          <div className="space-y-2.5">
+            <div className="text-[#66635C]">// compliance</div>
+            <ul className="space-y-1.5">
               <li>
-                <button onClick={() => onOpenLegal('privacy')} className="hover:text-cyan-400 transition-colors text-left cursor-pointer">
+                <button onClick={() => onOpenLegal('privacy')} className="hover:text-[#FF5B1F] transition-colors cursor-pointer text-left">
                   Zero-Knowledge Privacy Policy
                 </button>
               </li>
               <li>
-                <button onClick={() => onOpenLegal('terms')} className="hover:text-cyan-400 transition-colors text-left cursor-pointer">
-                  Terms of Service (MIT License)
+                <button onClick={() => onOpenLegal('terms')} className="hover:text-[#F5F4F0] transition-colors cursor-pointer text-left">
+                  Terms of Service (MIT)
                 </button>
               </li>
               <li>
-                <button onClick={() => onOpenLegal('security')} className="hover:text-cyan-400 transition-colors text-left cursor-pointer">
-                  Security & Token Isolation Whitepaper
+                <button onClick={() => onOpenLegal('security')} className="hover:text-emerald-400 transition-colors cursor-pointer text-left">
+                  Security Architecture Whitepaper
                 </button>
               </li>
             </ul>
           </div>
 
-          {/* Ecosystem Links */}
-          <div className="space-y-3">
-            <h4 className="font-bold text-white text-xs uppercase tracking-wider font-mono">Developer Ecosystem</h4>
-            <ul className="space-y-2">
+          {/* Col 4: Ecosystem & Author */}
+          <div className="space-y-2.5">
+            <div className="text-[#66635C]">// elsewhere</div>
+            <ul className="space-y-1.5">
               <li>
-                <a 
-                  href="https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol" 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
-                  className="hover:text-white transition-colors flex items-center gap-1.5"
+                <a
+                  href="https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-[#F5F4F0] transition-colors flex items-center gap-1.5"
                 >
-                  <GithubIcon className="w-3.5 h-3.5 text-slate-300" />
-                  GitHub Repository
+                  <GithubIcon className="w-3.5 h-3.5" />
+                  <span>GitHub Repository</span>
                 </a>
               </li>
               <li>
-                <a 
-                  href="https://www.npmjs.com/package/@utp/client" 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
-                  className="hover:text-white transition-colors"
+                <a
+                  href="https://www.npmjs.com/package/@utp/client"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-[#F5F4F0] transition-colors flex items-center gap-1"
                 >
-                  TypeScript SDK (@utp/client)
+                  <span>TypeScript SDK (@utp/client)</span>
+                  <ArrowUpRight className="w-3 h-3 text-[#66635C]" />
                 </a>
               </li>
               <li>
-                <a 
-                  href="https://pypi.org/project/utp-client/" 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
-                  className="hover:text-white transition-colors"
+                <a
+                  href="https://pypi.org/project/utp-client/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-[#F5F4F0] transition-colors flex items-center gap-1"
                 >
-                  Python SDK (utp-client)
+                  <span>Python SDK (utp-client)</span>
+                  <ArrowUpRight className="w-3 h-3 text-[#66635C]" />
                 </a>
               </li>
               <li>
-                <a 
-                  href="https://arpitnayak.tech" 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
-                  className="text-cyan-400 hover:text-cyan-300 transition-colors font-medium"
+                <a
+                  href="https://arpitnayak.tech"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#FF5B1F] hover:underline flex items-center gap-1"
                 >
-                  Author: arpitnayak.tech
+                  <span>Author: arpitnayak.tech</span>
+                  <ArrowUpRight className="w-3 h-3" />
                 </a>
               </li>
             </ul>
@@ -107,14 +111,19 @@ export default function Footer({ onOpenLegal }) {
         </div>
 
         {/* Bottom Bar */}
-        <div className="pt-8 border-t border-slate-900 flex flex-wrap items-center justify-between gap-4 text-slate-500 text-[11px] font-mono">
+        <div className="pt-8 border-t border-[#242220] flex flex-wrap items-center justify-between gap-4 text-[#66635C]">
           <div>
-            © {new Date().getFullYear()} Universal Cloud Transfer Protocol (CTP). Licensed under the MIT License.
+            © {new Date().getFullYear()} Universal Cloud Transfer Protocol (CTP/UTP). MIT License.
           </div>
           <div className="flex items-center gap-4">
-            <span className="text-slate-400">Domain: ctp.arpitnayak.tech</span>
-            <span>•</span>
-            <span className="text-slate-400">Zero-Disk Memory Pipeline</span>
+            <span>// ctp.arpitnayak.tech</span>
+            <button
+              onClick={scrollToTop}
+              className="text-[#9E9B94] hover:text-[#F5F4F0] cursor-pointer flex items-center gap-1"
+            >
+              <span>Back to top</span>
+              <span>↑</span>
+            </button>
           </div>
         </div>
       </div>
