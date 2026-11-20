@@ -1,6 +1,6 @@
 # Maintainer: Arpit Nayak <arpit@utp.cloud>
 pkgname=utp-bin
-pkgver=2.5.0
+pkgver=2.6.0
 pkgrel=1
 pkgdesc="Universal Cloud Transfer Protocol (UTP) - Direct 0-Disk High-Speed Cloud-to-Cloud Pipeline"
 arch=('x86_64' 'aarch64')

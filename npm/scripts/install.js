@@ -24,7 +24,7 @@ if (fs.existsSync(rootBinary)) {
 }
 
 // 3. Fallback: Download platform prebuilt binary from GitHub Release
-const VERSION = 'v2.5.0';
+const VERSION = 'v2.6.0';
 const REPO = 'ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol';
 let assetName = '';
 
