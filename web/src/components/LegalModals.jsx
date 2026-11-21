@@ -100,6 +100,22 @@ export default function LegalModals({ activeTab, onClose, onSelectTab }) {
                   Because CTP processes zero personal data externally, it inherently satisfies all data minimization and privacy standards of the European Union GDPR and California CCPA.
                 </p>
               </div>
+
+              <div className="space-y-2">
+                <h3 className="font-bold text-[#F5F4F0] font-mono text-sm">§ 5.0 Google API Limited Use Disclosure</h3>
+                <p>
+                  CTP/UTP's use and transfer of information received from Google APIs adheres to the{' '}
+                  <a
+                    href="https://developers.google.com/terms/api-services-user-data-policy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[#FF5B1F] hover:underline"
+                  >
+                    Google API Services User Data Policy
+                  </a>
+                  , including the Limited Use requirements. Google user data is strictly used for user-directed cloud migration and synchronization, and is never used for advertising, market research, or training machine learning or artificial intelligence models.
+                </p>
+              </div>
             </div>
           )}
 

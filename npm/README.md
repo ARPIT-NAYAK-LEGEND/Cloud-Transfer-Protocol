@@ -14,6 +14,8 @@
 **Direct Zero-Disk Memory Pipeline for Personal, Commercial & Enterprise Cloud Storage**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Official Portal](https://img.shields.io/badge/Official%20Site-ctp.arpitnayak.tech-FF5B1F.svg)](https://ctp.arpitnayak.tech)
+[![Privacy & Terms](https://img.shields.io/badge/Legal-Privacy%20%26%20Terms-22c55e.svg)](https://ctp.arpitnayak.tech/privacy)
 [![C++20](https://img.shields.io/badge/Standard-C%2B%2B20-purple.svg)](https://en.cppreference.com/w/cpp/20)
 [![Release](https://img.shields.io/badge/Release-v2.6.0--pro-cyan.svg)](https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol/releases)
 [![Platforms](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-emerald.svg)](#installation--quick-start)

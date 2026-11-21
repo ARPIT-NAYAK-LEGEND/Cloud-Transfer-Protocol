@@ -1,8 +1,11 @@
-# Privacy Policy for Universal Cloud Transfer Protocol (UTP)
+# Privacy Policy for Universal Cloud Transfer Protocol (UTP / CTP)
 
-Last updated: November 2026
+**Effective Date:** November 20, 2026  
+**Official Portal:** [https://ctp.arpitnayak.tech](https://ctp.arpitnayak.tech)  
+**Hosted Privacy Policy:** [https://ctp.arpitnayak.tech/privacy](https://ctp.arpitnayak.tech/privacy)  
+**Hosted Terms of Service:** [https://ctp.arpitnayak.tech/terms](https://ctp.arpitnayak.tech/terms)  
 
-Universal Cloud Transfer Protocol ("UTP", "we", "our", or "the application") is an open-source, peer-to-cloud data migration and synchronization engine. We are committed to protecting user privacy and ensuring full sovereignty over your data.
+Universal Cloud Transfer Protocol ("UTP / CTP", "we", "our", or "the application") is an open-source, peer-to-cloud data migration and synchronization engine. We are committed to protecting user privacy and ensuring full sovereignty over your data.
 
 ---
 
