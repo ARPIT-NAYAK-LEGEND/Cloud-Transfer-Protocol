@@ -4,8 +4,8 @@
   "description": "Universal Cloud Transfer Protocol (UTP) - Direct 0-Disk High-Speed Cloud-to-Cloud Pipeline",
   "main": "./bin/utp.js",
   "bin": {
-    "utp": "./bin/utp.js",
-    "utp-engine": "./bin/utp.js"
+    "utp": "bin/utp.js",
+    "utp-engine": "bin/utp.js"
   },
   "files": [
     "bin/",
@@ -34,7 +34,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol.git"
+    "url": "git+https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol.git"
   },
   "engines": {
     "node": ">=16.0.0"
