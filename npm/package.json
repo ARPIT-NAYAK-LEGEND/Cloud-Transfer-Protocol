@@ -1,6 +1,6 @@
 {
   "name": "utp-engine",
-  "version": "2.6.0",
+  "version": "2.6.1",
   "description": "Universal Cloud Transfer Protocol (UTP) - Direct 0-Disk High-Speed Cloud-to-Cloud Pipeline",
   "main": "./bin/utp.js",
   "bin": {
