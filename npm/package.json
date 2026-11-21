@@ -11,6 +11,8 @@
     "bin/",
     "scripts/",
     "README.md",
+    "PRIVACY.md",
+    "SECURITY.md",
     "LICENSE",
     "ca-bundle.crt"
   ],
