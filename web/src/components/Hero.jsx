@@ -2,13 +2,14 @@ import React, { useState } from 'react';
 import { Terminal, Copy, Check, ArrowDownRight, ArrowRight } from 'lucide-react';
 
 const INSTALL_OPTIONS = [
+  { id: 'npx', label: 'npx (zero-install)', cmd: 'npx utp-engine transfer' },
+  { id: 'npm', label: 'npm (global)', cmd: 'npm install -g utp-engine' },
+  { id: 'pnpm', label: 'pnpm dlx', cmd: 'pnpm dlx utp-engine transfer' },
   { id: 'curl', label: 'curl | bash', cmd: 'curl -fsSL https://raw.githubusercontent.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol/PROJECTS/install.sh | bash' },
-  { id: 'npx', label: 'npx instant', cmd: 'npx utp-engine transfer' },
-  { id: 'brew', label: 'homebrew', cmd: 'brew install ARPIT-NAYAK-LEGEND/utp/utp' },
 ];
 
 export default function Hero({ onOpenLegal }) {
-  const [activeTab, setActiveTab] = useState('curl');
+  const [activeTab, setActiveTab] = useState('npx');
   const [copied, setCopied] = useState(false);
 
   const activeCmd = INSTALL_OPTIONS.find(t => t.id === activeTab)?.cmd || INSTALL_OPTIONS[0].cmd;
@@ -70,10 +71,10 @@ export default function Hero({ onOpenLegal }) {
             </div>
 
             <a
-              href="#simulator"
-              className="hidden sm:flex items-center gap-1 text-[#9E9B94] hover:text-[#F5F4F0] transition-colors"
+              href="#quickstart"
+              className="hidden sm:flex items-center gap-1 text-[#FF5B1F] hover:text-[#FF7036] transition-colors"
             >
-              <span>try live simulator</span>
+              <span>how to run & workflow</span>
               <span>↓</span>
             </a>
           </div>

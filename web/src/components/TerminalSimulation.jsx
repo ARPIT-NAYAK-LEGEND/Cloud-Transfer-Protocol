@@ -88,7 +88,7 @@ export default function TerminalSimulation() {
         {/* Section Header */}
         <div className="flex flex-wrap items-center justify-between gap-3 pb-6 border-b border-[#242220] font-mono text-xs text-[#9E9B94] mb-10">
           <div className="flex items-center gap-2">
-            <span className="text-[#FF5B1F] font-semibold">// 02 / ENGINE SIMULATOR</span>
+            <span className="text-[#FF5B1F] font-semibold">// 03 / ENGINE SIMULATOR</span>
             <span className="text-[#66635C]">—</span>
             <span>INTERACTIVE RUNTIME BENCHMARK</span>
           </div>
@@ -106,7 +106,7 @@ export default function TerminalSimulation() {
               <span className="w-2.5 h-2.5 rounded-full bg-[#383531] inline-block" />
               <span className="w-2.5 h-2.5 rounded-full bg-[#383531] inline-block" />
               <span className="ml-2 text-[#9E9B94] text-xs">
-                utp-runtime-v2.6.0-pro (x86_64)
+                utp-runtime-v2.6.1 (x86_64)
               </span>
             </div>
 

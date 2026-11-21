@@ -42,7 +42,7 @@ export default function Navbar({ onOpenLegal }) {
               /*ctp*/<span className="text-[#FF5B1F]">.</span>
             </span>
             <span className="text-[11px] font-mono px-2 py-0.5 rounded border border-[#33302C] bg-[#161513] text-[#9E9B94]">
-              v2.6.0-pro
+              v2.6.1
             </span>
           </a>
 
@@ -61,20 +61,23 @@ export default function Navbar({ onOpenLegal }) {
             </div>
 
             <nav className="flex items-center gap-5 text-[#9E9B94]">
+              <a href="#quickstart" className="hover:text-[#F5F4F0] transition-colors">
+                <span className="text-[#66635C] mr-1">01</span>Quickstart
+              </a>
               <a href="#simulator" className="hover:text-[#F5F4F0] transition-colors">
-                <span className="text-[#66635C] mr-1">01</span>Simulator
+                <span className="text-[#66635C] mr-1">02</span>Simulator
               </a>
               <a href="#features" className="hover:text-[#F5F4F0] transition-colors">
-                <span className="text-[#66635C] mr-1">02</span>Feats
+                <span className="text-[#66635C] mr-1">03</span>Feats
               </a>
               <a href="#protocols" className="hover:text-[#F5F4F0] transition-colors">
-                <span className="text-[#66635C] mr-1">03</span>Protocols
+                <span className="text-[#66635C] mr-1">04</span>Protocols
               </a>
               <button
                 onClick={() => onOpenLegal('privacy')}
                 className="hover:text-[#FF5B1F] transition-colors cursor-pointer"
               >
-                <span className="text-[#66635C] mr-1">04</span>Legal
+                <span className="text-[#66635C] mr-1">05</span>Legal
               </button>
             </nav>
 
@@ -122,25 +125,32 @@ export default function Navbar({ onOpenLegal }) {
             TIME: {timeStr} • STATUS: READY
           </div>
           <a
+            href="#quickstart"
+            onClick={() => setMobileMenuOpen(false)}
+            className="block text-[#9E9B94] hover:text-[#F5F4F0]"
+          >
+            <span className="text-[#66635C] mr-2">01</span>Quickstart & How-To
+          </a>
+          <a
             href="#simulator"
             onClick={() => setMobileMenuOpen(false)}
             className="block text-[#9E9B94] hover:text-[#F5F4F0]"
           >
-            <span className="text-[#66635C] mr-2">01</span>Interactive Simulator
+            <span className="text-[#66635C] mr-2">02</span>Interactive Simulator
           </a>
           <a
             href="#features"
             onClick={() => setMobileMenuOpen(false)}
             className="block text-[#9E9B94] hover:text-[#F5F4F0]"
           >
-            <span className="text-[#66635C] mr-2">02</span>Engineering Feats
+            <span className="text-[#66635C] mr-2">03</span>Engineering Feats
           </a>
           <a
             href="#protocols"
             onClick={() => setMobileMenuOpen(false)}
             className="block text-[#9E9B94] hover:text-[#F5F4F0]"
           >
-            <span className="text-[#66635C] mr-2">03</span>Supported Protocols
+            <span className="text-[#66635C] mr-2">04</span>Supported Protocols
           </a>
           <div className="pt-3 border-t border-[#242220] flex gap-4">
             <button

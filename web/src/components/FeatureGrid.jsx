@@ -34,7 +34,7 @@ export default function FeatureGrid() {
         {/* Section Header */}
         <div className="flex flex-wrap items-center justify-between gap-3 pb-6 border-b border-[#242220] font-mono text-xs text-[#9E9B94] mb-10">
           <div className="flex items-center gap-2">
-            <span className="text-[#FF5B1F] font-semibold">// 03 / ARCHITECTURE & CORE FEATS</span>
+            <span className="text-[#FF5B1F] font-semibold">// 04 / ARCHITECTURE & CORE FEATS</span>
             <span className="text-[#66635C]">—</span>
             <span>C++20 STREAMING FOUNDATION</span>
           </div>

@@ -8,7 +8,7 @@ export default function ComplianceHub({ onOpenLegal }) {
         {/* Section Header */}
         <div className="flex flex-wrap items-center justify-between gap-3 pb-6 border-b border-[#242220] font-mono text-xs text-[#9E9B94] mb-10">
           <div className="flex items-center gap-2">
-            <span className="text-[#FF5B1F] font-semibold">// 05 / COMPLIANCE & LEGAL SPECIFICATION</span>
+            <span className="text-[#FF5B1F] font-semibold">// 06 / COMPLIANCE & LEGAL SPECIFICATION</span>
             <span className="text-[#66635C]">—</span>
             <span>ZERO-KNOWLEDGE ARCHITECTURE</span>
           </div>

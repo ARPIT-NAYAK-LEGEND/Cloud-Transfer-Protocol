@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Navbar from './components/Navbar.jsx';
 import Hero from './components/Hero.jsx';
+import QuickstartGuide from './components/QuickstartGuide.jsx';
 import TerminalSimulation from './components/TerminalSimulation.jsx';
 import FeatureGrid from './components/FeatureGrid.jsx';
 import ProtocolMatrix from './components/ProtocolMatrix.jsx';
@@ -53,6 +54,7 @@ export default function App() {
       {/* Main Content */}
       <main className="flex-1">
         <Hero onOpenLegal={handleOpenLegal} />
+        <QuickstartGuide />
         <TerminalSimulation />
         <FeatureGrid />
         <ProtocolMatrix />

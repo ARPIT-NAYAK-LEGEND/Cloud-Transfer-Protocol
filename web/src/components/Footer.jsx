@@ -28,7 +28,7 @@ export default function Footer({ onOpenLegal }) {
             </p>
             <div className="flex items-center gap-2 text-[#9E9B94]">
               <span className="live-beacon" />
-              <span>v2.6.0-pro operational</span>
+              <span>v2.6.1 operational</span>
             </div>
           </div>
 
@@ -36,10 +36,11 @@ export default function Footer({ onOpenLegal }) {
           <div className="space-y-2.5">
             <div className="text-[#66635C]">// architecture</div>
             <ul className="space-y-1.5">
-              <li><a href="#simulator" className="hover:text-[#F5F4F0] transition-colors">01 / Runtime Simulator</a></li>
-              <li><a href="#features" className="hover:text-[#F5F4F0] transition-colors">02 / Engineering Feats</a></li>
-              <li><a href="#protocols" className="hover:text-[#F5F4F0] transition-colors">03 / Supported Protocols</a></li>
-              <li><a href="#compliance" className="hover:text-[#F5F4F0] transition-colors">04 / Compliance Specs</a></li>
+              <li><a href="#quickstart" className="hover:text-[#F5F4F0] transition-colors">01 / Quickstart Guide</a></li>
+              <li><a href="#simulator" className="hover:text-[#F5F4F0] transition-colors">02 / Runtime Simulator</a></li>
+              <li><a href="#features" className="hover:text-[#F5F4F0] transition-colors">03 / Engineering Feats</a></li>
+              <li><a href="#protocols" className="hover:text-[#F5F4F0] transition-colors">04 / Supported Protocols</a></li>
+              <li><a href="#compliance" className="hover:text-[#F5F4F0] transition-colors">05 / Compliance Specs</a></li>
             </ul>
           </div>
 
@@ -78,6 +79,17 @@ export default function Footer({ onOpenLegal }) {
                 >
                   <GithubIcon className="w-3.5 h-3.5" />
                   <span>GitHub Repository</span>
+                </a>
+              </li>
+              <li>
+                <a
+                  href="https://www.npmjs.com/package/utp-engine"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-[#F5F4F0] transition-colors flex items-center gap-1"
+                >
+                  <span className="text-[#FF5B1F] font-semibold">CLI Package (utp-engine)</span>
+                  <ArrowUpRight className="w-3 h-3 text-[#66635C]" />
                 </a>
               </li>
               <li>
