@@ -60,60 +60,77 @@ export default function LegalModals({ activeTab, onClose, onSelectTab }) {
           {activeTab === 'privacy' && (
             <div className="space-y-6">
               <div className="border-b border-[#242220] pb-4 font-mono">
-                <div className="text-[#FF5B1F] text-xs font-semibold">// ZERO-KNOWLEDGE & CLIENT-SIDE ARCHITECTURE</div>
-                <h2 className="text-2xl font-bold text-[#F5F4F0] mt-1">Universal Cloud Transfer Protocol (CTP/UTP) Privacy Policy</h2>
-                <div className="text-xs text-[#66635C] mt-1">Effective Date: November 20, 2026 · Release: v2.6.0-pro</div>
+                <div className="text-[#FF5B1F] text-xs font-semibold">// ZERO-KNOWLEDGE &amp; CLIENT-SIDE ARCHITECTURE</div>
+                <h2 className="text-2xl font-bold text-[#F5F4F0] mt-1">Cloud Transfer Protocol (CTP) Privacy Policy</h2>
+                <div className="text-xs text-[#66635C] mt-1">Application: Cloud Transfer Protocol · Effective Date: November 23, 2026 · Author: Arpit Nayak</div>
               </div>
 
               <div className="p-4 rounded bg-[#151413] border border-[#242220] text-[#F5F4F0] font-mono text-xs">
                 <span className="text-[#FF5B1F] font-bold">// EXECUTIVE PRIVACY GUARANTEE:</span><br />
-                CTP operates on a verifiable Zero-Knowledge model. We do not operate intermediate relay servers, we do not inspect payloads, we collect zero analytics, and we never transmit your credentials or file metadata to any server.
+                Cloud Transfer Protocol (CTP) operates on a verifiable Zero-Knowledge model. We operate zero intermediate relay servers, store zero payload bytes on disk, collect zero analytics, and never transmit your credentials or file metadata to any third party.
               </div>
 
               <div className="space-y-2">
-                <h3 className="font-bold text-[#F5F4F0] font-mono text-sm">§ 1.0 Data We Do NOT Collect</h3>
+                <h3 className="font-bold text-[#F5F4F0] font-mono text-sm">§ 1.0 Application Purpose &amp; Public Access</h3>
+                <p>
+                  Cloud Transfer Protocol is an open-source data migration utility that allows users to stream files directly between cloud providers (Google Drive, Microsoft OneDrive, Amazon S3, Cloudflare R2) via in-memory volatile RAM buffers. No user login or registration is required to view information about this software.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="font-bold text-[#F5F4F0] font-mono text-sm">§ 2.0 Google User Data Accessed &amp; Scopes Requested</h3>
+                <p>
+                  When connecting Google Drive, Cloud Transfer Protocol requests only the following OAuth scopes:
+                </p>
                 <ul className="list-disc pl-5 space-y-1 text-[#9E9B94]">
-                  <li><strong>Zero Personal Identifiable Information (PII)</strong>: No names, emails, IP addresses, or phone numbers.</li>
-                  <li><strong>Zero File Data or Metadata</strong>: File contents and directory paths stream solely in your machine's volatile RAM.</li>
-                  <li><strong>Zero Telemetry or Analytics</strong>: No analytics packages, crash reporters, or tracking beacons exist in the software.</li>
-                  <li><strong>Zero Account Registration</strong>: No accounts or profiles are required or supported.</li>
+                  <li><code className="text-[#FF5B1F] font-mono text-xs">https://www.googleapis.com/auth/drive.readonly</code> — To discover and read files user explicitly selects to transfer.</li>
+                  <li><code className="text-[#FF5B1F] font-mono text-xs">https://www.googleapis.com/auth/drive.file</code> — To write files user transfers into Google Drive.</li>
+                </ul>
+                <p>
+                  Data accessed includes file IDs, names, sizes, and binary stream contents strictly during active user-directed transfer sessions.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="font-bold text-[#F5F4F0] font-mono text-sm">§ 3.0 How Data is Stored &amp; Protected</h3>
+                <p>
+                  <strong>Zero-Disk RAM Streaming:</strong> File chunks are held in volatile RAM ring buffers solely for the milliseconds required to pipe them into the destination cloud provider. No files are ever saved to local disks or remote servers.
+                </p>
+                <p>
+                  <strong>Local OAuth Tokens:</strong> Authentication tokens are stored exclusively on your local computer (e.g. <code className="text-[#FF5B1F] font-mono text-xs">~/.utp_gdrive_token.json</code>) with user-level OS file permissions and are never sent to any external server.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="font-bold text-[#F5F4F0] font-mono text-sm">§ 4.0 Google API Limited Use Disclosure</h3>
+                <div className="p-3 rounded bg-[#101726] border border-blue-900/50 text-blue-200 text-xs font-mono">
+                  Cloud Transfer Protocol's use and transfer to any other app of information received from Google APIs will adhere to the <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer" className="text-[#FF5B1F] underline">Google API Services User Data Policy</a>, including the Limited Use requirements.
+                </div>
+                <ul className="list-disc pl-5 space-y-1 text-[#9E9B94] text-xs">
+                  <li>Google user data is never used for serving advertisements or retargeting.</li>
+                  <li>Google user data is <strong>never used to develop, improve, or train generalized AI and/or ML models</strong>.</li>
+                  <li>Google user data is never sold or transferred to data brokers or third parties.</li>
                 </ul>
               </div>
 
               <div className="space-y-2">
-                <h3 className="font-bold text-[#F5F4F0] font-mono text-sm">§ 2.0 Direct Peer-to-Cloud Transmission</h3>
+                <h3 className="font-bold text-[#F5F4F0] font-mono text-sm">§ 5.0 Google APIs Terms of Service &amp; AI NCII Prohibition</h3>
                 <p>
-                  Transfers stream directly between your device and the designated cloud storage APIs (Google Drive, Microsoft Graph, Amazon S3, Cloudflare, WebDAV). All traffic utilizes direct TLS 1.3 socket encryption without intermediary proxies.
+                  In strict compliance with the Google APIs Terms of Service, Cloud Transfer Protocol strictly prohibits the use of Google APIs or CTP services for creating, generating, hosting, processing, or distributing Non-Consensual Intimate Imagery (NCII), CSAM, harassment, or unlawful content.
                 </p>
               </div>
 
               <div className="space-y-2">
-                <h3 className="font-bold text-[#F5F4F0] font-mono text-sm">§ 3.0 Local Credential Hygiene</h3>
+                <h3 className="font-bold text-[#F5F4F0] font-mono text-sm">§ 6.0 Data Deletion &amp; Access Revocation</h3>
                 <p>
-                  OAuth access and refresh tokens are stored exclusively on your local device (e.g., <code className="text-[#FF5B1F] font-mono text-xs">.utp_*_token.json</code>) with standard operating system permissions. Tokens are never transmitted to any third party.
+                  You may revoke Cloud Transfer Protocol's access at any time via your <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer" className="text-[#FF5B1F] underline">Google Account Security Permissions</a>. You can also delete local credentials by deleting the <code className="text-[#FF5B1F] font-mono text-xs">~/.utp_*_token.json</code> files from your device.
                 </p>
               </div>
 
               <div className="space-y-2">
-                <h3 className="font-bold text-[#F5F4F0] font-mono text-sm">§ 4.0 GDPR and CCPA Compliance</h3>
+                <h3 className="font-bold text-[#F5F4F0] font-mono text-sm">§ 7.0 Developer Contact</h3>
                 <p>
-                  Because CTP processes zero personal data externally, it inherently satisfies all data minimization and privacy standards of the European Union GDPR and California CCPA.
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <h3 className="font-bold text-[#F5F4F0] font-mono text-sm">§ 5.0 Google API Limited Use Disclosure</h3>
-                <p>
-                  CTP/UTP's use and transfer of information received from Google APIs adheres to the{' '}
-                  <a
-                    href="https://developers.google.com/terms/api-services-user-data-policy"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[#FF5B1F] hover:underline"
-                  >
-                    Google API Services User Data Policy
-                  </a>
-                  , including the Limited Use requirements. Google user data is strictly used for user-directed cloud migration and synchronization, and is never used for advertising, market research, or training machine learning or artificial intelligence models.
+                  Lead Developer: Arpit Nayak · Email: <a href="mailto:arpitpupu@gmail.com" className="text-[#FF5B1F] underline">arpitpupu@gmail.com</a> · Website: <a href="https://ctp.arpitnayak.tech" className="text-[#FF5B1F] underline">https://ctp.arpitnayak.tech</a>
                 </p>
               </div>
             </div>

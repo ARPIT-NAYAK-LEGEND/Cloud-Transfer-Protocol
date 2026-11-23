@@ -9,6 +9,7 @@ target_link_libraries(utp PRIVATE
     utp_providers_dropbox
     utp_providers_webdav
     utp_providers_icloud
+    utp_providers_http
 )
 if(WIN32)
     target_link_libraries(utp PRIVATE ws2_32)

@@ -33,6 +33,7 @@
 #include "utp/routing_rules.hpp"
 #include "mock_provider.hpp"
 #include "providers/local/local_provider.hpp"
+#include "providers/http/http_provider.hpp"
 
 namespace fs = std::filesystem;
 
@@ -1339,6 +1340,102 @@ void test_routing_rule_engine_suite() {
     ASSERT_THROWS(no_def_engine.match_destination("unmatched.txt", 100), std::runtime_error);
 }
 
+
+void test_http_ingestion_suite() {
+    const int test_port = 18095;
+    httplib::Server svr;
+
+    const size_t file_size = 5ULL * 1024 * 1024; // 5 MB
+    std::vector<uint8_t> sample_data(file_size);
+    for (size_t i = 0; i < file_size; ++i) {
+        sample_data[i] = static_cast<uint8_t>((i * 7 + 13) % 256);
+    }
+
+    // Handlers: httplib automatically handles Range headers, 206 Partial Content, and HEAD
+    svr.Get("/stream/movie.mp4", [&](const httplib::Request&, httplib::Response& res) {
+        res.set_header("Content-Disposition", "attachment; filename=\"cyber_odyssey_2026.mp4\"");
+        res.set_header("Accept-Ranges", "bytes");
+        res.set_content(reinterpret_cast<const char*>(sample_data.data()), file_size, "video/mp4");
+    });
+
+    // 401 Protected Route
+    svr.Get("/stream/protected.mp4", [](const httplib::Request& req, httplib::Response& res) {
+        std::string auth = req.get_header_value("Authorization");
+        if (auth != "Bearer valid_key_123") {
+            res.status = 401;
+            res.set_content("Unauthorized", "text/plain");
+        } else {
+            res.status = 200;
+            res.set_content("OK", "text/plain");
+        }
+    });
+
+    std::thread server_thread([&]() {
+        svr.listen("127.0.0.1", test_port);
+    });
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+    try {
+        utp::HttpProvider http_prov;
+        std::string test_url = "http://127.0.0.1:" + std::to_string(test_port) + "/stream/movie.mp4";
+
+        // 1. Verify Stat metadata extraction
+        auto st = http_prov.stat(test_url);
+        ASSERT_EQ(st.size, file_size);
+        ASSERT_EQ(st.name, "cyber_odyssey_2026.mp4");
+        ASSERT_FALSE(st.is_directory);
+
+        // 2. Verify Range Read precision
+        auto r_session = http_prov.openRead(test_url);
+        std::vector<uint8_t> read_buf(1024);
+        size_t n = http_prov.read(r_session, 2048, read_buf.data(), 1024);
+        ASSERT_EQ(n, 1024ULL);
+        for (size_t i = 0; i < 1024; ++i) {
+            ASSERT_EQ(read_buf[i], sample_data[2048 + i]);
+        }
+
+        // 3. Verify End-to-End Engine Transfer into Local Destination (Zero Disk in Source)
+        std::string test_dir = "scratch_test_http_ingest_" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
+        fs::create_directories(test_dir);
+        std::string dst_file = test_dir + "/downloaded.mp4";
+        std::string test_db = test_dir + "/ingest.db";
+
+        auto http_src = std::make_shared<utp::HttpProvider>();
+        auto local_dst = std::make_shared<utp::LocalProvider>();
+        utp::Engine engine(http_src, local_dst, test_db);
+
+        std::string transfer_id = utp::Engine::generate_id();
+        engine.transfer("https", test_url, "file", dst_file, nullptr, transfer_id);
+
+        // Verify written file exists and matches bit-for-bit
+        ASSERT_TRUE(fs::exists(dst_file));
+        ASSERT_EQ(fs::file_size(dst_file), file_size);
+
+        std::ifstream in(dst_file, std::ios::binary);
+        std::vector<uint8_t> dst_bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+        ASSERT_EQ(dst_bytes.size(), file_size);
+        ASSERT_TRUE(dst_bytes == sample_data);
+
+        // 4. Verify 401 Auth Rejection
+        utp::HttpProvider bad_auth_prov("", "wrong_key");
+        std::string protected_url = "http://127.0.0.1:" + std::to_string(test_port) + "/stream/protected.mp4";
+        ASSERT_THROWS(bad_auth_prov.stat(protected_url), utp::TransferError);
+
+        // Clean up test directory
+        std::error_code ec;
+        fs::remove_all(test_dir, ec);
+
+    } catch (...) {
+        svr.stop();
+        if (server_thread.joinable()) server_thread.join();
+        throw;
+    }
+
+    svr.stop();
+    if (server_thread.joinable()) server_thread.join();
+}
+
 int main() {
     std::cout << "\n" T_BOLD T_CYAN "╔════════════════════════════════════════════════════════════════╗\n";
     std::cout << "║       Universal Cloud Transfer Protocol (UTP) Test Suite       ║\n";
@@ -1367,6 +1464,7 @@ int main() {
     run_test("Phase 7 Policy ALL_OR_NOTHING", "Abort & Rollback on Single Target Failure", test_multi_dest_all_or_nothing_policy_suite);
     run_test("Phase 7 Policy BEST_EFFORT", "Surviving Destinations Commit on Partial Failure", test_multi_dest_best_effort_policy_suite);
     run_test("Phase 10 Smart Routing", "Rules-Based Engine (Ext, Size, Fallback)", test_routing_rule_engine_suite);
+    run_test("Web Ingest", "Direct HTTP/HTTPS Zero-Disk URL Streaming", test_http_ingestion_suite);
 
     std::cout << "\n" T_BOLD "─── Evaluation Summary ───" T_RESET "\n";
     std::cout << "  Passed: " T_GREEN << g_tests_passed << T_RESET "\n";

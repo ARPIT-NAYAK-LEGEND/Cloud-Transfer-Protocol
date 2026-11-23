@@ -11,6 +11,7 @@
 #include "providers/azure/azure_provider.hpp"
 #include "providers/webdav/webdav_provider.hpp"
 #include "providers/icloud/icloud_provider.hpp"
+#include "providers/http/http_provider.hpp"
 #include "providers/common/http_client.hpp"
 #include "utp/events.hpp"
 #include "utp/sync_engine.hpp"
@@ -169,6 +170,7 @@ std::unique_ptr<StorageProvider> create_provider(const std::string& scheme, cons
     }
     if (base_scheme == "icloud") return std::make_unique<ICloudProvider>("", "", effective_context);
     if (base_scheme == "azure") return std::make_unique<AzureBlobProvider>();
+    if (base_scheme == "http" || base_scheme == "https") return std::make_unique<HttpProvider>("", effective_context);
     throw std::runtime_error("Unsupported provider scheme: " + base_scheme);
 }
 }
@@ -346,6 +348,7 @@ void print_usage() {
               << C_VIOLET GLYPH_STEP C_RESET "  " C_WHITE C_BOLD "CORE COMMANDS" C_RESET "\n"
               << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "transfer" C_RESET "                  Launch interactive visual TUI mode\n"
               << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "transfer" C_RESET " <src> <dest>    Direct cloud-to-cloud memory transfer\n"
+              << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "ingest" C_RESET "   <url> <dest>    Direct web URL to cloud zero-disk stream\n"
               << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "sync" C_RESET "     <src> <dest>    Delta folder sync with conflict reconciliation\n"
               << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "route" C_RESET "    <src> <d1> <d2> Multi-destination fan-out broadcast streaming\n"
               << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "route" C_RESET "    <src> --rule    Rules-based smart routing engine\n"
@@ -361,6 +364,7 @@ void print_usage() {
               << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "daemon" C_RESET "   start|stop|status  Manage background REST API & SDK server\n"
               << C_SPINE GLYPH_SPINE C_RESET "\n"
               << C_VIOLET GLYPH_STEP C_RESET "  " C_WHITE C_BOLD "SUPPORTED PROTOCOLS" C_RESET "\n"
+              << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "https://" C_RESET "<url>           Direct Web URLs & Seedbox Streams\n"
               << C_SPINE GLYPH_SPINE C_RESET "    " C_EMERALD "gdrive://" C_RESET "<id>          Google Drive files & shared drives\n"
               << C_SPINE GLYPH_SPINE C_RESET "    " C_BLUE "onedrive://" C_RESET "<path>        Microsoft OneDrive & SharePoint\n"
               << C_SPINE GLYPH_SPINE C_RESET "    " C_AMBER "s3://" C_RESET "<bucket>/<key>       Amazon S3 Buckets\n"
@@ -638,6 +642,9 @@ static std::string resolve_local_resource_path(const Resource& res) {
 static std::string get_resource_path(const Resource& res) {
     if (res.scheme == "file" || res.scheme == "local") {
         return resolve_local_resource_path(res);
+    }
+    if (res.scheme == "http" || res.scheme == "https") {
+        return res.scheme + "://" + res.host_or_bucket + (res.path.empty() ? "" : ("/" + res.path));
     }
     if (res.path.empty()) {
         return res.host_or_bucket;
@@ -1000,7 +1007,7 @@ int main(int argc, char* argv[]) {
     }
 
     try {
-        if (cmd == "transfer" || cmd == "route") {
+        if (cmd == "transfer" || cmd == "route" || cmd == "ingest") {
             if (pos_args.empty() && cmd == "transfer") {
                 // Interactive TUI Mode
                 bool is_initial_launch = true;
@@ -1219,6 +1226,11 @@ int main(int argc, char* argv[]) {
                 std::string src_str = pos_args[0];
                 std::string dest_str = pos_args[1];
 
+                // Auto-prefix https:// if running 'ingest' with raw domain/path
+                if (cmd == "ingest" && src_str.rfind("http://", 0) != 0 && src_str.rfind("https://", 0) != 0) {
+                    src_str = "https://" + src_str;
+                }
+
                 Resource src_res = parse_uri(src_str);
                 Resource dest_res = parse_uri(dest_str);
 
@@ -1231,7 +1243,28 @@ int main(int argc, char* argv[]) {
                 auto dest_provider = std::shared_ptr<StorageProvider>(create_provider(dest_res.scheme, dest_res.account));
 
                 std::string item_name = src_res.path.empty() ? src_res.host_or_bucket : src_res.path;
-                std::vector<TransferItem> transfers = {{src_str, dest_str, item_name, src_res.account, dest_res.account, transfer_id, 0}};
+                uint64_t precomputed_size = 0;
+
+                // Smart URL Ingestion: Inspect remote headers to extract filename & size
+                if (src_res.scheme == "http" || src_res.scheme == "https") {
+                    try {
+                        std::string src_url = get_resource_path(src_res);
+                        FileInfo s_info = src_provider->stat(src_url);
+                        if (!s_info.name.empty()) {
+                            item_name = s_info.name;
+                        }
+                        precomputed_size = s_info.size;
+
+                        // If destination is a directory or ends in '/', auto-append the inferred filename
+                        if (!dest_str.empty() && (dest_str.back() == '/' || dest_res.path.empty() || dest_res.path.back() == '/')) {
+                            if (dest_str.back() != '/') dest_str += "/";
+                            dest_str += item_name;
+                            dest_res = parse_uri(dest_str);
+                        }
+                    } catch (...) {}
+                }
+
+                std::vector<TransferItem> transfers = {{src_str, dest_str, item_name, src_res.account, dest_res.account, transfer_id, precomputed_size}};
                 run_batch_transfer_pool(src_provider, dest_provider, transfers, 1, src_label, dest_label, dest_str, bandwidth_limit);
                 return 0;
             }

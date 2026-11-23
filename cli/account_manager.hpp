@@ -72,6 +72,7 @@ public:
         if (provider == "b2") return "Backblaze B2";
         if (provider == "azure") return "Azure Blob";
         if (provider == "webdav" || provider == "nextcloud" || provider == "owncloud") return "WebDAV / Nextcloud";
+        if (provider == "http" || provider == "https") return "Web Direct Stream (" + provider + ")";
         if (provider == "file" || provider == "local") return "Local Disk";
         return provider;
     }

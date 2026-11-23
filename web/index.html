@@ -3,15 +3,76 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>CTP | Universal Cloud Transfer Protocol — Zero-Disk Memory Pipeline</title>
-    <meta name="description" content="High-performance cloud migration and sync engine. Stream files directly from cloud to cloud via encrypted RAM buffers over TLS 1.3 with 0 bytes written to disk." />
+    <title>Cloud Transfer Protocol (CTP) — Zero-Disk Multi-Cloud Migration Engine</title>
+    <meta name="description" content="Cloud Transfer Protocol (CTP) is an open-source, high-performance cloud migration engine. Stream files directly between Google Drive, OneDrive, S3, and Cloudflare R2 via encrypted in-memory RAM buffers over TLS 1.3 with 0 bytes written to disk." />
     <link rel="icon" type="image/png" href="/logo.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   </head>
-  <body class="bg-[#07090e] text-slate-100 antialiased selection:bg-cyan-500/30 selection:text-cyan-200 min-h-screen">
-    <div id="root"></div>
+  <body class="bg-[#0E0D0C] text-[#F5F4F0] antialiased min-h-screen">
+    <div id="root">
+      <!-- Semantic Static Fallback for Search Engines, Reviewers & Google OAuth Verification -->
+      <header style="border-bottom: 1px solid #242220; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; max-width: 1200px; margin: 0 auto;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <img src="/logo.png" alt="Cloud Transfer Protocol Logo" style="width: 36px; height: 36px; border-radius: 50%;" />
+          <strong style="font-size: 18px; color: #F5F4F0; font-family: monospace;">Cloud Transfer Protocol (CTP)</strong>
+          <span style="font-size: 11px; padding: 2px 8px; border-radius: 4px; border: 1px solid #33302C; color: #9E9B94; font-family: monospace;">v2.6.1</span>
+        </div>
+        <nav style="display: flex; gap: 20px; font-family: monospace; font-size: 13px;">
+          <a href="/privacy" style="color: #FF5B1F; text-decoration: none;">Privacy Policy</a>
+          <a href="/terms" style="color: #9E9B94; text-decoration: none;">Terms of Service</a>
+          <a href="https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol" target="_blank" rel="noopener" style="color: #9E9B94; text-decoration: none;">GitHub</a>
+        </nav>
+      </header>
+
+      <main style="max-width: 1000px; margin: 40px auto; padding: 0 24px; font-family: 'Inter', sans-serif;">
+        <div style="font-family: monospace; color: #FF5B1F; font-size: 12px; margin-bottom: 12px;">// PUBLIC APPLICATION PURPOSE & SPECIFICATION</div>
+        <h1 style="font-size: 42px; font-weight: 800; color: #F5F4F0; margin-bottom: 20px; line-height: 1.15;">
+          Cloud Transfer Protocol<span style="color: #FF5B1F;">.</span>
+        </h1>
+        <p style="font-size: 18px; color: #9E9B94; line-height: 1.6; margin-bottom: 28px;">
+          <strong>Cloud Transfer Protocol (CTP)</strong> is a free and open-source data migration, synchronization, and streaming engine. CTP connects distinct cloud storage providers (Google Drive, Microsoft OneDrive, Amazon S3, Cloudflare R2, Backblaze B2, and local storage) to transfer files directly between clouds through volatile in-memory RAM buffers with <strong>zero local disk usage</strong> and end-to-end TLS 1.3 socket encryption.
+        </p>
+
+        <div style="background: #141312; border: 1px solid #242220; border-left: 4px solid #FF5B1F; border-radius: 8px; padding: 24px; margin-bottom: 32px;">
+          <h2 style="font-size: 16px; font-weight: 700; color: #FF5B1F; font-family: monospace; margin-bottom: 10px;">
+            // APPLICATION PURPOSE &amp; GOOGLE DRIVE INTEGRATION
+          </h2>
+          <p style="font-size: 14px; color: #9E9B94; line-height: 1.6; margin-bottom: 12px;">
+            This website is a <strong>public informational landing page</strong>. No login, account creation, or registration is required to view any information about Cloud Transfer Protocol.
+          </p>
+          <p style="font-size: 14px; color: #9E9B94; line-height: 1.6; margin-bottom: 12px;">
+            <strong>Why We Request Google Drive Permissions:</strong><br />
+            Users interact with Cloud Transfer Protocol through its open-source command-line interface (CLI). When a user initiates a cloud-to-cloud transfer involving Google Drive (e.g. migrating files from Google Drive to OneDrive or creating an off-site backup in Amazon S3), the application requests temporary Google OAuth 2.0 access strictly to read the user-selected files and stream them directly into the target cloud.
+          </p>
+          <p style="font-size: 14px; color: #9E9B94; line-height: 1.6;">
+            <strong>Zero Server-Side Storage:</strong><br />
+            Cloud Transfer Protocol does not operate intermediate storage servers or databases. All file bytes stream in volatile RAM ring buffers directly between the user's machine and Google's official API endpoints. OAuth tokens remain strictly on the user's local device.
+          </p>
+        </div>
+
+        <div style="background: #141312; border: 1px solid #242220; border-left: 4px solid #3b82f6; border-radius: 8px; padding: 24px; margin-bottom: 32px;">
+          <h2 style="font-size: 16px; font-weight: 700; color: #60a5fa; font-family: monospace; margin-bottom: 10px;">
+            // GOOGLE API LIMITED USE &amp; AI NCII COMPLIANCE
+          </h2>
+          <p style="font-size: 14px; color: #9E9B94; line-height: 1.6; margin-bottom: 12px;">
+            Cloud Transfer Protocol's use and transfer to any other app of information received from Google APIs will adhere to the <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener" style="color: #60a5fa;">Google API Services User Data Policy</a>, including the Limited Use requirements.
+          </p>
+          <ul style="font-size: 14px; color: #9E9B94; line-height: 1.6; padding-left: 20px; margin-bottom: 12px;">
+            <li>Google user data is never used for advertising, retargeting, or market research.</li>
+            <li>Google user data is never used to develop, improve, or train generalized Artificial Intelligence (AI) or Machine Learning (ML) models.</li>
+            <li><strong>Strict AI NCII Prohibition:</strong> In compliance with the Google APIs Terms of Service, Cloud Transfer Protocol strictly prohibits the use of Google APIs or CTP services for creating, processing, hosting, or distributing Non-Consensual Intimate Imagery (NCII), CSAM, harassment, or unlawful content.</li>
+          </ul>
+        </div>
+
+        <div style="display: flex; gap: 16px; font-family: monospace; font-size: 14px;">
+          <a href="/privacy" style="background: #FF5B1F; color: #0E0D0C; padding: 12px 20px; border-radius: 6px; text-decoration: none; font-weight: 700;">View Privacy Policy</a>
+          <a href="/terms" style="background: #242220; color: #F5F4F0; padding: 12px 20px; border-radius: 6px; text-decoration: none; border: 1px solid #33302C;">View Terms of Service</a>
+          <a href="https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol" target="_blank" rel="noopener" style="background: #242220; color: #F5F4F0; padding: 12px 20px; border-radius: 6px; text-decoration: none; border: 1px solid #33302C;">View GitHub Source</a>
+        </div>
+      </main>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

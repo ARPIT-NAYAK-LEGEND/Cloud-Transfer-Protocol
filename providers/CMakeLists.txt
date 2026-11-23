@@ -54,3 +54,9 @@ add_library(utp_providers_icloud STATIC icloud/icloud_provider.cpp)
 target_link_libraries(utp_providers_icloud PUBLIC utp_providers_interface utp_core utp_providers_common CURL::libcurl)
 target_compile_features(utp_providers_icloud PUBLIC cxx_std_20)
 
+# HTTP / HTTPS Stream Ingest
+add_library(utp_providers_http STATIC http/http_provider.cpp)
+target_link_libraries(utp_providers_http PUBLIC utp_providers_interface utp_core utp_providers_common CURL::libcurl)
+target_compile_features(utp_providers_http PUBLIC cxx_std_20)
+
+

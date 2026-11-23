@@ -40,13 +40,47 @@ export default function Hero({ onOpenLegal }) {
 
         {/* Hero Title & Subtitle */}
         <div className="py-12 md:py-16">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[#FF5B1F]/30 bg-[#FF5B1F]/10 text-[#FF5B1F] font-mono text-xs mb-6">
+            <span className="w-2 h-2 rounded-full bg-[#FF5B1F] animate-pulse"></span>
+            <span>APP NAME: CLOUD TRANSFER PROTOCOL (CTP)</span>
+          </div>
+
           <h1 className="text-4xl sm:text-6xl md:text-7xl font-bold tracking-tight text-[#F5F4F0] leading-[1.08] max-w-5xl">
-            Direct memory transport for personal and enterprise cloud<span className="text-[#FF5B1F]">.</span>
+            Cloud Transfer Protocol<span className="text-[#FF5B1F]">.</span>
           </h1>
 
-          <p className="mt-6 text-lg sm:text-xl text-[#9E9B94] max-w-3xl leading-relaxed">
-            Why download 100GB to your local hard drive just to re-upload it? UTP streams bytes directly from cloud to cloud through <span className="text-[#F5F4F0] font-medium">volatile RAM ring buffers</span> over encrypted TLS 1.3 tunnels. <span className="text-[#FF5B1F] font-mono text-sm">[0 bytes written to local disk]</span>
+          <p className="mt-4 text-xl sm:text-2xl text-[#F5F4F0] font-medium max-w-4xl">
+            Direct, Zero-Disk Multi-Cloud Migration &amp; Synchronization Engine
           </p>
+
+          <p className="mt-4 text-base sm:text-lg text-[#9E9B94] max-w-3xl leading-relaxed">
+            Why download 100GB to your local hard drive just to re-upload it? <strong>Cloud Transfer Protocol (CTP)</strong> streams bytes directly from cloud to cloud through <span className="text-[#F5F4F0] font-medium">volatile RAM ring buffers</span> over encrypted TLS 1.3 tunnels with <span className="text-[#FF5B1F] font-mono font-bold">[0 bytes written to local disk]</span>.
+          </p>
+
+          {/* APPLICATION PURPOSE & GOOGLE DRIVE INTEGRATION CALLOUT */}
+          <div className="mt-8 p-6 rounded-lg bg-[#141312] border border-[#242220] border-l-4 border-l-[#FF5B1F]">
+            <div className="font-mono text-xs font-semibold text-[#FF5B1F] mb-1.5">// APPLICATION PURPOSE &amp; GOOGLE DRIVE INTEGRATION</div>
+            <h2 className="text-base sm:text-lg font-bold text-[#F5F4F0] mb-2 font-mono">
+              What Cloud Transfer Protocol Does &amp; Why It Requests Google Drive Access
+            </h2>
+            <p className="text-sm text-[#9E9B94] leading-relaxed mb-3">
+              <strong>Cloud Transfer Protocol (CTP)</strong> is a public, open-source file transfer and migration utility. It allows users to securely move, back up, and synchronize their files between Google Drive and other cloud services (Microsoft OneDrive, Amazon S3, Cloudflare R2, or local storage) using pure in-memory streaming pipelines.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs font-mono text-[#9E9B94] pt-3 border-t border-[#242220]">
+              <div className="bg-[#0E0D0C] p-3 rounded border border-[#242220]">
+                <div className="text-emerald-400 font-bold mb-1">✔ Public &amp; No Login:</div>
+                No account or login required to view information or use this open software.
+              </div>
+              <div className="bg-[#0E0D0C] p-3 rounded border border-[#242220]">
+                <div className="text-cyan-400 font-bold mb-1">✔ Zero-Disk Invariant:</div>
+                Bytes stream in volatile RAM ring buffers. Zero files stored on intermediate servers.
+              </div>
+              <div className="bg-[#0E0D0C] p-3 rounded border border-[#242220]">
+                <div className="text-violet-400 font-bold mb-1">✔ Limited Use &amp; AI NCII:</div>
+                Adheres to Google API Services User Data Policy. Strictly prohibits AI NCII and model training.
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Streamlined Command Box */}

@@ -16,15 +16,15 @@ export default function Footer({ onOpenLegal }) {
             <div className="flex items-center gap-2.5">
               <img
                 src="/logo.png"
-                alt="CTP Logo"
+                alt="Cloud Transfer Protocol Logo"
                 className="w-7 h-7 rounded-full object-cover border border-[#33302C]"
               />
               <div className="text-[#F5F4F0] font-bold text-sm">
-                /*ctp*/<span className="text-[#FF5B1F]">.</span>
+                Cloud Transfer Protocol<span className="text-[#FF5B1F]">.</span>
               </div>
             </div>
             <p className="text-[#66635C] leading-relaxed font-sans text-xs">
-              Universal Cloud Transfer Protocol (UTP). Direct zero-disk volatile RAM memory streaming across 10 cloud providers.
+              Cloud Transfer Protocol (CTP). Direct zero-disk volatile RAM memory streaming between Google Drive, OneDrive, S3, and Cloudflare R2.
             </p>
             <div className="flex items-center gap-2 text-[#9E9B94]">
               <span className="live-beacon" />
