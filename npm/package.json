@@ -5,7 +5,9 @@
   "main": "./bin/utp.js",
   "bin": {
     "utp": "bin/utp.js",
-    "utp-engine": "bin/utp.js"
+    "utp-engine": "bin/utp.js",
+    "utpd": "bin/utpd.js",
+    "utp-server": "bin/utpd.js"
   },
   "files": [
     "bin/",
@@ -17,7 +19,8 @@
     "ca-bundle.crt"
   ],
   "scripts": {
-    "start": "node ./bin/utp.js transfer"
+    "start": "node ./bin/utp.js transfer",
+    "postinstall": "node scripts/install.js"
   },
   "keywords": [
     "cloud",

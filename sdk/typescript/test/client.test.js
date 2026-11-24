@@ -282,4 +282,13 @@ describe('UTPClient SDK Unit & Mock Battery', () => {
 
     assert.deepEqual(events, ['TRANSFER_CREATED', 'TRANSFER_COMPLETED']);
   });
+
+  test('getStreamUrl() generates valid signed/tokenized streaming URL', () => {
+    const client = new UTPClient({ baseUrl: 'http://localhost:8080', token: 'my-tok-123' });
+    const streamUrl = client.getStreamUrl('gdrive://movies/clip.mp4');
+    assert.equal(streamUrl, 'http://localhost:8080/api/stream?uri=gdrive%3A%2F%2Fmovies%2Fclip.mp4&token=my-tok-123');
+
+    const downloadUrl = client.getStreamUrl('utp_transfer_999', { download: true, filename: 'my_video.mp4' });
+    assert.equal(downloadUrl, 'http://localhost:8080/api/stream?id=utp_transfer_999&token=my-tok-123&download=true&name=my_video.mp4');
+  });
 });
