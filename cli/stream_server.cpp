@@ -174,8 +174,10 @@ int run_cloud_stream_server(const std::string& cloud_uri, int port, bool auto_op
     // Find available port
     int bound_port = -1;
     for (int p = port; p < port + 20; ++p) {
-        bound_port = svr.bind_to_port("127.0.0.1", p);
-        if (bound_port > 0) break;
+        if (svr.bind_to_port("127.0.0.1", p)) {
+            bound_port = p;
+            break;
+        }
     }
 
     if (bound_port <= 0) {
