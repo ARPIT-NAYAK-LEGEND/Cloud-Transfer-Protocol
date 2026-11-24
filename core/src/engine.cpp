@@ -253,7 +253,7 @@ std::string Engine::transfer(const std::string& src_scheme, const Path& src_path
             std::lock_guard<std::mutex> lock(state_mutex_);
             state_manager_.update_transfer_state(transfer_state.id, TransferState::PLANNING);
         }
-        auto plan = ChunkPlanner::plan(size, source_caps, dest_caps);
+        auto plan = ChunkPlanner::plan(size, source_caps, dest_caps, max_bandwidth_bps_);
         transfer_state.chunk_size = plan.empty() ? 0 : plan[0].size;
 
         {

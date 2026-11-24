@@ -3,6 +3,7 @@
 #include "utp/state_manager.hpp"
 #include "tui.hpp"
 #include "account_manager.hpp"
+#include "stream_server.hpp"
 #include "providers/local/local_provider.hpp"
 #include "providers/google_drive/gdrive_provider.hpp"
 #include "providers/onedrive/onedrive_provider.hpp"
@@ -349,6 +350,8 @@ void print_usage() {
               << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "transfer" C_RESET "                  Launch interactive visual TUI mode\n"
               << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "transfer" C_RESET " <src> <dest>    Direct cloud-to-cloud memory transfer\n"
               << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "ingest" C_RESET "   <url> <dest>    Direct web URL to cloud zero-disk stream\n"
+              << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "stream" C_RESET "   [cloud-uri]     Zero-disk on-demand cloud media stream server\n"
+              << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "play" C_RESET "     [cloud-uri]     Stream cloud media and auto-launch player\n"
               << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "sync" C_RESET "     <src> <dest>    Delta folder sync with conflict reconciliation\n"
               << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "route" C_RESET "    <src> <d1> <d2> Multi-destination fan-out broadcast streaming\n"
               << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "route" C_RESET "    <src> --rule    Rules-based smart routing engine\n"
@@ -721,7 +724,7 @@ void run_batch_transfer_pool(std::shared_ptr<StorageProvider> src_provider,
     std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_BORDER "│" C_RESET "  " C_MUTED "Target Path:" C_RESET << C_VIOLET
               << pad_box_line(truncate_str(target_folder_path, 48), 50) << C_BORDER "│" C_RESET "\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_BORDER "│" C_RESET "  " C_MUTED "Pipeline:   " C_RESET << C_EMERALD
-              << pad_box_line("Direct RAM Ring Buffer · Zero Disk Footprint", 50) << C_BORDER "│" C_RESET "\n";
+              << pad_box_line("Dynamic RAM Ring Buffer · Zero Disk Footprint", 50) << C_BORDER "│" C_RESET "\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_BORDER "│" C_RESET "  " C_MUTED "Security:   " C_RESET << C_BLUE
               << pad_box_line("End-to-End TLS 1.3 Streaming · Memory-Safe", 50) << C_BORDER "│" C_RESET "\n";
     std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_BORDER "└──────────────────────────────────────────────────────────────────┘" C_RESET "\n";
@@ -960,12 +963,7 @@ int main(int argc, char* argv[]) {
     }
     SetConsoleCtrlHandler(console_ctrl_handler, TRUE);
 #endif
-    if (argc < 2) {
-        print_usage();
-        return 1;
-    }
-
-    std::string cmd = argv[1];
+    std::string cmd = (argc < 2) ? "menu" : argv[1];
     if (cmd == "--help" || cmd == "-h" || cmd == "help") {
         print_usage();
         return 0;
@@ -1007,6 +1005,27 @@ int main(int argc, char* argv[]) {
     }
 
     try {
+        if (cmd == "menu") {
+            print_modern_header(true);
+            std::vector<MenuOption> master_menu = {
+                {"Interactive Cloud Transfer & Web Ingestion", "transfer", "Transfer files cloud-to-cloud, web-to-cloud, or local"},
+                {"On-Demand Cloud Media Streamer (VLC/Browser)", "play", "Zero-disk on-demand video & audio player via HTTP Range (206)"},
+                {"Transfer History & Ledger Log", "list", "View ledger of recent transfers, speeds, and integrity states"},
+                {"Exit", "exit", "Close UTP Engine session"}
+            };
+            int choice = run_interactive_menu("Select UTP Operation", master_menu, 0);
+            if (choice == 0) {
+                cmd = "transfer";
+            } else if (choice == 1) {
+                cmd = "play";
+            } else if (choice == 2) {
+                cmd = "list";
+            } else {
+                std::cout << C_EMERALD GLYPH_DONE C_RESET "  " C_MUTED "Exiting UTP Engine. Goodbye!" C_RESET "\n\n";
+                return 0;
+            }
+        }
+
         if (cmd == "transfer" || cmd == "route" || cmd == "ingest") {
             if (pos_args.empty() && cmd == "transfer") {
                 // Interactive TUI Mode
@@ -1040,10 +1059,16 @@ int main(int argc, char* argv[]) {
                     // Post-transfer clean prompt
                     std::vector<MenuOption> follow_up = {
                         {"Transfer another file", "", "Select new source and destination"},
+                        {"Stream & Play cloud media (Zero-Disk)", "", "Play cloud video/audio in VLC or browser without downloading to disk"},
                         {"Exit", "", "Close UTP Engine session"}
                     };
                     int follow_idx = run_interactive_menu("Next Action", follow_up, 0);
-                    if (follow_idx != 0) {
+                    if (follow_idx == 0) {
+                        continue;
+                    } else if (follow_idx == 1) {
+                        launch_interactive_stream_picker(daemon_port, true);
+                        break;
+                    } else {
                         std::cout << C_EMERALD GLYPH_DONE C_RESET "  " C_MUTED "Exiting UTP Engine. Goodbye!" C_RESET "\n\n";
                         break;
                     }
@@ -1570,6 +1595,21 @@ int main(int argc, char* argv[]) {
                           << " ──▶ " << truncate_visible(t.destination.provider + "://" + t.destination.path, 48) << C_RESET "\n";
             }
             std::cout << C_EMERALD GLYPH_END C_RESET "\n";
+        } else if (cmd == "stream" || cmd == "play") {
+            bool auto_open = (cmd == "play");
+            for (int i = 2; i < argc; ++i) {
+                std::string a = argv[i];
+                if (a == "--open" || a == "-o") auto_open = true;
+            }
+
+            int port = (daemon_port > 0) ? daemon_port : 8080;
+
+            if (pos_args.empty()) {
+                return launch_interactive_stream_picker(port, auto_open);
+            } else {
+                std::string cloud_uri = pos_args[0];
+                return run_cloud_stream_server(cloud_uri, port, auto_open);
+            }
         } else {
             std::cerr << "  " C_ROSE "Unknown command: " << cmd << C_RESET "\n";
             print_usage();

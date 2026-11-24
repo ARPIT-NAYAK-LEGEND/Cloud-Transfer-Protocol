@@ -1,5 +1,7 @@
 #include "tui.hpp"
 #include "account_manager.hpp"
+#include "stream_server.hpp"
+#include "providers/http/http_provider.hpp"
 #include <iostream>
 #include <thread>
 #include <chrono>
@@ -238,14 +240,14 @@ static void clear_screen() {
 #endif
 }
 
-void print_modern_header(bool is_initial = true) {
+void print_modern_header(bool is_initial) {
     if (is_initial) clear_screen();
     std::cout << "\n"
               << C_VIOLET "▲" C_RESET " " C_WHITE C_BOLD "UTP" C_RESET " "
               << C_MUTED "· Universal Cloud Transfer Protocol" C_RESET " "
-              << C_CYAN "v2.6.0-pro" C_RESET "\n"
+              << C_CYAN "v2.6.1-pro" C_RESET "\n"
               << C_SPINE GLYPH_SPINE C_RESET "  "
-              << C_MUTED "Direct Memory Ring Buffer · Zero-Disk Pipeline · TLS 1.3" C_RESET "\n"
+              << C_MUTED "Dynamic Memory Ring Buffer · Zero-Disk Pipeline · TLS 1.3" C_RESET "\n"
               << C_SPINE GLYPH_SPINE C_RESET "\n";
     std::cout.flush();
 }
@@ -652,7 +654,7 @@ struct SelectedEndpoint {
     bool cancelled{false};
 };
 
-static SelectedEndpoint select_storage_endpoint(const std::string& step_title, int default_provider_idx) {
+static SelectedEndpoint select_storage_endpoint(const std::string& step_title, int default_provider_idx, bool is_source = false) {
     SelectedEndpoint ep;
 
     AccountManager::instance().reload();
@@ -672,15 +674,18 @@ static SelectedEndpoint select_storage_endpoint(const std::string& step_title, i
 
     std::vector<MenuOption> provider_options = {
         {"Google Drive", "gdrive://", gdrive_desc},
-        {"OneDrive", "onedrive://", onedrive_desc},
-        {"Dropbox", "dropbox://", dropbox_desc},
-        {"Apple iCloud Drive", "icloud://", icloud_desc},
-        {"Amazon S3", "s3://", "AWS S3 Buckets & Storage"},
-        {"Cloudflare R2", "r2://", "Zero-Egress Object Storage"},
-        {"Backblaze B2", "b2://", "Cost-Effective S3 Storage"},
-        {"WebDAV / Nextcloud", "webdav://", "Nextcloud, ownCloud & NAS"},
-        {"Local Filesystem", "file://", "Local NVMe & Mounted Disks"}
+        {"OneDrive", "onedrive://", onedrive_desc}
     };
+    if (is_source) {
+        provider_options.push_back({"Direct Web / URL Stream", "https://", "Stream web file/movie directly to cloud"});
+    }
+    provider_options.push_back({"Dropbox", "dropbox://", dropbox_desc});
+    provider_options.push_back({"Apple iCloud Drive", "icloud://", icloud_desc});
+    provider_options.push_back({"Amazon S3", "s3://", "AWS S3 Buckets & Storage"});
+    provider_options.push_back({"Cloudflare R2", "r2://", "Zero-Egress Object Storage"});
+    provider_options.push_back({"Backblaze B2", "b2://", "Cost-Effective S3 Storage"});
+    provider_options.push_back({"WebDAV / Nextcloud", "webdav://", "Nextcloud, ownCloud & NAS"});
+    provider_options.push_back({"Local Filesystem", "file://", "Local NVMe & Mounted Disks"});
 
     int p_idx = run_interactive_menu(step_title, provider_options, default_provider_idx);
     if (p_idx < 0) {
@@ -689,15 +694,23 @@ static SelectedEndpoint select_storage_endpoint(const std::string& step_title, i
     }
     ep.provider_index = p_idx;
 
-    if (p_idx == 0) ep.scheme = "gdrive";
-    else if (p_idx == 1) ep.scheme = "onedrive";
-    else if (p_idx == 2) ep.scheme = "dropbox";
-    else if (p_idx == 3) ep.scheme = "icloud";
-    else if (p_idx == 4) ep.scheme = "s3";
-    else if (p_idx == 5) ep.scheme = "r2";
-    else if (p_idx == 6) ep.scheme = "b2";
-    else if (p_idx == 7) ep.scheme = "webdav";
-    else if (p_idx == 8) ep.scheme = "file";
+    std::string tag = provider_options[p_idx].scheme;
+    if (tag == "gdrive://") ep.scheme = "gdrive";
+    else if (tag == "onedrive://") ep.scheme = "onedrive";
+    else if (tag == "https://") ep.scheme = "https";
+    else if (tag == "dropbox://") ep.scheme = "dropbox";
+    else if (tag == "icloud://") ep.scheme = "icloud";
+    else if (tag == "s3://") ep.scheme = "s3";
+    else if (tag == "r2://") ep.scheme = "r2";
+    else if (tag == "b2://") ep.scheme = "b2";
+    else if (tag == "webdav://") ep.scheme = "webdav";
+    else if (tag == "file://") ep.scheme = "file";
+
+    if (ep.scheme == "https" || ep.scheme == "http") {
+        ep.account = "";
+        ep.display_name = "Direct Web Stream";
+        return ep;
+    }
 
     if (ep.scheme == "file") {
         ep.account = "";
@@ -846,18 +859,70 @@ TuiTransferParams launch_interactive_tui(bool is_initial_launch) {
     // ─────────────────────────────────────────────────────────────────────────
     // STEP 1: SELECT SOURCE STORAGE & ACCOUNT
     // ─────────────────────────────────────────────────────────────────────────
-    SelectedEndpoint src_ep = select_storage_endpoint("Select source provider", 0);
+    SelectedEndpoint src_ep = select_storage_endpoint("Select source provider", 0, true);
     if (src_ep.cancelled) return params;
 
     std::string src_scheme = src_ep.scheme;
     std::string src_account = src_ep.account;
     std::string src_name = src_ep.display_name;
 
-    // File Explorer
-    auto exp_res = run_drive_explorer(src_scheme, src_account, src_name, true);
-    if (exp_res.cancelled || exp_res.selected_files.empty()) return params;
+    std::vector<FileInfo> selected_source_files;
 
-    std::vector<FileInfo> selected_source_files = exp_res.selected_files;
+    if (src_scheme == "http" || src_scheme == "https") {
+        std::cout << "\n" C_SPINE GLYPH_SPINE C_RESET "  " C_VIOLET GLYPH_STEP C_RESET " " C_WHITE C_BOLD "Direct Web Stream Ingestion" C_RESET "\n"
+                  << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Enter or paste direct download URL (video, ISO, archive)" C_RESET "\n"
+                  << C_SPINE GLYPH_SPINE C_RESET "\n"
+                  << C_SPINE GLYPH_SPINE C_RESET "  " C_CYAN "❯ Direct URL: " C_RESET;
+        std::string raw_url;
+        if (!std::getline(std::cin, raw_url)) {
+            params.valid = false;
+            return params;
+        }
+        raw_url = trim(raw_url);
+        if (raw_url.empty()) {
+            std::cout << C_ROSE "✗" C_RESET "  " C_ROSE "URL cannot be empty." C_RESET "\n\n";
+            return params;
+        }
+        if (raw_url.rfind("http://", 0) != 0 && raw_url.rfind("https://", 0) != 0) {
+            raw_url = "https://" + raw_url;
+        }
+
+        std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_CYAN GLYPH_STEP C_RESET " Inspecting remote web resource...";
+        std::cout.flush();
+
+        std::string item_name = "";
+        uint64_t file_size = 0;
+        try {
+            HttpProvider hp;
+            FileInfo info = hp.stat(raw_url);
+            item_name = info.name;
+            file_size = info.size;
+            std::cout << " " C_EMERALD GLYPH_CHECK " (" << item_name << " · " << format_bytes(file_size) << ")" C_RESET "\n";
+            std::cout << C_SPINE GLYPH_SPINE C_RESET "\n";
+        } catch (const std::exception& ex) {
+            std::cout << "\n" C_SPINE GLYPH_SPINE C_RESET "  " C_AMBER "▲ Notice: Could not retrieve remote file size/headers (" << ex.what() << ")." C_RESET "\n";
+            std::cout << C_SPINE GLYPH_SPINE C_RESET "  Proceeding with direct streaming ingestion...\n";
+            std::cout << C_SPINE GLYPH_SPINE C_RESET "\n";
+            size_t slash = raw_url.find_last_of('/');
+            if (slash != std::string::npos && slash + 1 < raw_url.length()) {
+                item_name = raw_url.substr(slash + 1);
+                size_t q = item_name.find('?');
+                if (q != std::string::npos) item_name = item_name.substr(0, q);
+            }
+            if (item_name.empty()) item_name = "downloaded_file";
+        }
+
+        FileInfo fi;
+        fi.path = raw_url;
+        fi.name = item_name;
+        fi.size = file_size;
+        fi.is_directory = false;
+        selected_source_files.push_back(fi);
+    } else {
+        auto exp_res = run_drive_explorer(src_scheme, src_account, src_name, true);
+        if (exp_res.cancelled || exp_res.selected_files.empty()) return params;
+        selected_source_files = exp_res.selected_files;
+    }
 
     // Expand directories recursively
     std::unique_ptr<StorageProvider> src_provider_check;
@@ -897,7 +962,7 @@ TuiTransferParams launch_interactive_tui(bool is_initial_launch) {
     // STEP 2: SELECT DESTINATION STORAGE & ACCOUNT
     // ─────────────────────────────────────────────────────────────────────────
     int dest_default = (src_ep.provider_index == 1) ? 0 : 1;
-    SelectedEndpoint dest_ep = select_storage_endpoint("Select destination provider", dest_default);
+    SelectedEndpoint dest_ep = select_storage_endpoint("Select destination provider", dest_default, false);
     if (dest_ep.cancelled) return params;
 
     std::string dest_scheme = dest_ep.scheme;
@@ -938,17 +1003,22 @@ TuiTransferParams launch_interactive_tui(bool is_initial_launch) {
             item_filename = custom_single_filename;
         }
 
-        std::string s_prefix = src_scheme;
-        if (!src_account.empty() && src_account != "default") {
-            s_prefix += ":" + src_account;
+        std::string s_uri;
+        if (src_scheme == "http" || src_scheme == "https") {
+            s_uri = sf.src_path;
+        } else {
+            std::string s_prefix = src_scheme;
+            if (!src_account.empty() && src_account != "default") {
+                s_prefix += ":" + src_account;
+            }
+            s_uri = s_prefix + "://" + sf.src_path;
         }
-        std::string s_uri = s_prefix + "://" + sf.src_path;
 
         std::string d_prefix = dest_scheme;
         if (!dest_account.empty() && dest_account != "default") {
             d_prefix += ":" + dest_account;
         }
-        std::string d_path = dest_base.empty() ? sf.rel_path : (dest_base + "/" + sf.rel_path);
+        std::string d_path = dest_base.empty() ? item_filename : (dest_base + "/" + item_filename);
         std::string d_uri = d_prefix + "://" + d_path;
 
         params.transfers.push_back({s_uri, d_uri, item_filename, src_account, dest_account, "", sf.size});
@@ -966,6 +1036,30 @@ TuiTransferParams launch_interactive_tui(bool is_initial_launch) {
     }
 
     return params;
+}
+
+int launch_interactive_stream_picker(int port, bool auto_open) {
+    print_modern_header(true);
+
+    SelectedEndpoint src_ep = select_storage_endpoint("Select cloud provider to stream from", 0, false);
+    if (src_ep.cancelled) return 0;
+
+    auto exp_res = run_drive_explorer(src_ep.scheme, src_ep.account, src_ep.display_name, true);
+    if (exp_res.cancelled || exp_res.selected_files.empty()) return 0;
+
+    const auto& chosen = exp_res.selected_files[0];
+    if (chosen.is_directory) {
+        std::cout << C_ROSE "✗ Cannot stream a folder. Please select a video or audio file." C_RESET "\n\n";
+        return 1;
+    }
+
+    std::string s_prefix = src_ep.scheme;
+    if (!src_ep.account.empty() && src_ep.account != "default") {
+        s_prefix += ":" + src_ep.account;
+    }
+    std::string cloud_uri = s_prefix + "://" + chosen.path;
+
+    return run_cloud_stream_server(cloud_uri, port, auto_open);
 }
 
 } // namespace utp

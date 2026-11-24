@@ -1,4 +1,5 @@
-add_executable(utp main.cpp tui.cpp)
+add_executable(utp main.cpp tui.cpp stream_server.cpp)
+target_include_directories(utp PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_link_libraries(utp PRIVATE 
     utp_core 
     utp_providers_local 

@@ -33,6 +33,7 @@
 #include "utp/routing_rules.hpp"
 #include "mock_provider.hpp"
 #include "providers/local/local_provider.hpp"
+#include "cli/stream_server.hpp"
 #include "providers/http/http_provider.hpp"
 
 namespace fs = std::filesystem;
@@ -222,7 +223,13 @@ void test_chunk_planner_suite() {
     utp::ProviderCapabilities caps1{true, true, true, true, true, true, true, 8388608, 4};
     utp::ProviderCapabilities caps2{true, true, true, true, true, true, true, 8388608, 4};
 
-    // Small file: 15 MB (< 20 MB -> 2.5 MB chunks)
+    // System profile and RAM budget query
+    auto profile = utp::ChunkPlanner::query_system_profile();
+    ASSERT_TRUE(profile.available_ram_bytes > 0);
+    ASSERT_TRUE(profile.ram_budget_bytes >= 5ULL * 1024 * 1024);
+    ASSERT_TRUE(profile.ram_budget_bytes <= 64ULL * 1024 * 1024);
+
+    // Small file: 15 MB
     uint64_t small_size = 15ULL * 1024ULL * 1024ULL;
     auto plan_small = utp::ChunkPlanner::plan(small_size, caps1, caps2);
     ASSERT_TRUE(!plan_small.empty());
@@ -232,7 +239,7 @@ void test_chunk_planner_suite() {
     }
     ASSERT_EQ(total_calc, small_size);
 
-    // Large file: 100 MB (10.24 MB chunks)
+    // Large file: 100 MB
     uint64_t large_size = 100ULL * 1024ULL * 1024ULL;
     auto plan_large = utp::ChunkPlanner::plan(large_size, caps1, caps2);
     total_calc = 0;
@@ -247,6 +254,12 @@ void test_chunk_planner_suite() {
     for (const auto& c : plan_limited) {
         ASSERT_TRUE(c.size <= 2621440);
     }
+
+    // Dynamic bandwidth-adaptive chunk sizing test
+    // 1 MB/s (1048576 B/s) -> target 2.5s = ~2.62 MB -> aligned to 2 * 1280 KB = 2.5 MB (2621440 bytes)
+    uint64_t dynamic_chunk_1mbps = utp::ChunkPlanner::calculate_chunk_size(large_size, caps1, caps2, 1048576);
+    ASSERT_TRUE(dynamic_chunk_1mbps % (1280ULL * 1024ULL) == 0);
+    ASSERT_EQ(dynamic_chunk_1mbps, 2621440ULL);
 }
 
 void test_state_manager_suite() {
@@ -830,67 +843,73 @@ void test_phase3_security_and_api_auth_suite() {
         svr.listen("127.0.0.1", test_port);
     });
 
-    for (int i = 0; i < 50 && !svr.is_running(); ++i) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(20));
-    }
+    try {
+        for (int i = 0; i < 50 && !svr.is_running(); ++i) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        }
 
-    httplib::Client cli("127.0.0.1", test_port);
-    cli.set_connection_timeout(std::chrono::seconds(2));
-    cli.set_read_timeout(std::chrono::seconds(2));
+        httplib::Client cli("127.0.0.1", test_port);
+        cli.set_connection_timeout(std::chrono::seconds(2));
+        cli.set_read_timeout(std::chrono::seconds(2));
 
-    // Call 1: Unauthenticated GET /api/transfers -> MUST reject with 401
-    {
-        auto res = cli.Get("/api/transfers");
-        ASSERT_TRUE(res != nullptr);
-        ASSERT_EQ(res->status, 401);
-        ASSERT_TRUE(res->body.find("Unauthorized") != std::string::npos);
-        ASSERT_TRUE(res->has_header("WWW-Authenticate"));
-    }
+        // Call 1: Unauthenticated GET /api/transfers -> MUST reject with 401
+        {
+            auto res = cli.Get("/api/transfers");
+            ASSERT_TRUE(res != nullptr);
+            ASSERT_EQ(res->status, 401);
+            ASSERT_TRUE(res->body.find("Unauthorized") != std::string::npos);
+            ASSERT_TRUE(res->has_header("WWW-Authenticate"));
+        }
 
-    // Call 2: Unauthenticated POST /api/transfers -> MUST reject with 401
-    {
-        auto res = cli.Post("/api/transfers", "{\"src\":\"local://a\",\"dest\":\"local://b\"}", "application/json");
-        ASSERT_TRUE(res != nullptr);
-        ASSERT_EQ(res->status, 401);
-    }
+        // Call 2: Unauthenticated POST /api/transfers -> MUST reject with 401
+        {
+            auto res = cli.Post("/api/transfers", "{\"src\":\"local://a\",\"dest\":\"local://b\"}", "application/json");
+            ASSERT_TRUE(res != nullptr);
+            ASSERT_EQ(res->status, 401);
+        }
 
-    // Call 3: Unauthenticated POST /api/transfers/utp_1/pause -> MUST reject with 401
-    {
-        auto res = cli.Post("/api/transfers/utp_1/pause", "", "application/json");
-        ASSERT_TRUE(res != nullptr);
-        ASSERT_EQ(res->status, 401);
-    }
+        // Call 3: Unauthenticated POST /api/transfers/utp_1/pause -> MUST reject with 401
+        {
+            auto res = cli.Post("/api/transfers/utp_1/pause", "", "application/json");
+            ASSERT_TRUE(res != nullptr);
+            ASSERT_EQ(res->status, 401);
+        }
 
-    // Call 4: Invalid Bearer Token -> MUST reject with 401
-    {
-        httplib::Headers headers = {{"Authorization", "Bearer invalid_bad_token"}};
-        auto res = cli.Get("/api/transfers", headers);
-        ASSERT_TRUE(res != nullptr);
-        ASSERT_EQ(res->status, 401);
-    }
+        // Call 4: Invalid Bearer Token -> MUST reject with 401
+        {
+            httplib::Headers headers = {{"Authorization", "Bearer invalid_bad_token"}};
+            auto res = cli.Get("/api/transfers", headers);
+            ASSERT_TRUE(res != nullptr);
+            ASSERT_EQ(res->status, 401);
+        }
 
-    // Call 5: Valid Bearer Token -> MUST succeed with 200
-    {
-        httplib::Headers headers = {{"Authorization", "Bearer " + test_token}};
-        auto res = cli.Get("/api/transfers", headers);
-        ASSERT_TRUE(res != nullptr);
-        ASSERT_EQ(res->status, 200);
-        ASSERT_TRUE(res->body.find("utp_test_1") != std::string::npos);
-    }
+        // Call 5: Valid Bearer Token -> MUST succeed with 200
+        {
+            httplib::Headers headers = {{"Authorization", "Bearer " + test_token}};
+            auto res = cli.Get("/api/transfers", headers);
+            ASSERT_TRUE(res != nullptr);
+            ASSERT_EQ(res->status, 200);
+            ASSERT_TRUE(res->body.find("utp_test_1") != std::string::npos);
+        }
 
-    // Call 6: Valid X-API-Key header -> MUST succeed with 200
-    {
-        httplib::Headers headers = {{"X-API-Key", test_token}};
-        auto res = cli.Get("/api/transfers", headers);
-        ASSERT_TRUE(res != nullptr);
-        ASSERT_EQ(res->status, 200);
-    }
+        // Call 6: Valid X-API-Key header -> MUST succeed with 200
+        {
+            httplib::Headers headers = {{"X-API-Key", test_token}};
+            auto res = cli.Get("/api/transfers", headers);
+            ASSERT_TRUE(res != nullptr);
+            ASSERT_EQ(res->status, 200);
+        }
 
-    // Call 7: OPTIONS CORS preflight (no auth) -> MUST succeed with 200
-    {
-        auto res = cli.Options("/api/transfers");
-        ASSERT_TRUE(res != nullptr);
-        ASSERT_EQ(res->status, 200);
+        // Call 7: OPTIONS CORS preflight (no auth) -> MUST succeed with 200
+        {
+            auto res = cli.Options("/api/transfers");
+            ASSERT_TRUE(res != nullptr);
+            ASSERT_EQ(res->status, 200);
+        }
+    } catch (...) {
+        svr.stop();
+        if (server_thread.joinable()) server_thread.join();
+        throw;
     }
 
     svr.stop();
@@ -1436,6 +1455,91 @@ void test_http_ingestion_suite() {
     if (server_thread.joinable()) server_thread.join();
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+//  TEST SUITE: ZERO-DISK CLOUD MEDIA STREAMING (HTTP RANGE & ON-DEMAND SEEKING)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+void test_cloud_media_streaming_suite() {
+    // 1. Verify MIME type resolution
+    ASSERT_EQ(utp::get_media_mime_type("movie.mp4"), "video/mp4");
+    ASSERT_EQ(utp::get_media_mime_type("avatar.mkv"), "video/x-matroska");
+    ASSERT_EQ(utp::get_media_mime_type("clip.webm"), "video/webm");
+    ASSERT_EQ(utp::get_media_mime_type("track.mp3"), "audio/mpeg");
+    ASSERT_EQ(utp::get_media_mime_type("song.flac"), "audio/flac");
+    ASSERT_EQ(utp::get_media_mime_type("doc.pdf"), "application/pdf");
+
+    // 2. Set up Mock Provider with 5 MB synthetic video stream
+    const size_t stream_size = 5 * 1024 * 1024; // 5 MB
+    std::vector<uint8_t> mock_stream_data(stream_size);
+    for (size_t i = 0; i < stream_size; ++i) {
+        mock_stream_data[i] = static_cast<uint8_t>((i * 13 + 37) % 256);
+    }
+
+    httplib::Server svr;
+    int test_port = 18991;
+
+    svr.Get("/stream/video.mp4", [&](const httplib::Request&, httplib::Response& res) {
+        res.set_header("Accept-Ranges", "bytes");
+        res.set_content_provider(
+            stream_size,
+            "video/mp4",
+            [&](size_t offset, size_t length, httplib::DataSink& sink) -> bool {
+                if (offset >= stream_size) return false;
+                size_t to_write = std::min(length, stream_size - offset);
+                sink.write(reinterpret_cast<const char*>(mock_stream_data.data() + offset), to_write);
+                return true;
+            }
+        );
+    });
+
+    std::thread s_thread([&]() {
+        svr.listen("127.0.0.1", test_port);
+    });
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+    try {
+        httplib::Client cli("127.0.0.1", test_port);
+
+        // A. Full GET Request
+        auto res_full = cli.Get("/stream/video.mp4");
+        ASSERT_TRUE(res_full != nullptr);
+        ASSERT_EQ(res_full->status, 200);
+        ASSERT_EQ(res_full->body.size(), stream_size);
+        ASSERT_EQ(res_full->get_header_value("Accept-Ranges"), "bytes");
+
+        // B. Range Request (First 1024 bytes)
+        httplib::Headers headers_p1 = {{"Range", "bytes=0-1023"}};
+        auto res_range1 = cli.Get("/stream/video.mp4", headers_p1);
+        ASSERT_TRUE(res_range1 != nullptr);
+        ASSERT_EQ(res_range1->status, 206);
+        ASSERT_EQ(res_range1->body.size(), 1024ULL);
+        ASSERT_EQ(res_range1->get_header_value("Content-Range"), "bytes 0-1023/" + std::to_string(stream_size));
+        for (size_t i = 0; i < 1024; ++i) {
+            ASSERT_EQ(static_cast<uint8_t>(res_range1->body[i]), mock_stream_data[i]);
+        }
+
+        // C. Range Seeking (Scrub to 2.5 MB position)
+        size_t seek_offset = 2500000;
+        size_t seek_len = 8192;
+        httplib::Headers headers_seek = {{"Range", "bytes=" + std::to_string(seek_offset) + "-" + std::to_string(seek_offset + seek_len - 1)}};
+        auto res_seek = cli.Get("/stream/video.mp4", headers_seek);
+        ASSERT_TRUE(res_seek != nullptr);
+        ASSERT_EQ(res_seek->status, 206);
+        ASSERT_EQ(res_seek->body.size(), seek_len);
+        for (size_t i = 0; i < seek_len; ++i) {
+            ASSERT_EQ(static_cast<uint8_t>(res_seek->body[i]), mock_stream_data[seek_offset + i]);
+        }
+    } catch (...) {
+        svr.stop();
+        if (s_thread.joinable()) s_thread.join();
+        throw;
+    }
+
+    svr.stop();
+    if (s_thread.joinable()) s_thread.join();
+}
+
 int main() {
     std::cout << "\n" T_BOLD T_CYAN "╔════════════════════════════════════════════════════════════════╗\n";
     std::cout << "║       Universal Cloud Transfer Protocol (UTP) Test Suite       ║\n";
@@ -1465,6 +1569,7 @@ int main() {
     run_test("Phase 7 Policy BEST_EFFORT", "Surviving Destinations Commit on Partial Failure", test_multi_dest_best_effort_policy_suite);
     run_test("Phase 10 Smart Routing", "Rules-Based Engine (Ext, Size, Fallback)", test_routing_rule_engine_suite);
     run_test("Web Ingest", "Direct HTTP/HTTPS Zero-Disk URL Streaming", test_http_ingestion_suite);
+    run_test("Cloud Media Stream", "On-Demand HTTP 206 Range & Zero-Disk Seeking", test_cloud_media_streaming_suite);
 
     std::cout << "\n" T_BOLD "─── Evaluation Summary ───" T_RESET "\n";
     std::cout << "  Passed: " T_GREEN << g_tests_passed << T_RESET "\n";
