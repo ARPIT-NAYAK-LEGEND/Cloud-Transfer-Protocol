@@ -16,6 +16,7 @@
 #include "providers/azure/azure_provider.hpp"
 #include "providers/webdav/webdav_provider.hpp"
 #include "providers/icloud/icloud_provider.hpp"
+#include "providers/http/http_provider.hpp"
 #include "providers/common/credentials.hpp"
 #include <iostream>
 #include <memory>
@@ -90,7 +91,33 @@ std::unique_ptr<StorageProvider> create_provider(const std::string& scheme) {
     }
     if (base_scheme == "icloud") return std::make_unique<ICloudProvider>("", "", effective_context);
     if (base_scheme == "azure") return std::make_unique<AzureBlobProvider>();
+    if (base_scheme == "http" || base_scheme == "https") return std::make_unique<HttpProvider>("", effective_context);
     throw std::runtime_error("Unsupported provider scheme: " + base_scheme);
+}
+
+// Media MIME type detector for zero-disk HTTP Range streaming
+static std::string get_media_mime_type(const std::string& filename) {
+    std::string ext = "";
+    size_t dot = filename.find_last_of('.');
+    if (dot != std::string::npos) {
+        ext = filename.substr(dot);
+        for (char& c : ext) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    }
+    if (ext == ".mp4" || ext == ".m4v") return "video/mp4";
+    if (ext == ".mkv") return "video/x-matroska";
+    if (ext == ".webm") return "video/webm";
+    if (ext == ".avi") return "video/x-msvideo";
+    if (ext == ".mov") return "video/quicktime";
+    if (ext == ".wmv") return "video/x-ms-wmv";
+    if (ext == ".flv") return "video/x-flv";
+    if (ext == ".ts") return "video/mp2t";
+    if (ext == ".mp3") return "audio/mpeg";
+    if (ext == ".flac") return "audio/flac";
+    if (ext == ".wav") return "audio/wav";
+    if (ext == ".m4a" || ext == ".aac") return "audio/mp4";
+    if (ext == ".ogg" || ext == ".oga") return "audio/ogg";
+    if (ext == ".pdf") return "application/pdf";
+    return "application/octet-stream";
 }
 
 // Minimal JSON extractor for {"src": "...", "dest": "..."}
@@ -229,6 +256,10 @@ int main(int argc, char* argv[]) {
                 provided_token = auth_header.substr(7);
             } else if (req.has_header("X-API-Key")) {
                 provided_token = req.get_header_value("X-API-Key");
+            } else if (req.has_param("token")) {
+                provided_token = req.get_param_value("token");
+            } else if (req.has_param("api_key")) {
+                provided_token = req.get_param_value("api_key");
             }
             while (!provided_token.empty() && (provided_token.back() == ' ' || provided_token.back() == '\r' || provided_token.back() == '\n')) provided_token.pop_back();
             while (!provided_token.empty() && (provided_token.front() == ' ' || provided_token.front() == '\t')) provided_token.erase(0, 1);
@@ -403,11 +434,147 @@ int main(int argc, char* argv[]) {
         res.set_content(ss.str(), "application/json");
     });
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  ZERO-DISK CLOUD STREAMING REST ENDPOINT (HTTP 206 RANGE & SEEKING)
+    // ═══════════════════════════════════════════════════════════════════════════
+    auto serve_stream = [&](const std::string& raw_uri, const Request& req, Response& res) {
+        if (raw_uri.empty()) {
+            res.status = 400;
+            res.set_content("{\"error\": \"Missing URI parameter\"}", "application/json");
+            return;
+        }
+
+        Resource res_info;
+        try {
+            res_info = parse_uri(raw_uri);
+        } catch (const std::exception& e) {
+            res.status = 400;
+            res.set_content("{\"error\": \"Invalid cloud URI: " + std::string(e.what()) + "\"}", "application/json");
+            return;
+        }
+
+        std::string scheme = res_info.scheme;
+        if (scheme == "https" && res_info.host_or_bucket.find("drive.google.com") != std::string::npos) scheme = "gdrive";
+        if (!res_info.account.empty()) scheme += ":" + res_info.account;
+
+        std::string remote_path = get_resource_path(res_info);
+
+        std::shared_ptr<StorageProvider> provider;
+        try {
+            provider = create_provider(scheme);
+        } catch (const std::exception& e) {
+            res.status = 500;
+            res.set_content("{\"error\": \"Failed to initialize provider: " + std::string(e.what()) + "\"}", "application/json");
+            return;
+        }
+
+        std::string filename = "";
+        uint64_t file_size = 0;
+        try {
+            FileInfo fi = provider->stat(remote_path);
+            filename = fi.name.empty() ? remote_path : fi.name;
+            file_size = fi.size;
+        } catch (const std::exception& e) {
+            size_t slash = remote_path.find_last_of("/\\");
+            filename = (slash != std::string::npos) ? remote_path.substr(slash + 1) : remote_path;
+        }
+
+        if (req.has_param("name") && !req.get_param_value("name").empty()) {
+            filename = req.get_param_value("name");
+        }
+        if (filename.empty()) filename = "stream.mp4";
+
+        std::string mime = get_media_mime_type(filename);
+
+        ReadStream rstream;
+        try {
+            rstream = provider->openRead(remote_path);
+        } catch (const std::exception& e) {
+            res.status = 502;
+            res.set_content("{\"error\": \"Failed to open remote stream: " + std::string(e.what()) + "\"}", "application/json");
+            return;
+        }
+
+        res.set_header("Accept-Ranges", "bytes");
+        res.set_header("Access-Control-Allow-Origin", "*");
+        res.set_header("Access-Control-Allow-Headers", "Range, Accept, Content-Type, Authorization, X-API-Key");
+        res.set_header("Access-Control-Expose-Headers", "Content-Range, Content-Length, Accept-Ranges");
+
+        bool download_mode = (req.has_param("download") && (req.get_param_value("download") == "1" || req.get_param_value("download") == "true"));
+        std::string disposition = download_mode ? "attachment" : "inline";
+        res.set_header("Content-Disposition", disposition + "; filename=\"" + filename + "\"");
+
+        res.set_content_provider(
+            file_size,
+            mime,
+            [provider, rstream, file_size](size_t offset, size_t length, DataSink& sink) -> bool {
+                const size_t CHUNK = 512 * 1024; // 512 KB volatile chunk in RAM
+                size_t remaining = length;
+                size_t cur_offset = offset;
+                std::vector<uint8_t> buffer(CHUNK);
+
+                while (remaining > 0) {
+                    size_t to_read = std::min(remaining, CHUNK);
+                    size_t got = 0;
+                    try {
+                        got = provider->read(rstream, cur_offset, buffer.data(), to_read);
+                    } catch (...) {
+                        return false;
+                    }
+                    if (got == 0) break;
+                    if (!sink.write(reinterpret_cast<const char*>(buffer.data()), got)) {
+                        return false; // Connection closed or seek scrubbed by client
+                    }
+                    cur_offset += got;
+                    remaining -= got;
+                }
+                return true;
+            }
+        );
+    };
+
+    // GET & HEAD /api/stream?uri=... or ?src=... or ?id=...
+    svr.Get("/api/stream", [&](const Request& req, Response& res) {
+        std::string target_uri;
+        if (req.has_param("uri")) target_uri = req.get_param_value("uri");
+        else if (req.has_param("src")) target_uri = req.get_param_value("src");
+        else if (req.has_param("id")) {
+            auto opt_t = sm.get_transfer(req.get_param_value("id"));
+            if (!opt_t) {
+                res.status = 404;
+                res.set_content("{\"error\": \"Transfer ID not found\"}", "application/json");
+                return;
+            }
+            target_uri = opt_t->source.provider + "://" + opt_t->source.path;
+        }
+
+        if (target_uri.empty()) {
+            res.status = 400;
+            res.set_content("{\"error\": \"Missing required 'uri' or 'src' or 'id' query parameter\"}", "application/json");
+            return;
+        }
+
+        serve_stream(target_uri, req, res);
+    });
+
+    svr.Get(R"(/api/stream/([a-zA-Z0-9_-]+))", [&](const Request& req, Response& res) {
+        std::string id = req.matches[1];
+        auto opt_t = sm.get_transfer(id);
+        if (!opt_t) {
+            res.status = 404;
+            res.set_content("{\"error\": \"Transfer not found\"}", "application/json");
+            return;
+        }
+        std::string target_uri = opt_t->source.provider + "://" + opt_t->source.path;
+        serve_stream(target_uri, req, res);
+    });
+
     // Enable CORS for Web UI
     svr.Options(R"(/api/.*)", [](const Request& /*req*/, Response& res) {
         res.set_header("Access-Control-Allow-Origin", "*");
-        res.set_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-        res.set_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key");
+        res.set_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS, HEAD");
+        res.set_header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key, Range, Accept");
+        res.set_header("Access-Control-Expose-Headers", "Content-Range, Content-Length, Accept-Ranges");
         res.status = 200;
     });
 

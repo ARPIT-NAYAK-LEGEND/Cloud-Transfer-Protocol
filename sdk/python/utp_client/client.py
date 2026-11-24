@@ -64,3 +64,20 @@ class UTPClient:
                 raise TransferError(f"Transfer {transfer_id} failed.")
                 
             time.sleep(poll_interval)
+
+    def get_stream_url(self, uri_or_id: str, download: bool = False, filename: Optional[str] = None) -> str:
+        """
+        Constructs the on-demand zero-disk streaming URL for a cloud resource or transfer ID.
+        Can be used directly in VLC, MPV, or media players.
+        """
+        import urllib.parse
+        params = {}
+        if "://" in uri_or_id:
+            params["uri"] = uri_or_id
+        else:
+            params["id"] = uri_or_id
+        if download:
+            params["download"] = "true"
+        if filename:
+            params["name"] = filename
+        return f"{self.base_url}/stream?{urllib.parse.urlencode(params)}"

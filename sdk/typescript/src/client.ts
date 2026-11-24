@@ -268,6 +268,25 @@ export class UTPClient {
     }
   }
 
+  /**
+   * Constructs the on-demand zero-disk streaming URL for a cloud resource or transfer ID.
+   * Can be passed directly into HTML5 <video>, VLC, MPV, or download managers.
+   * @param uriOrId Cloud resource URI (e.g. gdrive://movies/clip.mp4) or transfer ID
+   * @param options Optional stream parameters (download disposition, custom filename)
+   */
+  getStreamUrl(uriOrId: string, options?: { download?: boolean; filename?: string }): string {
+    const params = new URLSearchParams();
+    if (uriOrId.includes('://')) {
+      params.set('uri', uriOrId);
+    } else {
+      params.set('id', uriOrId);
+    }
+    if (this.token) params.set('token', this.token);
+    if (options?.download) params.set('download', 'true');
+    if (options?.filename) params.set('name', options.filename);
+    return `${this.baseUrl}/api/stream?${params.toString()}`;
+  }
+
   private sleep(ms: number, signal?: AbortSignal): Promise<void> {
     return new Promise((resolve, reject) => {
       if (signal?.aborted) {

@@ -1540,6 +1540,130 @@ void test_cloud_media_streaming_suite() {
     if (s_thread.joinable()) s_thread.join();
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+//  TEST SUITE: DAEMON STREAMING REST ENDPOINT (/api/stream)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+void test_daemon_streaming_suite() {
+    const std::string mock_token = "test_daemon_secret_token_12345";
+    const size_t stream_size = 2 * 1024 * 1024; // 2 MB
+    std::vector<uint8_t> sample_data(stream_size);
+    for (size_t i = 0; i < stream_size; ++i) {
+        sample_data[i] = static_cast<uint8_t>((i * 7 + 42) % 256);
+    }
+
+    httplib::Server svr;
+    int test_port = 18992;
+
+    svr.set_pre_routing_handler([mock_token](const httplib::Request& req, httplib::Response& res) {
+        if (req.method == "OPTIONS") return httplib::Server::HandlerResponse::Unhandled;
+
+        if (req.path.rfind("/api/", 0) == 0) {
+            std::string auth_header = req.get_header_value("Authorization");
+            std::string provided_token;
+            if (auth_header.rfind("Bearer ", 0) == 0) {
+                provided_token = auth_header.substr(7);
+            } else if (req.has_header("X-API-Key")) {
+                provided_token = req.get_header_value("X-API-Key");
+            } else if (req.has_param("token")) {
+                provided_token = req.get_param_value("token");
+            } else if (req.has_param("api_key")) {
+                provided_token = req.get_param_value("api_key");
+            }
+
+            if (provided_token != mock_token) {
+                res.status = 401;
+                res.set_header("Access-Control-Allow-Origin", "*");
+                res.set_content("{\"error\": \"Unauthorized: missing or invalid API token\"}", "application/json");
+                return httplib::Server::HandlerResponse::Handled;
+            }
+        }
+        return httplib::Server::HandlerResponse::Unhandled;
+    });
+
+    svr.Get("/api/stream", [&](const httplib::Request& req, httplib::Response& res) {
+        std::string target_uri = req.has_param("uri") ? req.get_param_value("uri") : "";
+        if (target_uri.empty()) {
+            res.status = 400;
+            res.set_content("{\"error\": \"Missing uri parameter\"}", "application/json");
+            return;
+        }
+
+        res.set_header("Accept-Ranges", "bytes");
+        res.set_header("Access-Control-Allow-Origin", "*");
+        bool download_mode = (req.has_param("download") && req.get_param_value("download") == "true");
+        std::string disposition = download_mode ? "attachment" : "inline";
+        res.set_header("Content-Disposition", disposition + "; filename=\"media.mp4\"");
+
+        res.set_content_provider(
+            stream_size,
+            "video/mp4",
+            [&](size_t offset, size_t length, httplib::DataSink& sink) -> bool {
+                if (offset >= stream_size) return false;
+                size_t to_write = std::min(length, stream_size - offset);
+                sink.write(reinterpret_cast<const char*>(sample_data.data() + offset), to_write);
+                return true;
+            }
+        );
+    });
+
+    std::thread s_thread([&]() {
+        svr.listen("127.0.0.1", test_port);
+    });
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+    try {
+        httplib::Client cli("127.0.0.1", test_port);
+
+        // 1. Unauthenticated request without token -> 401
+        auto res_unauth = cli.Get("/api/stream?uri=gdrive://movies/sample.mp4");
+        ASSERT_TRUE(res_unauth != nullptr);
+        ASSERT_EQ(res_unauth->status, 401);
+
+        // 2. Authenticated via query parameter ?token=... (for HTML5 video / VLC / MPV)
+        auto res_auth = cli.Get("/api/stream?uri=gdrive://movies/sample.mp4&token=" + mock_token);
+        ASSERT_TRUE(res_auth != nullptr);
+        ASSERT_EQ(res_auth->status, 200);
+        ASSERT_EQ(res_auth->body.size(), stream_size);
+        ASSERT_EQ(res_auth->get_header_value("Content-Disposition"), "inline; filename=\"media.mp4\"");
+
+        // 3. Authenticated via Authorization Bearer header
+        httplib::Headers bearer_headers = {{"Authorization", "Bearer " + mock_token}};
+        auto res_bearer = cli.Get("/api/stream?uri=gdrive://movies/sample.mp4", bearer_headers);
+        ASSERT_TRUE(res_bearer != nullptr);
+        ASSERT_EQ(res_bearer->status, 200);
+
+        // 4. HTTP Range Request (HTTP 206 Partial Content) with token
+        httplib::Headers range_headers = {
+            {"Authorization", "Bearer " + mock_token},
+            {"Range", "bytes=1048576-1052671"} // 4 KB range at 1 MB offset
+        };
+        auto res_range = cli.Get("/api/stream?uri=gdrive://movies/sample.mp4", range_headers);
+        ASSERT_TRUE(res_range != nullptr);
+        ASSERT_EQ(res_range->status, 206);
+        ASSERT_EQ(res_range->body.size(), 4096ULL);
+        ASSERT_EQ(res_range->get_header_value("Content-Range"), "bytes 1048576-1052671/" + std::to_string(stream_size));
+        for (size_t i = 0; i < 4096; ++i) {
+            ASSERT_EQ(static_cast<uint8_t>(res_range->body[i]), sample_data[1048576 + i]);
+        }
+
+        // 5. Download disposition parameter check
+        auto res_dl = cli.Get("/api/stream?uri=gdrive://movies/sample.mp4&token=" + mock_token + "&download=true");
+        ASSERT_TRUE(res_dl != nullptr);
+        ASSERT_EQ(res_dl->status, 200);
+        ASSERT_EQ(res_dl->get_header_value("Content-Disposition"), "attachment; filename=\"media.mp4\"");
+
+    } catch (...) {
+        svr.stop();
+        if (s_thread.joinable()) s_thread.join();
+        throw;
+    }
+
+    svr.stop();
+    if (s_thread.joinable()) s_thread.join();
+}
+
 int main() {
     std::cout << "\n" T_BOLD T_CYAN "╔════════════════════════════════════════════════════════════════╗\n";
     std::cout << "║       Universal Cloud Transfer Protocol (UTP) Test Suite       ║\n";
@@ -1570,6 +1694,7 @@ int main() {
     run_test("Phase 10 Smart Routing", "Rules-Based Engine (Ext, Size, Fallback)", test_routing_rule_engine_suite);
     run_test("Web Ingest", "Direct HTTP/HTTPS Zero-Disk URL Streaming", test_http_ingestion_suite);
     run_test("Cloud Media Stream", "On-Demand HTTP 206 Range & Zero-Disk Seeking", test_cloud_media_streaming_suite);
+    run_test("Daemon REST Stream", "/api/stream Token Auth & Zero-Disk HTTP 206 Range", test_daemon_streaming_suite);
 
     std::cout << "\n" T_BOLD "─── Evaluation Summary ───" T_RESET "\n";
     std::cout << "  Passed: " T_GREEN << g_tests_passed << T_RESET "\n";
