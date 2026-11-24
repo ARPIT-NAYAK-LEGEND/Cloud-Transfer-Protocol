@@ -25,6 +25,13 @@
 #include <iomanip>
 #include <sstream>
 
+#ifdef _WIN32
+#include <conio.h>
+#else
+#include <unistd.h>
+#include <termios.h>
+#endif
+
 #define C_RESET       "\033[0m"
 #define C_BOLD        "\033[1m"
 #define C_MUTED       "\033[38;5;242m"
@@ -45,11 +52,17 @@ namespace utp {
 
 static std::atomic<httplib::Server*> g_active_stream_server{nullptr};
 
-static void stream_signal_handler(int) {
+bool stop_active_stream_server() {
     auto* s = g_active_stream_server.load();
-    if (s) {
+    if (s && s->is_running()) {
         s->stop();
+        return true;
     }
+    return false;
+}
+
+static void stream_signal_handler(int) {
+    stop_active_stream_server();
 }
 
 static std::string format_file_size(uint64_t bytes) {
@@ -185,7 +198,7 @@ int run_cloud_stream_server(const std::string& cloud_uri, int port, bool auto_op
         return 1;
     }
 
-    std::string stream_url = "http://127.0.0.1:" + std::to_string(bound_port) + "/" + filename;
+    std::string stream_url = "http://127.0.0.1:" + std::to_string(bound_port) + "/stream";
 
     std::cout << C_EMERALD GLYPH_DONE C_RESET "  " C_WHITE C_BOLD "Source Endpoint : " C_RESET
               << AccountManager::instance().get_display_name(res.scheme, res.account) << "\n"
@@ -195,12 +208,12 @@ int run_cloud_stream_server(const std::string& cloud_uri, int port, bool auto_op
               << C_CYAN << stream_url << C_RESET "\n"
               << C_SPINE GLYPH_SPINE C_RESET "\n"
               << C_VIOLET GLYPH_STEP C_RESET "  " C_WHITE C_BOLD "PLAYBACK INSTRUCTIONS" C_RESET "\n"
-              << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "VLC Media Player : " C_RESET "vlc " << stream_url << "\n"
-              << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "MPV Player       : " C_RESET "mpv " << stream_url << "\n"
-              << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "Web Browser      : " C_RESET "Open in Chrome, Edge, or Firefox\n"
+              << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "VLC Media Player : " C_RESET "vlc \"" << stream_url << "\"\n"
+              << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "MPV Player       : " C_RESET "mpv \"" << stream_url << "\"\n"
+              << C_SPINE GLYPH_SPINE C_RESET "    " C_CYAN "Web Browser      : " C_RESET << stream_url << "\n"
               << C_SPINE GLYPH_SPINE C_RESET "\n"
               << C_EMERALD GLYPH_DONE C_RESET "  " C_EMERALD C_BOLD "Streaming live with Zero Local Disk Footprint." C_RESET "\n"
-              << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Press Ctrl+C to terminate streaming server." C_RESET "\n\n";
+              << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "Press [q] or [Enter] or [Ctrl+C] to stop streaming and return to menu." C_RESET "\n\n";
 
     if (auto_open) {
         std::thread([stream_url]() {
@@ -218,10 +231,41 @@ int run_cloud_stream_server(const std::string& cloud_uri, int port, bool auto_op
         }).detach();
     }
 
-    svr.listen_after_bind();
+    std::thread server_thread([&]() {
+        svr.listen_after_bind();
+    });
+
+    while (svr.is_running()) {
+#ifdef _WIN32
+        if (_kbhit()) {
+            int ch = _getch();
+            if (ch == 'q' || ch == 'Q' || ch == 13 || ch == 27 || ch == 3) { // q, Q, Enter, Esc, Ctrl+C
+                svr.stop();
+                break;
+            }
+        }
+#else
+        char c;
+        if (read(STDIN_FILENO, &c, 1) > 0) {
+            if (c == 'q' || c == 'Q' || c == '\n' || c == 27) {
+                svr.stop();
+                break;
+            }
+        }
+#endif
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+
+    if (svr.is_running()) {
+        svr.stop();
+    }
+    if (server_thread.joinable()) {
+        server_thread.join();
+    }
 
     std::cout << "\n" C_EMERALD GLYPH_DONE C_RESET "  " C_MUTED "Streaming server stopped. Total transferred: "
-              << format_file_size(total_bytes_streamed.load()) << " directly in RAM." C_RESET "\n\n";
+              << format_file_size(total_bytes_streamed.load()) << " directly in RAM." C_RESET "\n";
+    std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_EMERALD "Returning to menu..." C_RESET "\n\n";
 
     g_active_stream_server.store(nullptr);
     return 0;

@@ -33,4 +33,7 @@ inline std::string get_media_mime_type(const std::string& filename) {
 // Runs the zero-disk on-demand cloud media HTTP Range streaming server
 int run_cloud_stream_server(const std::string& cloud_uri, int port = 8080, bool auto_open = false);
 
+// Safely stops any active stream server without terminating the process
+bool stop_active_stream_server();
+
 } // namespace utp

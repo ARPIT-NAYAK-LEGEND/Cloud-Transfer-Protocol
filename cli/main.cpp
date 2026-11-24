@@ -35,10 +35,16 @@
 #include <filesystem>
 #include <fstream>
 #include <csignal>
+#include "cli/stream_server.hpp"
 #ifdef _WIN32
 #include <windows.h>
 static BOOL WINAPI console_ctrl_handler(DWORD signal) {
-    if (signal == CTRL_C_EVENT || signal == CTRL_BREAK_EVENT || signal == CTRL_CLOSE_EVENT) {
+    if (signal == CTRL_C_EVENT || signal == CTRL_BREAK_EVENT) {
+        if (utp::stop_active_stream_server()) {
+            return TRUE;
+        }
+    }
+    if (signal == CTRL_CLOSE_EVENT || signal == CTRL_C_EVENT || signal == CTRL_BREAK_EVENT) {
         std::cout << "\033[?25h\033[0m\n";
         std::cout.flush();
         ExitProcess(0);
@@ -1005,76 +1011,104 @@ int main(int argc, char* argv[]) {
     }
 
     try {
-        if (cmd == "menu") {
-            print_modern_header(true);
-            std::vector<MenuOption> master_menu = {
-                {"Interactive Cloud Transfer & Web Ingestion", "transfer", "Transfer files cloud-to-cloud, web-to-cloud, or local"},
-                {"On-Demand Cloud Media Streamer (VLC/Browser)", "play", "Zero-disk on-demand video & audio player via HTTP Range (206)"},
-                {"Transfer History & Ledger Log", "list", "View ledger of recent transfers, speeds, and integrity states"},
-                {"Exit", "exit", "Close UTP Engine session"}
-            };
-            int choice = run_interactive_menu("Select UTP Operation", master_menu, 0);
-            if (choice == 0) {
-                cmd = "transfer";
-            } else if (choice == 1) {
-                cmd = "play";
-            } else if (choice == 2) {
-                cmd = "list";
-            } else {
-                std::cout << C_EMERALD GLYPH_DONE C_RESET "  " C_MUTED "Exiting UTP Engine. Goodbye!" C_RESET "\n\n";
-                return 0;
+        bool in_interactive_mode = (argc < 2 || cmd == "menu" || (cmd == "transfer" && pos_args.empty()));
+
+        if (in_interactive_mode) {
+            std::string current_cmd = cmd;
+            while (true) {
+                if (current_cmd == "menu") {
+                    print_modern_header(true);
+                    std::vector<MenuOption> master_menu = {
+                        {"Interactive Cloud Transfer & Web Ingestion", "transfer", "Transfer files cloud-to-cloud, web-to-cloud, or local"},
+                        {"On-Demand Cloud Media Streamer (VLC/Browser)", "play", "Zero-disk on-demand video & audio player via HTTP Range (206)"},
+                        {"Transfer History & Ledger Log", "list", "View ledger of recent transfers, speeds, and integrity states"},
+                        {"Exit", "exit", "Close UTP Engine session"}
+                    };
+                    int choice = run_interactive_menu("Select UTP Operation", master_menu, 0);
+                    if (choice == 0) current_cmd = "transfer";
+                    else if (choice == 1) current_cmd = "play";
+                    else if (choice == 2) current_cmd = "list";
+                    else {
+                        std::cout << C_EMERALD GLYPH_DONE C_RESET "  " C_MUTED "Exiting UTP Engine. Goodbye!" C_RESET "\n\n";
+                        return 0;
+                    }
+                }
+
+                if (current_cmd == "transfer") {
+                    bool is_initial_launch = true;
+                    while (true) {
+                        TuiTransferParams tui = launch_interactive_tui(is_initial_launch);
+                        is_initial_launch = false;
+                        if (!tui.valid || tui.transfers.empty()) {
+                            break; // Return cleanly to master menu!
+                        }
+
+                        Resource first_src = parse_uri(tui.transfers[0].src_uri);
+                        Resource first_dest = parse_uri(tui.transfers[0].dest_uri);
+
+                        std::string s_acc = first_src.account.empty() ? tui.src_account : first_src.account;
+                        std::string d_acc = first_dest.account.empty() ? tui.dest_account : first_dest.account;
+
+                        auto src_provider = std::shared_ptr<StorageProvider>(create_provider(first_src.scheme, s_acc));
+                        auto dest_provider = std::shared_ptr<StorageProvider>(create_provider(first_dest.scheme, d_acc));
+
+                        std::string src_label = tui.src_display.empty() ?
+                            AccountManager::instance().get_display_name(first_src.scheme, s_acc) : tui.src_display;
+                        std::string dest_label = tui.dest_display.empty() ?
+                            AccountManager::instance().get_display_name(first_dest.scheme, d_acc) : tui.dest_display;
+
+                        // Execute batch transfer pool
+                        run_batch_transfer_pool(src_provider, dest_provider, tui.transfers, 1,
+                                                src_label, dest_label, tui.target_folder, bandwidth_limit);
+
+                        // Post-transfer clean prompt
+                        std::vector<MenuOption> follow_up = {
+                            {"Transfer another file", "", "Select new source and destination"},
+                            {"Stream & Play cloud media (Zero-Disk)", "", "Play cloud video/audio in VLC or browser without downloading to disk"},
+                            {"Return to Main Menu", "", "Go back to the master operations hub"},
+                            {"Exit", "", "Close UTP Engine session"}
+                        };
+                        int follow_idx = run_interactive_menu("Next Action", follow_up, 0);
+                        if (follow_idx == 0) {
+                            continue;
+                        } else if (follow_idx == 1) {
+                            launch_interactive_stream_picker(daemon_port, true);
+                            continue;
+                        } else if (follow_idx == 2) {
+                            break; // Return to master menu!
+                        } else {
+                            std::cout << C_EMERALD GLYPH_DONE C_RESET "  " C_MUTED "Exiting UTP Engine. Goodbye!" C_RESET "\n\n";
+                            return 0;
+                        }
+                    }
+                } else if (current_cmd == "play" || current_cmd == "stream") {
+                    launch_interactive_stream_picker(daemon_port, true);
+                } else if (current_cmd == "list") {
+                    StateManager sm("utp.db");
+                    auto transfers = sm.list_transfers(20);
+                    std::cout << "\n" C_VIOLET GLYPH_TOP C_RESET "  " C_WHITE C_BOLD "Recent transfers" C_RESET "\n";
+                    if (transfers.empty()) {
+                        std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_MUTED "(none — the ledger is empty)" C_RESET "\n";
+                    }
+                    for (const auto& t : transfers) {
+                        std::cout << C_SPINE GLYPH_SPINE C_RESET "  " C_CYAN << t.id << C_RESET C_MUTED "  "
+                                  << transfer_state_to_string(t.state) << "  " << format_bytes(t.bytes_transferred) << "/" << format_bytes(t.size) << "\n"
+                                  << C_SPINE GLYPH_SPINE C_RESET "    " C_MUTED << truncate_visible(t.source.provider + "://" + t.source.path, 48)
+                                  << " ──▶ " << truncate_visible(t.destination.provider + "://" + t.destination.path, 48) << C_RESET "\n";
+                    }
+                    std::cout << C_EMERALD GLYPH_END C_RESET "\n";
+                    std::cout << "  " C_MUTED "Press Enter to return to main menu..." C_RESET;
+                    std::string dummy;
+                    std::getline(std::cin, dummy);
+                }
+
+                current_cmd = "menu"; // Always return to master menu!
             }
+            return 0;
         }
 
         if (cmd == "transfer" || cmd == "route" || cmd == "ingest") {
-            if (pos_args.empty() && cmd == "transfer") {
-                // Interactive TUI Mode
-                bool is_initial_launch = true;
-                while (true) {
-                    TuiTransferParams tui = launch_interactive_tui(is_initial_launch);
-                    is_initial_launch = false;
-                    if (!tui.valid || tui.transfers.empty()) {
-                        std::cout << C_EMERALD GLYPH_DONE C_RESET "  " C_MUTED "Exiting UTP Engine. Goodbye!" C_RESET "\n\n";
-                        break;
-                    }
-
-                    Resource first_src = parse_uri(tui.transfers[0].src_uri);
-                    Resource first_dest = parse_uri(tui.transfers[0].dest_uri);
-
-                    std::string s_acc = first_src.account.empty() ? tui.src_account : first_src.account;
-                    std::string d_acc = first_dest.account.empty() ? tui.dest_account : first_dest.account;
-
-                    auto src_provider = std::shared_ptr<StorageProvider>(create_provider(first_src.scheme, s_acc));
-                    auto dest_provider = std::shared_ptr<StorageProvider>(create_provider(first_dest.scheme, d_acc));
-
-                    std::string src_label = tui.src_display.empty() ?
-                        AccountManager::instance().get_display_name(first_src.scheme, s_acc) : tui.src_display;
-                    std::string dest_label = tui.dest_display.empty() ?
-                        AccountManager::instance().get_display_name(first_dest.scheme, d_acc) : tui.dest_display;
-
-                    // Execute batch transfer pool
-                    run_batch_transfer_pool(src_provider, dest_provider, tui.transfers, 1,
-                                            src_label, dest_label, tui.target_folder, bandwidth_limit);
-
-                    // Post-transfer clean prompt
-                    std::vector<MenuOption> follow_up = {
-                        {"Transfer another file", "", "Select new source and destination"},
-                        {"Stream & Play cloud media (Zero-Disk)", "", "Play cloud video/audio in VLC or browser without downloading to disk"},
-                        {"Exit", "", "Close UTP Engine session"}
-                    };
-                    int follow_idx = run_interactive_menu("Next Action", follow_up, 0);
-                    if (follow_idx == 0) {
-                        continue;
-                    } else if (follow_idx == 1) {
-                        launch_interactive_stream_picker(daemon_port, true);
-                        break;
-                    } else {
-                        std::cout << C_EMERALD GLYPH_DONE C_RESET "  " C_MUTED "Exiting UTP Engine. Goodbye!" C_RESET "\n\n";
-                        break;
-                    }
-                }
-                return 0;
-            } else if (cmd == "route" && (!routing_rules.empty() || !default_dest.empty())) {
+            if (cmd == "route" && (!routing_rules.empty() || !default_dest.empty())) {
                 // Rules-Based Smart Routing Engine
                 if (pos_args.empty()) {
                     std::cerr << "\n  " C_ROSE "✗ Error: Smart routing requires at least one source file or directory path." C_RESET "\n\n";
