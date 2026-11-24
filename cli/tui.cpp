@@ -595,6 +595,21 @@ static ExplorerResult run_drive_explorer(const std::string& scheme, const std::s
                     }
                 } else {
                     // Single file selected
+                    if (is_source) {
+                        std::vector<MenuOption> file_choices = {
+                            {"Transfer to cloud / destination", "", "Transfer " + chosen.name + " to another cloud or local disk"},
+                            {"Stream & Play directly (Zero-Disk)", "", "Instant playback in VLC or browser without downloading to disk"}
+                        };
+                        int fc = run_interactive_menu("File Action: " + chosen.name, file_choices, 0);
+                        if (fc == 1) {
+                            std::string s_prefix = scheme;
+                            if (!account_id.empty() && account_id != "default") s_prefix += ":" + account_id;
+                            std::string cloud_uri = s_prefix + "://" + chosen.path;
+                            run_cloud_stream_server(cloud_uri, 8080, true);
+                            res.cancelled = true;
+                            return res;
+                        }
+                    }
                     res.selected_files.push_back(chosen);
                     std::cout << C_EMERALD GLYPH_DONE C_RESET "  Selected: " C_WHITE C_BOLD << chosen.name << C_RESET
                               << C_MUTED " (" << format_bytes(chosen.size) << ")" C_RESET "\n";
@@ -686,6 +701,9 @@ static SelectedEndpoint select_storage_endpoint(const std::string& step_title, i
     provider_options.push_back({"Backblaze B2", "b2://", "Cost-Effective S3 Storage"});
     provider_options.push_back({"WebDAV / Nextcloud", "webdav://", "Nextcloud, ownCloud & NAS"});
     provider_options.push_back({"Local Filesystem", "file://", "Local NVMe & Mounted Disks"});
+    if (!is_source) {
+        provider_options.push_back({"Stream & Play (Zero-Disk)", "stream://", "Instant on-demand playback in VLC or browser"});
+    }
 
     int p_idx = run_interactive_menu(step_title, provider_options, default_provider_idx);
     if (p_idx < 0) {
@@ -705,6 +723,13 @@ static SelectedEndpoint select_storage_endpoint(const std::string& step_title, i
     else if (tag == "b2://") ep.scheme = "b2";
     else if (tag == "webdav://") ep.scheme = "webdav";
     else if (tag == "file://") ep.scheme = "file";
+    else if (tag == "stream://") ep.scheme = "stream";
+
+    if (ep.scheme == "stream") {
+        ep.account = "";
+        ep.display_name = "Live Cloud Stream";
+        return ep;
+    }
 
     if (ep.scheme == "https" || ep.scheme == "http") {
         ep.account = "";
@@ -968,6 +993,20 @@ TuiTransferParams launch_interactive_tui(bool is_initial_launch) {
     std::string dest_scheme = dest_ep.scheme;
     std::string dest_account = dest_ep.account;
     std::string dest_name = dest_ep.display_name;
+
+    if (dest_scheme == "stream") {
+        if (!expanded_source_files.empty()) {
+            const auto& sf = expanded_source_files[0];
+            std::string s_prefix = src_scheme;
+            if (!src_account.empty() && src_account != "default") {
+                s_prefix += ":" + src_account;
+            }
+            std::string cloud_uri = (src_scheme == "http" || src_scheme == "https") ? sf.src_path : (s_prefix + "://" + sf.src_path);
+            run_cloud_stream_server(cloud_uri, 8080, true);
+        }
+        params.valid = false;
+        return params;
+    }
 
     // Destination folder picker
     auto dest_exp_res = run_drive_explorer(dest_scheme, dest_account, dest_name, false);
