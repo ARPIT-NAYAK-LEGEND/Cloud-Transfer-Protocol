@@ -3,21 +3,19 @@ class Utp < Formula
   homepage "https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol"
   version "2.6.1"
   license "MIT"
+  url "https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol.git",
+      branch: "PROJECTS"
 
-  if OS.mac?
-    url "https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol/releases/download/v2.6.1/utp-macos.tar.gz"
-    sha256 "SKIP"
-  elsif OS.linux?
-    url "https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol/releases/download/v2.6.1/utp-linux-x64.tar.gz"
-    sha256 "SKIP"
-  end
-
+  depends_on "cmake" => :build
   depends_on "curl"
   depends_on "openssl@3"
   depends_on "sqlite"
 
   def install
-    bin.install "utp"
+    system "cmake", "-S", ".", "-B", "build", "-DBUILD_TESTS=OFF", *std_cmake_args
+    system "cmake", "--build", "build", "--parallel"
+    bin.install "build/cli/utp"
+    bin.install "build/server/utpd"
   end
 
   test do

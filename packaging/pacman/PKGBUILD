@@ -10,8 +10,10 @@ depends=('curl' 'openssl' 'sqlite')
 provides=('utp')
 conflicts=('utp')
 source_x86_64=("${url}/releases/download/v${pkgver}/utp-linux-x64.tar.gz")
-sha256sums_x86_64=('SKIP')
+# Populated automatically by .github/workflows/release.yml from SHA256SUMS.txt on tag release (fail-closed checksum verification).
+sha256sums_x86_64=('POPULATED_BY_RELEASE_WORKFLOW_FROM_SHA256SUMS')
 
 package() {
     install -Dm755 "${srcdir}/utp" "${pkgdir}/usr/bin/utp"
+    install -Dm755 "${srcdir}/utpd" "${pkgdir}/usr/bin/utpd"
 }

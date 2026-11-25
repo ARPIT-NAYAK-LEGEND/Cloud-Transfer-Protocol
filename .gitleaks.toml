@@ -1,0 +1,45 @@
+title = "UTP Gitleaks Configuration"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "utp-obfuscated-secret-array"
+description = "Detects hardcoded OAuth XOR-encoded secret byte arrays in source files"
+regex = '''\b(?:g_sec|o_sec|k_gdrive_encoded|k_onedrive_encoded)\b\s*(?:\[\s*\])?\s*='''
+tags = ["oauth", "secret", "xor"]
+
+[[rules]]
+id = "utp-google-oauth-client-secret"
+description = "Detects Google OAuth client secret literals"
+regex = '''GOCSPX-[A-Za-z0-9_-]{20,}'''
+tags = ["oauth", "google"]
+
+[[rules]]
+id = "utp-azure-client-secret"
+description = "Detects Microsoft Entra / Azure OAuth client secret literals"
+regex = '''[A-Za-z0-9_.-]{3}8Q~[A-Za-z0-9_.-]{20,}'''
+tags = ["oauth", "azure"]
+
+[[allowlists]]
+description = "Allow non-secret protocol UI label in web matrix"
+condition = "AND"
+regexTarget = "line"
+paths = ['''^web/src/components/ProtocolMatrix\.jsx$''']
+regexes = ['''auth:\s*'S3-Compatible Token Auth',''']
+
+[[allowlists]]
+description = "Allow secret-hygiene regex pattern in CI workflow"
+condition = "AND"
+paths = ['''^\.github/workflows/ci\.yml$''']
+regexes = ['''g_sec\|o_sec\|k_gdrive_encoded\|k_onedrive_encoded''']
+
+[[allowlists]]
+description = "Allow secret-hygiene scanner strings in test runner"
+condition = "AND"
+paths = ['''^tests/test_runner\.cpp$''']
+regexes = ['''std::string\("(?:GOCSPX|Rzy8Q|g_|o_|k_gdrive_|k_onedrive_)"\)''']
+
+[[allowlists]]
+description = "Allow rule definitions inside .gitleaks.toml"
+paths = ['''^\.gitleaks\.toml$''']

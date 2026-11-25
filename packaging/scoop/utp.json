@@ -6,8 +6,23 @@
   "architecture": {
     "64bit": {
       "url": "https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol/releases/download/v2.6.1/utp-windows-x64.zip",
-      "bin": "utp.exe"
+      "hash": "POPULATED_BY_RELEASE_WORKFLOW_FROM_SHA256SUMS",
+      "bin": [
+        "utp.exe",
+        "utpd.exe"
+      ]
     }
   },
-  "checkver": "github"
+  "checkver": "github",
+  "autoupdate": {
+    "architecture": {
+      "64bit": {
+        "url": "https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol/releases/download/v$version/utp-windows-x64.zip",
+        "hash": {
+          "url": "$baseurl/SHA256SUMS.txt",
+          "regex": "$sha256\\s+$basename"
+        }
+      }
+    }
+  }
 }

@@ -178,6 +178,102 @@ jobs:
           prerelease: false
           generate_release_notes: true
 
+  update-packaging:
+    needs: create-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout default branch
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: PROJECTS
+
+      - name: Download release artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+
+      - name: Stamp verified SHA-256 checksums into packaging manifests
+        run: |
+          TAG_NAME="${GITHUB_REF_NAME}"
+          VERSION="${TAG_NAME#v}"
+          WIN_SHA=$(sha256sum utp-windows-x64/utp-windows-x64.zip | awk '{print $1}')
+          LINUX_SHA=$(sha256sum utp-linux-x64/utp-linux-x64.tar.gz | awk '{print $1}')
+          MAC_SHA=$(sha256sum utp-macos/utp-macos.tar.gz | awk '{print $1}')
+          export VERSION WIN_SHA LINUX_SHA MAC_SHA
+          python3 - << 'EOF'
+          import json, os, re, textwrap
+
+          ver = os.environ["VERSION"]
+          win_sha = os.environ["WIN_SHA"]
+          linux_sha = os.environ["LINUX_SHA"]
+          mac_sha = os.environ["MAC_SHA"]
+
+          # 1. Scoop manifest
+          with open("packaging/scoop/utp.json", "r", encoding="utf-8") as f:
+              scoop = json.load(f)
+          scoop["version"] = ver
+          scoop["architecture"]["64bit"]["url"] = (
+              f"https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol/releases/download/v{ver}/utp-windows-x64.zip"
+          )
+          scoop["architecture"]["64bit"]["hash"] = win_sha
+          with open("packaging/scoop/utp.json", "w", encoding="utf-8") as f:
+              json.dump(scoop, f, indent=2)
+              f.write("\n")
+
+          # 2. Pacman PKGBUILD
+          with open("packaging/pacman/PKGBUILD", "r", encoding="utf-8") as f:
+              pkg = f.read()
+          pkg = re.sub(r'^pkgver=.*$', f'pkgver={ver}', pkg, flags=re.M)
+          pkg = re.sub(r"^sha256sums_x86_64=\(.*\)$", f"sha256sums_x86_64=('{linux_sha}')", pkg, flags=re.M)
+          with open("packaging/pacman/PKGBUILD", "w", encoding="utf-8") as f:
+              f.write(pkg)
+
+          # 3. Homebrew formula binary block / version
+          rb = textwrap.dedent(f'''\
+          class Utp < Formula
+            desc "Universal Cloud Transfer Protocol (UTP) - Direct 0-Disk High-Speed Cloud-to-Cloud Pipeline"
+            homepage "https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol"
+            version "{ver}"
+            license "MIT"
+
+            on_macos do
+              url "https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol/releases/download/v{ver}/utp-macos.tar.gz"
+              sha256 "{mac_sha}"
+            end
+
+            on_linux do
+              url "https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol/releases/download/v{ver}/utp-linux-x64.tar.gz"
+              sha256 "{linux_sha}"
+            end
+
+            depends_on "curl"
+            depends_on "openssl@3"
+            depends_on "sqlite"
+
+            def install
+              bin.install "utp"
+              bin.install "utpd"
+            end
+
+            test do
+              system "#{{bin}}/utp", "--help"
+            end
+          end
+          ''')
+          with open("packaging/homebrew/utp.rb", "w", encoding="utf-8") as f:
+              f.write(rb)
+          EOF
+
+      - name: Commit updated packaging checksums
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add packaging/
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(packaging): stamp verified SHA-256 checksums for ${GITHUB_REF_NAME} [skip ci]"
+            git push origin HEAD:PROJECTS
+          fi
+
   publish-npm:
     needs: [build-windows, build-linux, build-macos, create-release]
     runs-on: ubuntu-latest
