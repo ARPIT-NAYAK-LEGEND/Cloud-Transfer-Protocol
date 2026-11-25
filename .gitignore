@@ -12,6 +12,8 @@ dist/
 *.tgz
 *.crt
 *.pem
+npm/bin/utp
+npm/bin/utpd
 
 # Compiled SDK output
 sdk/typescript/dist/

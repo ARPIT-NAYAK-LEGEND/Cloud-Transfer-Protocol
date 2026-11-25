@@ -72,7 +72,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential libcurl4-openssl-dev libssl-dev libsqlite3-dev
 
-      - name: Compile UTP CLI
+      - name: Compile UTP CLI & Daemon
         run: |
           g++ -std=c++20 -O3 -I core/include -I . \
             cli/main.cpp cli/tui.cpp cli/stream_server.cpp \
@@ -85,9 +85,19 @@ jobs:
             providers/webdav/webdav_provider.cpp \
             -o utp -lcurl -lssl -lcrypto -lpthread -lsqlite3
 
+          g++ -std=c++20 -O3 -I core/include -I . -I server \
+            server/main.cpp \
+            core/src/chunk_planner.cpp core/src/engine.cpp core/src/state_manager.cpp core/src/uri_parser.cpp \
+            providers/azure/azure_provider.cpp providers/common/http_client.cpp \
+            providers/dropbox/dropbox_provider.cpp providers/google_drive/gdrive_provider.cpp \
+            providers/http/http_provider.cpp providers/icloud/icloud_provider.cpp providers/local/local_provider.cpp \
+            providers/onedrive/onedrive_provider.cpp providers/s3/s3_provider.cpp \
+            providers/webdav/webdav_provider.cpp \
+            -o utpd -lcurl -lssl -lcrypto -lpthread -lsqlite3
+
       - name: Package Linux tar.gz
         run: |
-          tar -czvf utp-linux-x64.tar.gz utp LICENSE README.md
+          tar -czvf utp-linux-x64.tar.gz utp utpd LICENSE README.md PRIVACY.md SECURITY.md
 
       - name: Upload Linux Asset
         uses: actions/upload-artifact@v4
@@ -105,7 +115,7 @@ jobs:
         run: |
           brew install openssl sqlite
 
-      - name: Compile UTP CLI
+      - name: Compile UTP CLI & Daemon
         run: |
           clang++ -std=c++20 -O3 -I core/include -I . \
             -I$(brew --prefix openssl)/include -L$(brew --prefix openssl)/lib \
@@ -120,9 +130,21 @@ jobs:
             providers/webdav/webdav_provider.cpp \
             -o utp -lcurl -lssl -lcrypto -lpthread -lsqlite3
 
+          clang++ -std=c++20 -O3 -I core/include -I . -I server \
+            -I$(brew --prefix openssl)/include -L$(brew --prefix openssl)/lib \
+            -I$(brew --prefix sqlite)/include -L$(brew --prefix sqlite)/lib \
+            server/main.cpp \
+            core/src/chunk_planner.cpp core/src/engine.cpp core/src/state_manager.cpp core/src/uri_parser.cpp \
+            providers/azure/azure_provider.cpp providers/common/http_client.cpp \
+            providers/dropbox/dropbox_provider.cpp providers/google_drive/gdrive_provider.cpp \
+            providers/http/http_provider.cpp providers/icloud/icloud_provider.cpp providers/local/local_provider.cpp \
+            providers/onedrive/onedrive_provider.cpp providers/s3/s3_provider.cpp \
+            providers/webdav/webdav_provider.cpp \
+            -o utpd -lcurl -lssl -lcrypto -lpthread -lsqlite3
+
       - name: Package macOS tar.gz
         run: |
-          tar -czvf utp-macos.tar.gz utp LICENSE README.md
+          tar -czvf utp-macos.tar.gz utp utpd LICENSE README.md PRIVACY.md SECURITY.md
 
       - name: Upload macOS Asset
         uses: actions/upload-artifact@v4
@@ -161,24 +183,17 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
-      - name: Download Windows Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: utp-windows-x64
-          path: tmp-windows
-
-      - name: Unpack Windows binaries for npm distribution
-        run: |
-          unzip -q tmp-windows/utp-windows-x64.zip -d tmp-windows/extracted
-          cp tmp-windows/extracted/utp.exe npm/bin/utp.exe || true
-          cp tmp-windows/extracted/utpd.exe npm/bin/utpd.exe || true
-
-      - name: Build TypeScript SDK
+      - name: Build & Test TypeScript SDK
         run: |
           cd sdk/typescript
           npm install
           npm run build
           npm test
+
+      - name: Verify npm packages
+        run: |
+          cd sdk/typescript && npm pack --dry-run
+          cd ../../npm && npm pack --dry-run
 
       - name: Publish to NPM
         env:

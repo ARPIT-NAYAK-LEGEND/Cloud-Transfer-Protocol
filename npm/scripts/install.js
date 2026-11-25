@@ -1,29 +1,59 @@
+'use strict';
+
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
 const os = require('os');
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 
 const platform = os.platform();
-const binaryName = platform === 'win32' ? 'utp.exe' : 'utp';
-const targetDir = path.join(__dirname, '..', 'bin');
-const targetFile = path.join(targetDir, binaryName);
+const ext = platform === 'win32' ? '.exe' : '';
+const cliBinaryName = `utp${ext}`;
+const daemonBinaryName = `utpd${ext}`;
 
-// 1. If binary already exists in bin/, nothing to do
-if (fs.existsSync(targetFile)) {
+const targetDir = path.join(__dirname, '..', 'bin');
+const targetCliFile = path.join(targetDir, cliBinaryName);
+const targetDaemonFile = path.join(targetDir, daemonBinaryName);
+
+function hasFile(p) {
+  try {
+    return fs.statSync(p).isFile();
+  } catch {
+    return false;
+  }
+}
+
+// 1. If both binaries already exist in bin/, nothing to do
+if (hasFile(targetCliFile) && hasFile(targetDaemonFile)) {
   process.exit(0);
 }
 
-// 2. Check if project root already has compiled binary
-const rootBinary = path.join(__dirname, '..', '..', binaryName);
-if (fs.existsSync(rootBinary)) {
+// 2. If running inside a local monorepo checkout, reuse compiled binaries safely
+const monorepoRoot = path.join(__dirname, '..', '..');
+if (hasFile(path.join(monorepoRoot, 'CMakeLists.txt'))) {
+  const rootCli = path.join(monorepoRoot, cliBinaryName);
+  const rootDaemon = path.join(monorepoRoot, daemonBinaryName);
+  const altDaemon = path.join(monorepoRoot, platform === 'win32' ? 'utp-server.exe' : 'utp-server');
+
   try {
-    fs.copyFileSync(rootBinary, targetFile);
-    process.exit(0);
-  } catch (e) {}
+    if (!hasFile(targetCliFile) && hasFile(rootCli)) {
+      fs.copyFileSync(rootCli, targetCliFile);
+    }
+    if (!hasFile(targetDaemonFile)) {
+      const daemonSrc = hasFile(rootDaemon) ? rootDaemon : (hasFile(altDaemon) ? altDaemon : null);
+      if (daemonSrc) {
+        fs.copyFileSync(daemonSrc, targetDaemonFile);
+      }
+    }
+    if (hasFile(targetCliFile) && hasFile(targetDaemonFile)) {
+      process.exit(0);
+    }
+  } catch {
+    // Fall through to release download
+  }
 }
 
-// 3. Fallback: Download platform prebuilt binary from GitHub Release
+// 3. Download platform prebuilt release archive over HTTPS
 const VERSION = 'v2.6.1';
 const REPO = 'ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol';
 let assetName = '';
@@ -41,40 +71,116 @@ if (!assetName) {
 }
 
 const url = `https://github.com/${REPO}/releases/download/${VERSION}/${assetName}`;
+const MAX_REDIRECTS = 5;
+const REQUEST_TIMEOUT_MS = 30000;
 
-function download(downloadUrl, dest, cb) {
-  const file = fs.createWriteStream(dest);
-  https.get(downloadUrl, (res) => {
+function download(downloadUrl, dest, redirectsRemaining, cb) {
+  let parsed;
+  try {
+    parsed = new URL(downloadUrl);
+  } catch (err) {
+    return cb(err);
+  }
+
+  if (parsed.protocol !== 'https:') {
+    return cb(new Error(`Refusing insecure non-HTTPS URL: ${parsed.protocol}`));
+  }
+
+  const req = https.get(parsed, (res) => {
     if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-      return download(res.headers.location, dest, cb);
+      res.resume();
+      if (redirectsRemaining <= 0) {
+        return cb(new Error('Too many redirects'));
+      }
+      const nextUrl = new URL(res.headers.location, parsed).toString();
+      return download(nextUrl, dest, redirectsRemaining - 1, cb);
     }
+
     if (res.statusCode !== 200) {
-      try { fs.unlinkSync(dest); } catch (e) {}
+      res.resume();
       return cb(new Error(`HTTP ${res.statusCode}`));
     }
+
+    const file = fs.createWriteStream(dest, { mode: 0o600 });
+    let finished = false;
+    const fail = (err) => {
+      if (finished) return;
+      finished = true;
+      file.destroy();
+      try { fs.unlinkSync(dest); } catch {}
+      cb(err);
+    };
+
+    res.on('error', fail);
+    file.on('error', fail);
+    file.on('finish', () => {
+      if (finished) return;
+      finished = true;
+      file.close(cb);
+    });
     res.pipe(file);
-    file.on('finish', () => file.close(cb));
-  }).on('error', (err) => {
-    try { fs.unlinkSync(dest); } catch (e) {}
-    cb(err);
   });
+
+  req.setTimeout(REQUEST_TIMEOUT_MS, () => {
+    req.destroy(new Error('Download timed out'));
+  });
+  req.on('error', cb);
 }
 
-const archiveFile = path.join(targetDir, assetName);
+function copyBinaryIfRegular(srcPath, destPath) {
+  try {
+    const stat = fs.lstatSync(srcPath);
+    if (!stat.isFile() || stat.isSymbolicLink()) return false;
+    fs.copyFileSync(srcPath, destPath);
+    if (platform !== 'win32') {
+      fs.chmodSync(destPath, 0o755);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
 
-download(url, archiveFile, (err) => {
+const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'utp-install-'));
+const archiveFile = path.join(tmpDir, assetName);
+const extractDir = path.join(tmpDir, 'extracted');
+
+function cleanupTmp() {
+  try {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  } catch {}
+}
+
+download(url, archiveFile, MAX_REDIRECTS, (err) => {
   if (err) {
-    // Silent fallback to local build instructions
+    cleanupTmp();
+    // Silent fallback so offline / source installs never break npm install
     process.exit(0);
   }
 
   try {
-    if (platform === 'win32') {
-      execSync(`tar -xf "${archiveFile}" -C "${targetDir}"`, { stdio: 'ignore' });
-    } else {
-      execSync(`tar -xzf "${archiveFile}" -C "${targetDir}"`, { stdio: 'ignore' });
-      fs.chmodSync(targetFile, 0o755);
+    const stat = fs.statSync(archiveFile);
+    if (stat.size === 0) {
+      cleanupTmp();
+      process.exit(0);
     }
-    try { fs.unlinkSync(archiveFile); } catch (e) {}
-  } catch (e) {}
+
+    fs.mkdirSync(extractDir, { recursive: true });
+
+    const tarArgs = platform === 'win32'
+      ? ['-xf', archiveFile, '-C', extractDir]
+      : ['-xzf', archiveFile, '-C', extractDir];
+
+    execFileSync('tar', tarArgs, { stdio: 'ignore', shell: false });
+
+    copyBinaryIfRegular(path.join(extractDir, cliBinaryName), targetCliFile);
+    const extractedDaemon = hasFile(path.join(extractDir, daemonBinaryName))
+      ? path.join(extractDir, daemonBinaryName)
+      : path.join(extractDir, platform === 'win32' ? 'utp-server.exe' : 'utp-server');
+    copyBinaryIfRegular(extractedDaemon, targetDaemonFile);
+  } catch {
+    // Silent fallback to local build instructions on runtime
+  } finally {
+    cleanupTmp();
+  }
 });

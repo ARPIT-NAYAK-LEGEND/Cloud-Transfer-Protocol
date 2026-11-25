@@ -1,7 +1,7 @@
 {
   "name": "utp-engine",
   "version": "2.6.1",
-  "description": "Universal Cloud Transfer Protocol (UTP) - Direct 0-Disk High-Speed Cloud-to-Cloud Pipeline",
+  "description": "Zero-disk cloud-to-cloud transfer, direct web ingestion, media streaming & sync engine — Google Drive, OneDrive, S3, R2, Dropbox, WebDAV — TLS 1.3 RAM pipeline",
   "main": "./bin/utp.js",
   "bin": {
     "utp": "bin/utp.js",
@@ -10,13 +10,14 @@
     "utp-server": "bin/utpd.js"
   },
   "files": [
-    "bin/",
-    "scripts/",
+    "bin/launcher.js",
+    "bin/utp.js",
+    "bin/utpd.js",
+    "scripts/install.js",
     "README.md",
     "PRIVACY.md",
     "SECURITY.md",
-    "LICENSE",
-    "ca-bundle.crt"
+    "LICENSE"
   ],
   "scripts": {
     "start": "node ./bin/utp.js transfer",
@@ -25,6 +26,12 @@
   "keywords": [
     "cloud",
     "transfer",
+    "streaming",
+    "zero-disk",
+    "direct-download",
+    "ingest",
+    "migration",
+    "sync",
     "google-drive",
     "onedrive",
     "dropbox",
@@ -33,7 +40,8 @@
     "r2",
     "b2",
     "webdav",
-    "cli"
+    "cli",
+    "media-server"
   ],
   "author": "Arpit Nayak",
   "license": "MIT",
@@ -42,7 +50,12 @@
     "type": "git",
     "url": "git+https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol.git"
   },
+  "bugs": {
+    "url": "https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol/issues"
+  },
   "engines": {
     "node": ">=16.0.0"
-  }
+  },
+  "os": ["win32", "linux", "darwin"],
+  "cpu": ["x64", "arm64"]
 }

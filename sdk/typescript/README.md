@@ -1,8 +1,8 @@
-# @utp/client
+# `@utp/client`
 
-Official TypeScript / JavaScript SDK for the **Universal Cloud Transfer Protocol (UTP)**.
+Official TypeScript / JavaScript SDK for the **Universal Cloud Transfer Protocol (UTP)** daemon (`utpd`).
 
-Stream files and folders across 10 heterogeneous cloud providers (Google Drive, Microsoft OneDrive, Amazon S3, Cloudflare R2, Backblaze B2, Azure Blob, Dropbox, Apple iCloud, WebDAV, and Local Disk) through high-speed volatile RAM ring buffers with zero disk footprint.
+Stream files across cloud providers (`gdrive://`, `onedrive://`, `s3://`, `r2://`, `b2://`, `azure://`, `dropbox://`, `icloud://`, `webdav://`, `file://`) and ingest direct `http://`/`https://` web URLs through volatile RAM ring buffers with zero local disk footprint.
 
 ---
 
@@ -12,6 +12,8 @@ Stream files and folders across 10 heterogeneous cloud providers (Google Drive, 
 npm install @utp/client
 ```
 
+Requires Node.js `>= 18.0.0` (uses native `fetch` unless a custom `fetchFn` is provided).
+
 ---
 
 ## Quickstart
@@ -19,21 +21,21 @@ npm install @utp/client
 ```typescript
 import { UTPClient } from '@utp/client';
 
-// Connect to local or remote UTP daemon
+// Connect to local or remote UTP daemon (`utp daemon start` or `utpd`)
 const client = new UTPClient({
   baseUrl: 'http://localhost:8080',
-  token: process.env.UTP_API_TOKEN, // Optional bearer auth token
+  token: process.env.UTP_API_TOKEN, // Optional Bearer auth token
 });
 
 async function main() {
-  // 1. Initiate a transfer
+  // 1. Initiate a zero-disk cloud-to-cloud or HTTPS-to-cloud transfer
   const transferId = await client.transfer(
     'gdrive://research/dataset.tar.gz',
     'onedrive://backup/dataset.tar.gz'
   );
   console.log(`Transfer started: ${transferId}`);
 
-  // 2. Stream lifecycle events & monitor progress
+  // 2. Monitor progress & lifecycle events
   const finalTransfer = await client.waitForCompletion(transferId, {
     pollIntervalMs: 1000,
     onProgress: (t) => {
@@ -45,7 +47,15 @@ async function main() {
     },
   });
 
-  console.log('Transfer finished successfully:', finalTransfer);
+  console.log('Transfer finished:', finalTransfer);
+
+  // 3. Build an on-demand HTTP 206 streaming or direct download URL
+  const streamUrl = client.getStreamUrl('gdrive://movies/demo.mp4');
+  const downloadUrl = client.getStreamUrl('gdrive://movies/demo.mp4', {
+    download: true,
+    filename: 'demo.mp4',
+  });
+  console.log({ streamUrl, downloadUrl });
 }
 
 main().catch(console.error);
@@ -57,38 +67,40 @@ main().catch(console.error);
 
 ### `new UTPClient(options?: UTPClientOptions | string)`
 
-Options:
 - `baseUrl` *(string)*: Daemon URL (defaults to `http://localhost:8080`).
-- `token` *(string)*: Optional Bearer authentication token.
+- `token` *(string)*: Bearer authentication token (matches `.utp_api_token` / `UTP_API_TOKEN`).
 - `timeoutMs` *(number)*: Request timeout in milliseconds (defaults to `30000`).
 - `fetchFn` *(function)*: Optional custom `fetch` implementation.
 
 ### `client.transfer(srcUri: string, destUri: string, options?: TransferOptions): Promise<string>`
-Initiates a background transfer and returns the unique transfer ID.
+Initiates a background transfer (`gdrive://`, `onedrive://`, `https://`, `file://`, etc.) and returns the unique transfer ID.
 
 ### `client.getTransfer(transferId: string): Promise<Transfer>`
-Retrieves the real-time status and byte progression.
+Retrieves real-time transfer state and byte progression.
 
 ### `client.listTransfers(limit?: number): Promise<Transfer[]>`
-Retrieves recent transfers tracked in the persistent SQLite ledger.
+Lists recent transfers recorded in the persistent SQLite ledger (`utp.db`).
 
 ### `client.getEvents(transferId: string, limit?: number): Promise<TransferEvent[]>`
-Fetches §7 lifecycle event logs for a given transfer.
+Fetches lifecycle event logs for a given transfer.
 
 ### `client.pauseTransfer(transferId: string): Promise<void>`
-Requests a running transfer to pause safely between chunks without losing progress.
+Requests a running transfer to pause safely at the next chunk boundary without losing progress.
 
 ### `client.cancelTransfer(transferId: string): Promise<void>`
-Aborts a transfer and rolls back incomplete sessions.
+Aborts a transfer and discards partial upload state.
 
 ### `client.waitForCompletion(transferId: string, options?: WaitOptions): Promise<Transfer>`
-Polls the daemon until terminal state (`COMPLETED` or `FAILED`).
+Polls the daemon until terminal state (`COMPLETED`, `FAILED`, or `CANCELLED`).
 
-### `client.streamEvents(transferId: string): AsyncIterable<TransferEvent>`
-Consumes engine events as an `AsyncIterable` stream.
+### `client.streamEvents(transferId: string, options?: { pollIntervalMs?: number; signal?: AbortSignal }): AsyncIterable<TransferEvent>`
+Consumes engine lifecycle events as an async iterable stream.
+
+### `client.getStreamUrl(uriOrId: string, options?: { download?: boolean; filename?: string }): string`
+Builds a tokenized `/api/stream` URL for HTTP `206 Partial Content` media playback (`<video>`, VLC, MPV) or forced attachment downloads (`download: true`).
 
 ---
 
 ## License
 
-MIT © UTP Core Contributors
+[MIT](https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol/blob/PROJECTS/LICENSE) © Arpit Nayak

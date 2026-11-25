@@ -29,39 +29,42 @@
 
 ## ⚡ What is UTP?
 
-**UTP (Universal Transfer Protocol)** is a high-performance cloud migration, synchronization, and routing engine. Unlike traditional tools that download gigabytes of files to your local hard drive before re-uploading them to another provider, UTP streams bytes **directly from cloud-to-cloud through volatile RAM ring buffers over encrypted TLS 1.3 tunnels**.
+**UTP (Universal Transfer Protocol)** is an open-source, high-performance cloud migration, direct web ingestion, media streaming, and routing engine built in C++20. Unlike traditional tools that download gigabytes of files to your local hard drive before re-uploading them to another provider, UTP streams bytes **directly through dynamically sized RAM ring buffers over encrypted TLS 1.3 sockets**.
 
-- **0-Disk Footprint**: Never exhausts your local SSD/NVMe or incurs local disk wear when migrating multi-gigabyte or terabyte datasets.
-- **Interactive Developer-Grade TUI**: Full visual cloud file explorer with breadcrumb directory navigation, multi-account OAuth management, folder creation, and recursive batch transfers.
-- **Real-Time Live HUD**: Smooth gradient progress bars, real-time MB/s throughput velocity, rolling ETA calculation, and chunk-by-chunk state monitoring.
-- **Fast-Path In-Flight Verification**: Computes dual SHA-256 and MD5 checksums in memory on the fly and matches them directly against provider cloud hashes (OneDrive `sha256Hash`, Google Drive `md5Checksum`, AWS S3 `ETag`), eliminating cloud read-back egress.
-- **Resumable ACID Ledger**: Crash-resilient SQLite WAL-backed chunk ledger (`utp.db`). Interrupted transfers resume exactly from the last committed chunk.
-- **Delta Folder Sync Engine**: High-speed folder synchronization with 0-byte transfer skips for unchanged files, 5 configurable conflict policies, and bidirectional sync.
-- **Multi-Destination Fan-Out & Smart Routing**: Stream a source file to multiple cloud targets simultaneously in a single read pass, or dynamically route files based on file extension, file size, path prefix, or filename.
-- **Background Daemon Management**: Integrated detached background process controls (`utp daemon start|stop|status`) with Bearer token authentication and REST API.
-- **Ecosystem SDKs**: Native, strongly-typed TypeScript SDK (`@utp/client`) for Node.js/web and Python client (`utp-client`) for automation.
+- **0-Disk Footprint**: Never exhausts your local SSD/NVMe or incurs local disk wear when migrating multi-gigabyte datasets or streaming remote media.
+- **Direct Web URL Ingestion (`utp ingest` / `https://`)**: Stream direct HTTP/HTTPS downloads, ISOs, videos, and seedbox URLs straight into Google Drive, OneDrive, S3, R2, or local storage with automatic `HEAD` / `Range: bytes=0-0` probing and `Content-Disposition` filename detection.
+- **Zero-Disk On-Demand Media Streaming (`utp stream` / `utp play`)**: Instantly expose any cloud file over a local HTTP/1.1 `206 Partial Content` range server (`http://127.0.0.1:8080/stream`) for lag-free seeking in VLC, MPV, or web browsers — plus authenticated `/api/stream` streaming & direct downloads in `utpd`.
+- **Hardware-Adaptive Memory Chunking**: Dynamically queries physical system RAM and adapts chunk sizes to available memory, bandwidth, and provider limits.
+- **Interactive Developer-Grade TUI**: Full operations hub with visual cloud file explorer, breadcrumb directory navigation, multi-account OAuth management, folder creation, direct download, recursive batch transfers, and instant stream actions.
+- **Real-Time Live HUD**: Gradient progress bars, smoothed MB/s throughput velocity, rolling ETA calculation, and in-flight byte counters.
+- **Fast-Path In-Flight Verification**: Computes dual SHA-256 and MD5 checksums in memory on the fly and matches them directly against provider cloud hashes (`sha256Hash`, `md5Checksum`, `ETag`).
+- **Resumable ACID Ledger**: Crash-resilient SQLite WAL-backed chunk ledger (`utp.db`). Interrupted transfers resume cleanly from the last committed chunk.
+- **Delta Folder Sync & Multi-Destination Routing**: Bidirectional/unidirectional folder sync with 5 conflict policies, concurrent multi-destination fan-out broadcast, and rule-based routing.
+- **Background Daemon & SDKs**: Detached `utpd` REST API server (`utp daemon start|stop|status`) with Bearer auth, TypeScript SDK (`@utp/client`), and Python SDK (`utp-client`).
 
 ---
 
 ## ⚖️ Surface Maturity & Status Matrix
 
-UTP adheres to strict MVP scope discipline (§12 of `CLAUDE.md`). Surfaces are explicitly classified into **Core Production MVP** (which undergo automated CI PR gates including `kill -9` → resume → SHA-256 verification) and **Experimental Post-MVP Extensions**:
+UTP classifies surfaces into **Core Production MVP** (covered by automated CI build/test gates including `kill -9` -> resume -> SHA-256 verification) and **Experimental Extensions**:
 
 | Surface | Component / Scope | Maturity Status | Verification Gate |
 | :--- | :--- | :--- | :--- |
 | **Local Storage** | `file://` provider | **Core MVP (Production)** | Automated CI + DoD Resume Verified |
 | **Google Drive** | `gdrive://` provider | **Core MVP (Production)** | OAuth2 PKCE + Token Refresh + DoD Verified |
 | **OneDrive** | `onedrive://` provider | **Core MVP (Production)** | OAuth2 + Large Upload Session Verified |
-| **CLI & TUI Engine** | `utp transfer`, `resume`, `pause`, `status`, `cancel`, `list` | **Core MVP (Production)** | End-to-End Terminal UI & SHA-256 Match |
-| **Folder Sync Engine** | `utp sync <src> <dest>` | **Core MVP (Production)** | Phase 6 Delta Change Detection (0 bytes skip) + 5 Conflict Policies |
-| **Multi-Destination Fan-Out** | `utp route <src> <d1> <d2>...` | **Core MVP (Production)** | Phase 7 Zero-Disk Fan-Out Streaming + Concurrent Broadcast |
-| **Smart Routing Engine** | `utp route <src> --rule "<c>:<d>"` | **Core MVP (Production)** | Phase 10 Pattern Engine (ext, size, prefix, name, default fallback) |
-| **Daemon Management** | `utp daemon start\|stop\|status` | **Core MVP (Production)** | Phase 9 Detached Background Process Group Controls |
-| **TypeScript / Node SDK** | `@utp/client` (`sdk/typescript/`) | **Core MVP (Production)** | Phase 8 Native Typed Client + Async Event Stream + Mock Battery |
+| **CLI & TUI Engine** | `transfer`, `ingest`, `stream`, `play`, `resume`, `pause`, `status`, `cancel`, `list` | **Core MVP (Production)** | End-to-End Terminal UI & SHA-256 Match |
+| **Folder Sync Engine** | `utp sync <src> <dest>` | **Core MVP (Production)** | Delta Change Detection (0 bytes skip) + 5 Conflict Policies |
+| **Multi-Destination Fan-Out** | `utp route <src> <d1> <d2>...` | **Core MVP (Production)** | Zero-Disk Fan-Out Streaming + Concurrent Broadcast |
+| **Smart Routing Engine** | `utp route <src> --rule "<c>:<d>"` | **Core MVP (Production)** | Pattern Engine (`ext`, `size`, `path`, `name`, `--default`) |
+| **Daemon Management** | `utp daemon start\|stop\|status` | **Core MVP (Production)** | Detached Process Group Controls + PID/Token State |
+| **TypeScript / Node SDK** | `@utp/client` (`sdk/typescript/`) | **Core MVP (Production)** | Native Typed Client + Async Event Stream + Unit Suite (10/10) |
 | **State Persistence** | SQLite WAL ledger (`utp.db`) | **Core MVP (Production)** | Crash-Resilient Upsert & Event Stream |
-| **Daemon Server (`utpd`)** | REST API (`/api/transfers`) | *Experimental (Post-MVP)* | Marked `X-UTP-Surface: experimental` |
+| **Direct Web Ingestion** | `http://` & `https://` (`HttpProvider`) | *Experimental (Extension)* | Ranged HTTP Stream Read + Header Filename Probing |
+| **Zero-Disk Stream Server** | Local `utp stream` & Daemon `/api/stream` | *Experimental (Extension)* | HTTP 206 Range Seeking + Token Auth |
+| **Daemon Server (`utpd`)** | REST API (`/api/transfers`, `/api/stream`) | *Experimental (Post-MVP)* | Marked `X-UTP-Surface: experimental` |
 | **Web Dashboard** | Browser UI (`web/`) | *Experimental (Post-MVP)* | Preview UI for Daemon API |
-| **Python SDK** | `utp-client` (`sdk/python/`) | *Experimental (Post-MVP)* | PyPI Beta Client Library |
+| **Python SDK** | `utp-client` (`sdk/python/`) | *Experimental (Post-MVP)* | Beta Client Library |
 | **Extended Clouds** | `s3://`, `r2://`, `b2://`, `azure://`, `dropbox://`, `icloud://`, `webdav://` | *Experimental (Post-MVP)* | Pending Automated Multi-Cloud DoD Gates |
 
 ---
@@ -71,18 +74,19 @@ UTP adheres to strict MVP scope discipline (§12 of `CLAUDE.md`). Surfaces are e
 ### Core Production MVP
 | Storage Provider | URI Scheme | Features |
 | :--- | :--- | :--- |
-| **Local Storage** | `file://<path>` | Local NVMe, SSD, and mounted network drives |
+| **Local Storage** | `file://<path>` | Local NVMe, SSD, mounted disks, and direct cloud-to-local downloads |
 | **Google Drive** | `gdrive://<id>` | Multi-account OAuth2, resumable uploads, server-side copy |
 | **Microsoft OneDrive** | `onedrive://<path>` | Personal OneDrive, Microsoft 365 & SharePoint |
 
-### Extended Cloud Adapters (Experimental Post-MVP)
+### Extended Adapters & Web Ingestion (Experimental)
 | Storage Provider | URI Scheme | Features |
 | :--- | :--- | :--- |
-| **Dropbox** | `dropbox://<path>` | Dropbox v2 API, chunked upload sessions (`files/copy_v2`) |
+| **Direct Web URLs** | `https://<url>`, `http://<url>` | Read-only ranged HTTP ingestion from web downloads & seedboxes |
+| **Dropbox** | `dropbox://<path>` | Dropbox v2 API, chunked upload sessions |
 | **Apple iCloud** | `icloud://<path>` | Direct Web API (`docws.icloud.com`) + Local CloudKit Sync Bridge |
 | **Amazon S3** | `s3://<bucket>/<key>` | Multipart uploads, SigV4 signing, all AWS regions |
-| **Cloudflare R2** | `r2://<bucket>/<key>` | High-performance S3 API with zero egress fees |
-| **Backblaze B2** | `b2://<bucket>/<key>` | Cost-effective B2 cloud storage endpoints |
+| **Cloudflare R2** | `r2://<bucket>/<key>` | S3-compatible API with zero egress fees |
+| **Backblaze B2** | `b2://<bucket>/<key>` | Cost-effective B2 S3 cloud endpoints |
 | **Azure Blob** | `azure://<container>/<blob>` | Microsoft Azure block blobs & containers |
 | **WebDAV / Nextcloud** | `webdav://<path>` | RFC 4918 compliant: Nextcloud, ownCloud, TrueNAS, Synology NAS |
 
@@ -95,7 +99,7 @@ UTP adheres to strict MVP scope discipline (§12 of `CLAUDE.md`). Surfaces are e
 curl -fsSL https://raw.githubusercontent.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol/PROJECTS/install.sh | bash
 ```
 
-### Option 2: Instant Run with `npx` (No installation needed)
+### Option 2: Instant Run with `npx` (No global install needed)
 ```bash
 npx utp-engine transfer
 ```
@@ -121,29 +125,61 @@ npm install -g utp-engine
 
 ### Option 4: Standalone Prebuilt Binaries (GitHub Releases)
 Download prebuilt executables directly from [Releases](https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol/releases):
-- **Windows**: `utp-windows-x64.zip` (`utp.exe`)
-- **Linux**: `utp-linux-x64.tar.gz` (`utp`)
-- **macOS**: `utp-macos.tar.gz` (`utp`)
+- **Windows**: `utp-windows-x64.zip` (`utp.exe`, `utpd.exe`)
+- **Linux**: `utp-linux-x64.tar.gz` (`utp`, `utpd`)
+- **macOS**: `utp-macos.tar.gz` (`utp`, `utpd`)
 
 ---
 
 ## 🎮 Usage
 
-### 1. Interactive Visual TUI (Recommended)
-Launch the visual interactive terminal interface with arrow-key navigation and live drive explorer:
+### 1. Interactive Visual TUI (Operations Hub)
+Launch the interactive terminal hub (`utp`) or jump directly into the transfer explorer:
 ```bash
+utp
+# or directly open source/destination explorer:
 utp transfer
 ```
-- **Account Selection & Management**: Seamlessly authenticate and switch between multiple Google Drive and OneDrive accounts.
-- **Directory Browsing**: Navigate folders using `cd <#>`, go up with `cd ..`, and paginate with `p` (previous) / `n` (next).
-- **Selection Modes**: Select a specific file by number, enter a folder, or type `all` to batch transfer entire directories recursively.
-- **Target Folder Creation**: Choose destination directories with inline breadcrumb navigation or create new folders on the fly.
-- **Real-Time HUD**: Watch live transfer speeds (MB/s), ETA countdowns, and gradient progress bars, followed by an execution summary.
+- **Operations Hub**: Switch between Interactive Transfer & Web Ingestion, On-Demand Cloud Media Streamer, and Ledger History without leaving the session.
+- **Direct Web URL & Cloud Download**: Choose **Direct Web / URL Stream (`https://`)** to pipe remote URLs straight into cloud storage, or select **Local Filesystem (`file://`)** as destination for direct cloud-to-local downloads.
+- **Instant Stream & Play**: Select any file in the cloud explorer to choose **"Stream & Play directly (Zero-Disk)"**, or pick **"Stream & Play (Zero-Disk)" (`stream://`)** as destination.
+- **Account Selection & Directory Browsing**: Manage multiple Google Drive, OneDrive, Dropbox, and iCloud accounts; browse with `cd <#>`, `cd ..`, `.` (pick current folder), `n`/`p` pagination, and `all` batch selection.
 
 ---
 
-### 2. Direct CLI Pipeline
-Stream directly between any two cloud endpoints in a single command without touching local storage:
+### 2. Direct Web URL Ingestion (`utp ingest` / `https://`)
+Stream public or Bearer-authenticated direct download links straight into cloud storage or local disk through RAM — automatically inspecting `Content-Length`, `Content-Range`, and `Content-Disposition` headers:
+```bash
+# Ingest a remote ISO or archive straight to Google Drive (auto-detects filename)
+utp ingest https://example.com/releases/ubuntu.iso gdrive://ISOs/
+
+# Works without https:// prefix via 'ingest'
+utp ingest example.com/video.mp4 onedrive://Media/video.mp4
+
+# Stream directly from HTTP URL to Amazon S3 or Cloudflare R2
+utp transfer https://example.com/dataset.tar.gz r2://datasets/dataset.tar.gz
+```
+
+---
+
+### 3. Zero-Disk On-Demand Cloud Media Streaming (`utp stream` / `utp play`)
+Play video, audio, or PDFs stored in any cloud provider without downloading the file to disk first. UTP launches an HTTP/1.1 `206 Partial Content` Range server on `http://127.0.0.1:8080/stream` (automatically scanning fallback ports `port..port+19` if occupied) and streams 512 KB volatile RAM slices on demand:
+```bash
+# Launch interactive cloud picker -> start streaming server
+utp stream
+
+# Stream and automatically open default media player / browser
+utp play
+
+# Stream a specific cloud URI on a custom port
+utp stream gdrive://1BxiMVs0XRA5nFMdKvBHKr... --port 9090 --open
+```
+Playback instructions for `vlc`, `mpv`, and web browsers are displayed immediately; press `q`, `Enter`, `Esc`, or `Ctrl+C` to stop streaming cleanly and return to the menu.
+
+---
+
+### 4. Direct CLI Transfer & Cloud-to-Local Download
+Stream directly between any two endpoints in a single command without intermediate disk copies:
 ```bash
 # Google Drive to Microsoft OneDrive
 utp transfer gdrive://1BxiMVs0XRA5nFMdKvBHKr... onedrive://Backups/data.zip
@@ -151,16 +187,16 @@ utp transfer gdrive://1BxiMVs0XRA5nFMdKvBHKr... onedrive://Backups/data.zip
 # Dropbox to Amazon S3
 utp transfer dropbox://Dataset/archive.tar.gz s3://my-bucket/archive.tar.gz
 
-# Cloudflare R2 to Local Storage (with 20 MB/s bandwidth limit)
-utp transfer r2://assets/video.mp4 file://D:/video.mp4 --bandwidth 20971520
+# Cloudflare R2 direct download to Local Storage (with 20 MB/s bandwidth cap)
+utp transfer r2://assets/video.mp4 file://D:/Downloads/video.mp4 --bandwidth 20971520
 
-# With deterministic ID for programmatic tracking and resumption
+# Deterministic ID for programmatic tracking and resumption
 utp transfer gdrive://1GwVK676IBt... onedrive://Archives/dataset.tar.gz --id migration-job-42
 ```
 
 ---
 
-### 3. Folder Synchronization & Delta Sync
+### 5. Folder Synchronization & Delta Sync
 Synchronize directory trees recursively between any two providers with delta change detection (unchanged files transfer **0 bytes**):
 ```bash
 # Unidirectional mirror from local directory to Google Drive
@@ -172,13 +208,13 @@ utp sync file://docs onedrive://Documents -b
 # Dry-run preview of planned sync actions without modifying destination
 utp sync file://data s3://bucket/data -n
 
-# Specify conflict policy: OVERWRITE (default), FAIL, RENAME, SKIP, or NEWER_WINS
+# Conflict policy: OVERWRITE (default), FAIL, RENAME, SKIP, or NEWER_WINS
 utp sync file://data s3://bucket/data --policy newer_wins
 ```
 
 ---
 
-### 4. Multi-Destination Routing & Fan-Out Streaming
+### 6. Multi-Destination Routing & Fan-Out Streaming
 Stream a single source file to multiple cloud destinations simultaneously via shared memory fan-out buffers in a single read pass:
 ```bash
 # Stream from AWS S3 simultaneously to Google Drive AND OneDrive
@@ -190,8 +226,8 @@ utp route file://firmware.bin s3://primary/firmware.bin b2://backup/firmware.bin
 
 ---
 
-### 5. Rules-Based Smart Routing Engine
-Dynamically route files matching extensions, byte sizes, prefixes, or keywords to different storage destinations:
+### 7. Rules-Based Smart Routing Engine
+Dynamically route files matching extensions, byte sizes, prefixes, or names to different storage destinations:
 ```bash
 # Route media to S3, documents to OneDrive, and archives (>100MB) to Backblaze B2
 utp route ./data \
@@ -203,101 +239,110 @@ utp route ./data \
 
 Supported rule conditions:
 - `ext=mp4,mkv,mov`: Matches file extension (comma-separated list).
-- `size>100M`, `size<10K`, `size>=1G`: Evaluates byte size with standard metric suffixes (`K`, `M`, `G`, `T`).
+- `size>100M`, `size<10K`, `size>=1G`: Evaluates byte size with metric suffixes (`K`, `M`, `G`, `T`).
 - `path=documents/`: Matches directory prefix in relative path.
 - `name=archive`: Matches exact file stem or substring.
 
 ---
 
-### 6. Transfer Lifecycle Management
+### 8. Transfer Lifecycle Management
 All transfers are recorded in the local SQLite ledger (`utp.db`) and can be inspected, paused, resumed, or cancelled at any time:
-
 ```bash
-# Inspect real-time state, chunk completion, and recent events
-utp status <transfer_id>
-
-# Resume an interrupted or paused transfer exactly where it left off
-utp resume <transfer_id>
-
-# Safely pause an active transfer at the next chunk boundary
-utp pause <transfer_id>
-
-# Abort an active transfer and discard partial state
-utp cancel <transfer_id>
-
-# View recent transfer history recorded in the ACID ledger
-utp list
+utp status <transfer_id>    # Inspect state, chunks & event timeline
+utp resume <transfer_id>    # Resume interrupted/paused transfer from ACID ledger
+utp pause <transfer_id>     # Pause cleanly at next chunk boundary
+utp cancel <transfer_id>    # Abort transfer and discard partial state
+utp list                    # View recent transfer history
 ```
 
 ---
 
-### 7. Background API Daemon Lifecycle
+### 9. Background API Daemon (`utpd`) & REST Streaming
 Manage the background REST API server directly from the CLI:
 ```bash
-# Start background API server with detached process group and bearer auth
-utp daemon start --port 8080
-
-# Query daemon runtime state, active PID, endpoint, and token
-utp daemon status
-
-# Gracefully terminate background daemon process
-utp daemon stop
+utp daemon start --port 8080   # Start detached daemon & generate .utp_api_token
+utp daemon status              # Inspect active PID, endpoint & token
+utp daemon stop                # Gracefully terminate background daemon
 ```
+
+Authenticated HTTP endpoints (`Authorization: Bearer <token>`, `X-API-Key`, or `?token=`):
+- `POST /api/transfers` — Initiate background cloud-to-cloud or HTTPS ingestion transfer
+- `GET /api/transfers`, `GET /api/transfers/:id`, `GET /api/transfers/:id/events` — Inspect state & events
+- `POST /api/transfers/:id/pause` | `/cancel` — Control active transfers
+- `GET /api/stream?uri=<cloud_uri>` *(also supports `?src=`, `?id=`, `/api/stream/:id`, `&download=true`, `&name=<filename>`)* — Zero-disk HTTP 206 media stream & direct attachment download
 
 ---
 
-### 8. Native TypeScript SDK (`@utp/client`)
-Integrate zero-disk cloud transfers into Node.js, Next.js, and backend services:
+### 10. Native TypeScript SDK (`@utp/client`)
+Integrate zero-disk cloud transfers and streaming URLs into Node.js, Next.js, and backend services:
 ```typescript
 import { UTPClient } from '@utp/client';
 
 const client = new UTPClient({
   baseUrl: 'http://127.0.0.1:8080',
-  token: 'YOUR_API_TOKEN'
+  token: 'YOUR_API_TOKEN',
 });
 
 // Launch zero-disk streaming transfer
-const transfer = await client.transfer({
-  src: 'gdrive://1GwVK676IBt10iBEdRzh2LgqWdajT-In_',
-  dest: 'onedrive://Backups/dataset.tar.gz'
-});
+const transferId = await client.transfer(
+  'gdrive://1GwVK676IBt10iBEdRzh2LgqWdajT-In_',
+  'onedrive://Backups/dataset.tar.gz'
+);
 
 // Await completion with real-time progress callbacks
-await client.waitForCompletion(transfer.id, { timeoutMs: 60000 }, (p) => {
-  console.log(`Progress: ${p.bytesTransferred} / ${p.size} bytes (${p.progressPercent.toFixed(1)}%)`);
+await client.waitForCompletion(transferId, {
+  timeoutMs: 60000,
+  onProgress: (t) => {
+    const pct = t.size > 0 ? (t.bytes_transferred / t.size) * 100 : 0;
+    console.log(`Progress: ${t.bytes_transferred} / ${t.size} bytes (${pct.toFixed(1)}%)`);
+  },
+});
+
+// Generate on-demand streaming or direct download URL
+const streamUrl = client.getStreamUrl('gdrive://movies/clip.mp4');
+const downloadUrl = client.getStreamUrl('gdrive://movies/clip.mp4', {
+  download: true,
+  filename: 'clip.mp4',
 });
 ```
 
 ---
 
-### 9. Python SDK (`utp-client`)
-Automate data pipelines with Python:
+### 11. Python SDK (`utp-client`)
+Automate data pipelines and media streaming links with Python:
 ```python
-from utp import UTPClient
+from utp_client import UTPClient
 
-client = UTPClient(base_url="http://127.0.0.1:8080", token="YOUR_API_TOKEN")
+client = UTPClient(host="http://127.0.0.1:8080")
 
 # Trigger transfer
-transfer = client.transfer(
-    src="s3://source-bucket/model.onnx",
-    dest="onedrive://AI_Models/model.onnx"
+transfer_id = client.transfer(
+    "s3://source-bucket/model.onnx",
+    "onedrive://AI_Models/model.onnx"
 )
 
-# Monitor status
-status = client.wait_for_completion(transfer["id"])
+# Monitor until completion
+status = client.wait_until_complete(transfer_id)
 print(f"Transfer finished with status: {status['state']}")
+
+# Construct streaming or direct download URL
+stream_url = client.get_stream_url("gdrive://movies/clip.mp4", download=False)
 ```
 
 ---
 
-### 10. CLI Quick Reference
+### 12. CLI Quick Reference
 
 | Command | Arguments | Flags | Description |
 | :--- | :--- | :--- | :--- |
+| `utp` / `utp menu` | *(none)* | *(none)* | Interactive master operations menu |
 | `utp transfer` | *(none)* | *(none)* | Launch interactive visual TUI explorer |
-| `utp transfer` | `<src> <dest>` | `--bandwidth`, `--id`, `--verbose` | Direct cloud-to-cloud RAM streaming |
+| `utp transfer` | `<src> <dest>` | `--bandwidth`, `--id`, `--verbose` | Direct cloud/web/local RAM streaming transfer |
+| `utp ingest` | `<url> <dest>` | `--bandwidth`, `--id` | Direct HTTP/HTTPS URL ingestion to cloud or local |
+| `utp stream` | `[cloud-uri]` | `--port`, `--open` (`-o`) | Zero-disk HTTP 206 media streaming server |
+| `utp play` | `[cloud-uri]` | `--port` | Stream cloud media and auto-launch player |
 | `utp sync` | `<src> <dest>` | `-b`, `-n`, `--policy` | Recursive delta folder synchronization |
-| `utp route` | `<src> <d1> <d2>...` | `--policy` | Multi-destination fan-out broadcast |
+| `utp route` | `<src> <d1> <d2>...` | `--policy`, `--bandwidth` | Multi-destination fan-out broadcast |
 | `utp route` | `<src>` | `--rule`, `--default` | Rules-based smart routing engine |
 | `utp status` | `<transfer_id>` | *(none)* | Inspect progress, chunk states, and event log |
 | `utp resume` | `<transfer_id>` | `--bandwidth` | Resume interrupted transfer from SQLite ledger |
@@ -312,10 +357,10 @@ print(f"Transfer finished with status: {status['state']}")
 
 ```
    ┌────────────────────────────────────────────────────────────────────────┐
-   │                          UTP Core Engine v2.6                          │
+   │                        UTP Core Engine v2.6.1                          │
    │  ┌───────────────────────┐                  ┌───────────────────────┐  │
-   │  │   Memory RAM Ring     │◀────────────────▶│    Chunk Planner      │  │
-   │  │   (Zero Local Disk)   │                  │   (Adaptive 2.5–40MB) │  │
+   │  │   Memory RAM Ring     │◀────────────────▶│ Adaptive ChunkPlanner │  │
+   │  │   (Zero Local Disk)   │                  │ (RAM & Net Bounded)   │  │
    │  └───────────────────────┘                  └───────────────────────┘  │
    │              │                                           │             │
    │              ▼                                           ▼             │
@@ -329,8 +374,8 @@ print(f"Transfer finished with status: {status['state']}")
    │             ┌────────────────────┴────────────────────┐                │
    │             ▼                                         ▼                │
    │   ┌───────────────────┐                     ┌───────────────────┐      │
-   │   │  Source Provider  │                     │   Dest Provider   │      │
-   │   │(HTTP Range Stream)│                     │ (Chunked Session) │      │
+   │   │  Source / HTTP    │                     │ Dest / HTTP 206   │      │
+   │   │(Range Pull Stream)│                     │  Stream & Session │      │
    │   └───────────────────┘                     └───────────────────┘      │
    └────────────────────────────────────────────────────────────────────────┘
                                       ▲
@@ -340,9 +385,9 @@ print(f"Transfer finished with status: {status['state']}")
    └────────────────────────────────────────────────────────────────────────┘
 ```
 
-- **Client-Side Encryption**: All transfers utilize direct TLS 1.3 encrypted sockets with modern ciphers.
+- **Client-Side Encryption**: All transfers utilize direct TLS 1.3 encrypted sockets with certificate verification.
 - **Fast-Path Integrity**: Eliminates cloud download read-back by matching in-flight SHA-256/MD5 hashes directly against provider metadata.
-- **Credential Hygiene**: Access tokens and refresh credentials are stored strictly in local user configurations (`.utp_*_token.json`) protected by standard OS file permissions. No third-party servers, intermediate proxies, or telemetry services ever touch your tokens or data.
+- **Credential Hygiene**: Access tokens and refresh credentials are stored strictly in local user files (`.utp_*_token.json`) and daemon tokens in `.utp_api_token`. No third-party servers, intermediate proxies, or telemetry services ever touch your tokens or data.
 
 ---
 
@@ -350,12 +395,13 @@ print(f"Transfer finished with status: {status['state']}")
 
 ### Prerequisites
 - C++20 compliant compiler (`g++` >= 11, `clang` >= 13, or MSVC 2022)
-- `libcurl`, `OpenSSL` (libssl & libcrypto), and `sqlite3`
+- `libcurl`, `OpenSSL` (`libssl` & `libcrypto`), and `sqlite3`
 
 ### Using Build Scripts (Recommended)
 ```bash
 # Windows (MSYS2 UCRT64 / MinGW)
-.\build_cli.bat
+.\scripts\build_cli.bat
+.\scripts\build_server.bat
 
 # Linux / macOS
 chmod +x ./build.sh && ./build.sh
@@ -370,7 +416,7 @@ cmake --build build --config Release
 ### Running Test Suites
 ```bash
 # Build and run the test battery (Windows)
-.\build_tests.bat
+.\scripts\build_tests.bat
 .\test_runner.exe
 
 # Or via CMake / CTest
