@@ -3,19 +3,24 @@ class Utp < Formula
   homepage "https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol"
   version "2.6.2"
   license "MIT"
-  url "https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol.git",
-      branch: "PROJECTS"
 
-  depends_on "cmake" => :build
+  on_macos do
+    url "https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol/releases/download/v2.6.2/utp-macos.tar.gz"
+    sha256 "03944321ce44b51dea912e43aefcaf2acb374cd198eb5540d7b9eb5ad5d991dd"
+  end
+
+  on_linux do
+    url "https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol/releases/download/v2.6.2/utp-linux-x64.tar.gz"
+    sha256 "5689fc2b130b73d76459149a5b775478160990e0efbaa855db49612f6b9b0ac1"
+  end
+
   depends_on "curl"
   depends_on "openssl@3"
   depends_on "sqlite"
 
   def install
-    system "cmake", "-S", ".", "-B", "build", "-DBUILD_TESTS=OFF", *std_cmake_args
-    system "cmake", "--build", "build", "--parallel"
-    bin.install "build/cli/utp"
-    bin.install "build/server/utpd"
+    bin.install "utp"
+    bin.install "utpd"
   end
 
   test do
