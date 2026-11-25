@@ -106,7 +106,7 @@ export default function TerminalSimulation() {
               <span className="w-2.5 h-2.5 rounded-full bg-[#383531] inline-block" />
               <span className="w-2.5 h-2.5 rounded-full bg-[#383531] inline-block" />
               <span className="ml-2 text-[#9E9B94] text-xs">
-                utp-runtime-v2.6.1 (x86_64)
+                utp-runtime-v2.6.2 (x86_64)
               </span>
             </div>
 

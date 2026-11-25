@@ -346,7 +346,7 @@ void print_usage() {
     std::cout << "\n"
               << C_VIOLET "▲" C_RESET " " C_WHITE C_BOLD "UTP" C_RESET " "
               << C_MUTED "· Universal Cloud Transfer Protocol" C_RESET " "
-              << C_CYAN "v2.6.1-pro" C_RESET "\n"
+              << C_CYAN "v2.6.2-pro" C_RESET "\n"
               << C_SPINE GLYPH_SPINE C_RESET "  "
               << C_MUTED "Direct zero-disk memory streaming · End-to-end TLS 1.3" C_RESET "\n"
               << C_SPINE GLYPH_SPINE C_RESET "\n"

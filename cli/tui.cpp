@@ -246,7 +246,7 @@ void print_modern_header(bool is_initial) {
     std::cout << "\n"
               << C_VIOLET "▲" C_RESET " " C_WHITE C_BOLD "UTP" C_RESET " "
               << C_MUTED "· Universal Cloud Transfer Protocol" C_RESET " "
-              << C_CYAN "v2.6.1-pro" C_RESET "\n"
+              << C_CYAN "v2.6.2-pro" C_RESET "\n"
               << C_SPINE GLYPH_SPINE C_RESET "  "
               << C_MUTED "Dynamic Memory Ring Buffer · Zero-Disk Pipeline · TLS 1.3" C_RESET "\n"
               << C_SPINE GLYPH_SPINE C_RESET "\n";

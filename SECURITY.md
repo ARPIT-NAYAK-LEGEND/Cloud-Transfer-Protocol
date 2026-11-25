@@ -6,8 +6,8 @@ The following versions of Universal Cloud Transfer Protocol (UTP) are currently 
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 2.6.x   | :white_check_mark: |
-| < 2.6.0 | :x:                |
+| >= 2.6.2 | :white_check_mark: |
+| < 2.6.2  | :x:                |
 
 ---
 

@@ -9,7 +9,7 @@ BOLD='\033[1m'
 NC='\033[0m'
 
 REPO="ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol"
-VERSION="v2.6.1"
+VERSION="v2.6.2"
 
 echo -e "\n${BOLD}${CYAN}╔══════════════════════════════════════════════════════════════╗${NC}"
 echo -e "${BOLD}${CYAN}║       Installing Universal Cloud Transfer Protocol (UTP)     ║${NC}"
@@ -96,9 +96,17 @@ echo -e "==> Installing to ${BOLD}${INSTALL_DIR}/utp${NC}..."
 if [ "$USE_SUDO" = true ]; then
     sudo mv "$TMP_DIR/utp" "$INSTALL_DIR/utp"
     sudo chmod 755 "$INSTALL_DIR/utp"
+    if [ -f "$TMP_DIR/utpd" ]; then
+        sudo mv "$TMP_DIR/utpd" "$INSTALL_DIR/utpd"
+        sudo chmod 755 "$INSTALL_DIR/utpd"
+    fi
 else
     mv "$TMP_DIR/utp" "$INSTALL_DIR/utp"
     chmod 755 "$INSTALL_DIR/utp"
+    if [ -f "$TMP_DIR/utpd" ]; then
+        mv "$TMP_DIR/utpd" "$INSTALL_DIR/utpd"
+        chmod 755 "$INSTALL_DIR/utpd"
+    fi
 fi
 
 # 3. Check PATH

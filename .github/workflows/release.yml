@@ -95,6 +95,15 @@ jobs:
             providers/webdav/webdav_provider.cpp \
             -o utpd -lcurl -lssl -lcrypto -lpthread -lsqlite3
 
+          g++ -std=c++20 -O3 -I core/include -I . \
+            tests/test_runner.cpp \
+            core/src/chunk_planner.cpp core/src/engine.cpp core/src/state_manager.cpp core/src/uri_parser.cpp \
+            core/src/sync_engine.cpp core/src/multi_engine.cpp core/src/routing_rules.cpp \
+            providers/common/http_client.cpp providers/local/local_provider.cpp providers/http/http_provider.cpp \
+            -o test_runner -lcurl -lssl -lcrypto -lpthread -lsqlite3
+          ./test_runner
+          rm -f test_runner utp.db
+
       - name: Package Linux tar.gz
         run: |
           tar -czvf utp-linux-x64.tar.gz utp utpd LICENSE README.md PRIVACY.md SECURITY.md
@@ -304,8 +313,10 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           if [ -n "$NODE_AUTH_TOKEN" ]; then
-            cd sdk/typescript && npm publish --access public || echo "sdk publish skipped"
-            cd ../../npm && npm publish --access public || echo "npm publish skipped"
+            TAG_VER="${GITHUB_REF_NAME#v}"
+            (cd npm && npm publish --access public)
+            npm deprecate "utp-engine@<${TAG_VER}" "Security update: embedded obsolete binary removed; upgrade to >=${TAG_VER}" || true
+            (cd sdk/typescript && npm publish --access public) || echo "Note: @utp/client scope publish skipped (check npm org scope)"
           else
             echo "NPM_TOKEN secret not present; skipping npm publish"
           fi

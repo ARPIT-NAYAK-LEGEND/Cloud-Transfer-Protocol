@@ -1,11 +1,11 @@
 {
-  "version": "2.6.1",
+  "version": "2.6.2",
   "description": "Universal Cloud Transfer Protocol (UTP) - Direct 0-Disk High-Speed Cloud-to-Cloud Pipeline",
   "homepage": "https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol",
   "license": "MIT",
   "architecture": {
     "64bit": {
-      "url": "https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol/releases/download/v2.6.1/utp-windows-x64.zip",
+      "url": "https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol/releases/download/v2.6.2/utp-windows-x64.zip",
       "hash": "POPULATED_BY_RELEASE_WORKFLOW_FROM_SHA256SUMS",
       "bin": [
         "utp.exe",

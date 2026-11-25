@@ -55,13 +55,13 @@ if (hasFile(path.join(monorepoRoot, 'CMakeLists.txt'))) {
 }
 
 // 3. Download platform prebuilt release archive over HTTPS
-const VERSION = 'v2.6.1';
+const VERSION = 'v2.6.2';
 const REPO = 'ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol';
 let assetName = '';
 
-if (platform === 'win32') {
+if (platform === 'win32' && os.arch() === 'x64') {
   assetName = 'utp-windows-x64.zip';
-} else if (platform === 'linux') {
+} else if (platform === 'linux' && os.arch() === 'x64') {
   assetName = 'utp-linux-x64.tar.gz';
 } else if (platform === 'darwin') {
   assetName = 'utp-macos.tar.gz';
@@ -131,7 +131,7 @@ function download(downloadUrl, dest, redirectsRemaining, cb) {
 function copyBinaryIfRegular(srcPath, destPath) {
   try {
     const stat = fs.lstatSync(srcPath);
-    if (!stat.isFile() || stat.isSymbolicLink()) return false;
+    if (!stat.isFile() || stat.isSymbolicLink() || stat.size === 0) return false;
     fs.copyFileSync(srcPath, destPath);
     if (platform !== 'win32') {
       fs.chmodSync(destPath, 0o755);

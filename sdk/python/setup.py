@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="utp-client",
-    version="2.6.1",
+    version="2.6.2",
     packages=find_packages(),
     install_requires=[
         "requests>=2.25.0",

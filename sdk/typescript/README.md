@@ -96,8 +96,11 @@ Polls the daemon until terminal state (`COMPLETED`, `FAILED`, or `CANCELLED`).
 ### `client.streamEvents(transferId: string, options?: { pollIntervalMs?: number; signal?: AbortSignal }): AsyncIterable<TransferEvent>`
 Consumes engine lifecycle events as an async iterable stream.
 
+### `client.getSignedStreamUrl(uriOrId: string, options?: { download?: boolean; filename?: string }): Promise<string>`
+Issues a short-lived HMAC-SHA256 signed stream ticket via `POST /api/stream-tickets` (`Authorization: Bearer`) and builds a `/api/stream?ticket=...` URL without exposing the master bearer token in browser history or logs.
+
 ### `client.getStreamUrl(uriOrId: string, options?: { download?: boolean; filename?: string }): string`
-Builds a tokenized `/api/stream` URL for HTTP `206 Partial Content` media playback (`<video>`, VLC, MPV) or forced attachment downloads (`download: true`).
+Synchronously constructs a `/api/stream` URL (requires `--allow-query-token` on `utpd` if a `token` query parameter is used instead of `getSignedStreamUrl`).
 
 ---
 

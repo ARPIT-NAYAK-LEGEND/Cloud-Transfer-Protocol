@@ -1,6 +1,6 @@
 {
   "name": "@utp/client",
-  "version": "2.6.1",
+  "version": "2.6.2",
   "description": "Universal Cloud Transfer Protocol (UTP) - Native TypeScript / JavaScript Client SDK",
   "type": "module",
   "main": "./dist/index.js",

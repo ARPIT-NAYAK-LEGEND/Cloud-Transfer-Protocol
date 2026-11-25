@@ -84,7 +84,7 @@ int run_cloud_stream_server(const std::string& cloud_uri, int port, bool auto_op
     std::cout << "\n"
               << C_VIOLET "▲" C_RESET " " C_WHITE C_BOLD "UTP" C_RESET " "
               << C_MUTED "· Zero-Disk Cloud Stream Engine" C_RESET " "
-              << C_CYAN "v2.6.1" C_RESET "\n"
+              << C_CYAN "v2.6.2" C_RESET "\n"
               << C_SPINE GLYPH_SPINE C_RESET "  "
               << C_MUTED "Direct RAM Range Pipe · Zero Local Disk · TLS 1.3" C_RESET "\n"
               << C_SPINE GLYPH_SPINE C_RESET "\n";

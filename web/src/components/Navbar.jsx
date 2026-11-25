@@ -44,7 +44,7 @@ export default function Navbar({ onOpenLegal }) {
               </span>
             </div>
             <span className="text-[11px] font-mono px-2 py-0.5 rounded border border-[#33302C] bg-[#161513] text-[#9E9B94]">
-              v2.6.1
+              v2.6.2
             </span>
           </a>
 

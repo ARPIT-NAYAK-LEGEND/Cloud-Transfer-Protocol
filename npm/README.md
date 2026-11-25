@@ -16,7 +16,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Official Portal](https://img.shields.io/badge/Official%20Site-ctp.arpitnayak.tech-FF5B1F.svg)](https://ctp.arpitnayak.tech)
 [![Privacy & Terms](https://img.shields.io/badge/Legal-Privacy%20%26%20Terms-22c55e.svg)](https://ctp.arpitnayak.tech/privacy)
-[![Release](https://img.shields.io/badge/Release-v2.6.1--pro-cyan.svg)](https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol/releases)
+[![Release](https://img.shields.io/badge/Release-v2.6.2--pro-cyan.svg)](https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol/releases)
 [![Platforms](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-emerald.svg)](#installation)
 
 </div>
@@ -153,9 +153,10 @@ utp daemon status
 utp daemon stop
 ```
 
-Daemon `/api/stream` endpoint (Bearer token / `X-API-Key` / `?token=` authenticated):
-- `GET /api/stream?uri=gdrive://...&token=<token>` — HTTP 206 stream playback
-- `GET /api/stream?uri=gdrive://...&download=true&name=video.mp4&token=<token>` — Direct download attachment
+Daemon `/api/stream` endpoint (bound to `127.0.0.1` by default; `Authorization: Bearer`, `X-API-Key`, or signed `POST /api/stream-tickets` `?ticket=` authenticated):
+- `POST /api/stream-tickets` — Issue a short-lived HMAC-SHA256 signed ticket scoped to a resource URI or transfer ID
+- `GET /api/stream?uri=gdrive://...&ticket=<ticket>` — HTTP 206 stream playback without placing bearer tokens in URLs
+- `GET /api/stream?uri=gdrive://...&download=true&name=video.mp4&ticket=<ticket>` — Direct download attachment
 
 ---
 

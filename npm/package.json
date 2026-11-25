@@ -1,6 +1,6 @@
 {
   "name": "utp-engine",
-  "version": "2.6.1",
+  "version": "2.6.2",
   "description": "Zero-disk cloud-to-cloud transfer, direct web ingestion, media streaming & sync engine — Google Drive, OneDrive, S3, R2, Dropbox, WebDAV — TLS 1.3 RAM pipeline",
   "main": "./bin/utp.js",
   "bin": {
@@ -54,7 +54,7 @@
     "url": "https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol/issues"
   },
   "engines": {
-    "node": ">=16.0.0"
+    "node": ">=18.0.0"
   },
   "os": ["win32", "linux", "darwin"],
   "cpu": ["x64", "arm64"]

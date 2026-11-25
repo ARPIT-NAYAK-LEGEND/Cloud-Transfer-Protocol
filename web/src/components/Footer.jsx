@@ -28,7 +28,7 @@ export default function Footer({ onOpenLegal }) {
             </p>
             <div className="flex items-center gap-2 text-[#9E9B94]">
               <span className="live-beacon" />
-              <span>v2.6.1 operational</span>
+              <span>v2.6.2 operational</span>
             </div>
           </div>
 

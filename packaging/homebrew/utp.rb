@@ -1,7 +1,7 @@
 class Utp < Formula
   desc "Universal Cloud Transfer Protocol (UTP) - Direct 0-Disk High-Speed Cloud-to-Cloud Pipeline"
   homepage "https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol"
-  version "2.6.1"
+  version "2.6.2"
   license "MIT"
   url "https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol.git",
       branch: "PROJECTS"

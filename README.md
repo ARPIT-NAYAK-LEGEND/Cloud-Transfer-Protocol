@@ -17,11 +17,11 @@
 [![Official Portal](https://img.shields.io/badge/Official%20Site-ctp.arpitnayak.tech-FF5B1F.svg)](https://ctp.arpitnayak.tech)
 [![Privacy & Terms](https://img.shields.io/badge/Legal-Privacy%20%26%20Terms-22c55e.svg)](https://ctp.arpitnayak.tech/privacy)
 [![C++20](https://img.shields.io/badge/Standard-C%2B%2B20-purple.svg)](https://en.cppreference.com/w/cpp/20)
-[![Release](https://img.shields.io/badge/Release-v2.6.1--pro-cyan.svg)](https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol/releases)
+[![Release](https://img.shields.io/badge/Release-v2.6.2--pro-cyan.svg)](https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol/releases)
 [![Platforms](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-emerald.svg)](#installation--quick-start)
 [![Zero Disk Footprint](https://img.shields.io/badge/Storage-Zero%20Disk%20RAM%20Stream-orange.svg)](#-architecture--security)
 [![Encryption](https://img.shields.io/badge/Security-TLS%201.3%20%2F%20AES--256-cyan.svg)](#-architecture--security)
-[![TypeScript SDK](https://img.shields.io/badge/TypeScript%20SDK-v2.6.1-3178C6.svg)](sdk/typescript)
+[![TypeScript SDK](https://img.shields.io/badge/TypeScript%20SDK-v2.6.2-3178C6.svg)](sdk/typescript)
 
 </div>
 
@@ -265,11 +265,12 @@ utp daemon status              # Inspect active PID, endpoint & token
 utp daemon stop                # Gracefully terminate background daemon
 ```
 
-Authenticated HTTP endpoints (`Authorization: Bearer <token>`, `X-API-Key`, or `?token=`):
+Authenticated HTTP endpoints (bound to `127.0.0.1` by default; `Authorization: Bearer <token>`, `X-API-Key`, or signed `?ticket=` for `/api/stream`):
 - `POST /api/transfers` — Initiate background cloud-to-cloud or HTTPS ingestion transfer
 - `GET /api/transfers`, `GET /api/transfers/:id`, `GET /api/transfers/:id/events` — Inspect state & events
 - `POST /api/transfers/:id/pause` | `/cancel` — Control active transfers
-- `GET /api/stream?uri=<cloud_uri>` *(also supports `?src=`, `?id=`, `/api/stream/:id`, `&download=true`, `&name=<filename>`)* — Zero-disk HTTP 206 media stream & direct attachment download
+- `POST /api/stream-tickets` — Mint short-lived resource-scoped HMAC-SHA256 `?ticket=` URLs
+- `GET /api/stream?uri=<cloud_uri>&ticket=<ticket>` *(also supports `?src=`, `?id=`, `/api/stream/:id`, `&download=true`, `&name=<filename>`)* — Zero-disk HTTP 206 media stream & direct attachment download
 
 ---
 
@@ -357,7 +358,7 @@ stream_url = client.get_stream_url("gdrive://movies/clip.mp4", download=False)
 
 ```
    ┌────────────────────────────────────────────────────────────────────────┐
-   │                        UTP Core Engine v2.6.1                          │
+   │                        UTP Core Engine v2.6.2                          │
    │  ┌───────────────────────┐                  ┌───────────────────────┐  │
    │  │   Memory RAM Ring     │◀────────────────▶│ Adaptive ChunkPlanner │  │
    │  │   (Zero Local Disk)   │                  │ (RAM & Net Bounded)   │  │
