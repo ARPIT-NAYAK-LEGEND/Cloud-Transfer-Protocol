@@ -45,9 +45,8 @@ static const char* get_ca_bundle_path() {
         }
 #endif
 
+        // Note: intentionally skip bare relative CWD "ca-bundle.crt"/"cacert.pem" to prevent CWD CA spoofing.
         const char* candidates[] = {
-            "ca-bundle.crt",
-            "cacert.pem",
             "C:\\Program Files\\Git\\ucrt64\\etc\\ssl\\certs\\ca-bundle.crt",
             "C:\\Program Files\\Git\\mingw64\\etc\\ssl\\certs\\ca-bundle.crt",
             "C:\\Program Files\\Git\\usr\\ssl\\certs\\ca-bundle.crt",
@@ -198,12 +197,26 @@ HttpResponse HttpClient::perform_request(const std::string& url, const char* met
     }
 
     const char* insecure_env = std::getenv("UTP_INSECURE_SKIP_VERIFY");
-    long verify_peer = (insecure_env && std::string(insecure_env) == "1") ? 0L : 1L;
-    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, verify_peer);
-    if (verify_peer) {
-        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
+    bool allow_insecure = (insecure_env && std::string(insecure_env) == "1");
+    if (allow_insecure) {
+        static std::once_flag warn_once;
+        std::call_once(warn_once, []() {
+            std::cerr << "[UTP Security Warning] UTP_INSECURE_SKIP_VERIFY=1 is active; TLS certificate verification is disabled.\n";
+        });
     }
+    long verify_peer = allow_insecure ? 0L : 1L;
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, verify_peer);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, verify_peer ? 2L : 0L);
+    curl_easy_setopt(curl, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_2);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 5L);
+#if LIBCURL_VERSION_NUM >= 0x075500
+    curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "http,https");
+    curl_easy_setopt(curl, CURLOPT_REDIR_PROTOCOLS_STR, "http,https");
+#else
+    curl_easy_setopt(curl, CURLOPT_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
+    curl_easy_setopt(curl, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
+#endif
 
     // Re-use persistent TCP/TLS connections and DNS cache across all requests
     if (g_curl_share) {

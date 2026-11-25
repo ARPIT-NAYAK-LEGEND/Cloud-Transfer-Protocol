@@ -1,4 +1,5 @@
 #include "webdav_provider.hpp"
+#include "utp/security_utils.hpp"
 #include <stdexcept>
 #include <iostream>
 #include <cstring>
@@ -31,20 +32,6 @@ static std::string base64_encode(const std::string& in) {
     return out;
 }
 
-static std::string url_encode(const std::string& value) {
-    std::ostringstream escaped;
-    escaped.fill('0');
-    escaped << std::hex;
-    for (char c : value) {
-        if (isalnum(static_cast<unsigned char>(c)) || c == '-' || c == '_' || c == '.' || c == '~') {
-            escaped << c;
-        } else {
-            escaped << '%' << std::setw(2) << std::uppercase << static_cast<int>(static_cast<unsigned char>(c));
-        }
-    }
-    return escaped.str();
-}
-
 static std::string url_encode_path(const std::string& path) {
     std::string encoded;
     std::stringstream ss(path);
@@ -53,7 +40,7 @@ static std::string url_encode_path(const std::string& path) {
     while (std::getline(ss, segment, '/')) {
         if (!first) encoded += "/";
         first = false;
-        encoded += url_encode(segment);
+        encoded += utp::security::url_encode(segment);
     }
     return encoded;
 }
@@ -94,24 +81,43 @@ void WebDAVProvider::setup_auth() {
         const char* env_url = std::getenv("WEBDAV_URL");
         if (!env_url) env_url = std::getenv("NEXTCLOUD_URL");
         if (env_url && strlen(env_url) > 0) base_url_ = env_url;
-        else base_url_ = "http://localhost:8080/remote.php/dav/files";
+    }
+
+    if (base_url_.empty()) {
+        throw TransferError(ErrorCategory::AUTH,
+            "WebDAV URL not configured: set WEBDAV_URL (or NEXTCLOUD_URL) environment variable.");
     }
 
     // Clean trailing slash
     while (!base_url_.empty() && base_url_.back() == '/') base_url_.pop_back();
 
+    // Refuse sending HTTP Basic Auth credentials over unencrypted HTTP except explicit local dev
+    if (base_url_.rfind("https://", 0) != 0) {
+        bool is_loopback = (base_url_.rfind("http://127.0.0.1", 0) == 0 ||
+                            base_url_.rfind("http://localhost", 0) == 0 ||
+                            base_url_.rfind("http://[::1]", 0) == 0);
+        const char* allow_http = std::getenv("UTP_WEBDAV_ALLOW_HTTP");
+        if (!is_loopback && !(allow_http && std::string(allow_http) == "1")) {
+            throw TransferError(ErrorCategory::AUTH,
+                "Refusing WebDAV Basic Auth over unencrypted HTTP. Use https:// or set UTP_WEBDAV_ALLOW_HTTP=1.");
+        }
+    }
+
     if (username_.empty()) {
         const char* env_u = std::getenv("WEBDAV_USER");
         if (!env_u) env_u = std::getenv("NEXTCLOUD_USER");
         if (env_u && strlen(env_u) > 0) username_ = env_u;
-        else username_ = "admin";
     }
 
     if (password_.empty()) {
         const char* env_p = std::getenv("WEBDAV_PASSWORD");
         if (!env_p) env_p = std::getenv("NEXTCLOUD_PASSWORD");
         if (env_p && strlen(env_p) > 0) password_ = env_p;
-        else password_ = "password";
+    }
+
+    if (username_.empty() || password_.empty()) {
+        throw TransferError(ErrorCategory::AUTH,
+            "WebDAV credentials not configured: set WEBDAV_USER and WEBDAV_PASSWORD environment variables.");
     }
 
     auth_header_ = "Authorization: Basic " + base64_encode(username_ + ":" + password_);

@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <filesystem>
 #include <iostream>
+#include "utp/security_utils.hpp"
 
 namespace utp {
 
@@ -144,23 +145,7 @@ private:
     std::vector<Account> accounts_;
 
     static std::string extract_value(const std::string& json, const std::string& key) {
-        std::string search = "\"" + key + "\":";
-        size_t pos = json.find(search);
-        if (pos == std::string::npos) return "";
-        pos += search.length();
-        while (pos < json.length() && (json[pos] == ' ' || json[pos] == '\t' || json[pos] == '\r' || json[pos] == '\n')) pos++;
-        if (pos >= json.length()) return "";
-        if (json[pos] == '"') {
-            pos++;
-            size_t end = pos;
-            while (end < json.length()) {
-                if (json[end] == '\\' && end + 1 < json.length()) end += 2;
-                else if (json[end] == '"') break;
-                else end++;
-            }
-            return json.substr(pos, end - pos);
-        }
-        return "";
+        return utp::security::extract_json_string(json, key);
     }
 
     void load_accounts() {
@@ -366,21 +351,20 @@ private:
     }
 
     void save_accounts() {
-        std::ofstream file(".utp_accounts.json");
-        if (!file.is_open()) return;
-
-        file << "{\n  \"accounts\": [\n";
+        std::ostringstream oss;
+        oss << "{\n  \"accounts\": [\n";
         for (size_t i = 0; i < accounts_.size(); ++i) {
             const auto& a = accounts_[i];
-            file << "    {\n";
-            file << "      \"id\": \"" << a.id << "\",\n";
-            file << "      \"provider\": \"" << a.provider << "\",\n";
-            file << "      \"name\": \"" << a.name << "\",\n";
-            file << "      \"email\": \"" << a.email << "\",\n";
-            file << "      \"token_file\": \"" << a.token_file << "\"\n";
-            file << "    }" << (i + 1 < accounts_.size() ? "," : "") << "\n";
+            oss << "    {\n";
+            oss << "      \"id\": \"" << utp::security::escape_json(a.id) << "\",\n";
+            oss << "      \"provider\": \"" << utp::security::escape_json(a.provider) << "\",\n";
+            oss << "      \"name\": \"" << utp::security::escape_json(a.name) << "\",\n";
+            oss << "      \"email\": \"" << utp::security::escape_json(a.email) << "\",\n";
+            oss << "      \"token_file\": \"" << utp::security::escape_json(a.token_file) << "\"\n";
+            oss << "    }" << (i + 1 < accounts_.size() ? "," : "") << "\n";
         }
-        file << "  ]\n}\n";
+        oss << "  ]\n}\n";
+        utp::security::write_secret_file(".utp_accounts.json", oss.str());
     }
 };
 

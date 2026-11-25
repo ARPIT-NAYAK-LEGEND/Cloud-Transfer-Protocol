@@ -1,6 +1,7 @@
 #include "utp/uri_parser.hpp"
 #include "utp/engine.hpp"
 #include "utp/state_manager.hpp"
+#include "utp/security_utils.hpp"
 #include "tui.hpp"
 #include "account_manager.hpp"
 #include "stream_server.hpp"
@@ -527,6 +528,9 @@ static bool spawn_daemon(const std::string& bin_path, int port, int& out_pid) {
     sa.bInheritHandle = TRUE;
 
     HANDLE hLog = CreateFileA(".utpd.log", FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE, &sa, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hLog != INVALID_HANDLE_VALUE) {
+        utp::security::restrict_file_permissions(".utpd.log");
+    }
     HANDLE hNul = CreateFileA("NUL", GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, &sa, OPEN_EXISTING, 0, NULL);
 
     STARTUPINFOA si;
@@ -583,7 +587,11 @@ static bool spawn_daemon(const std::string& bin_path, int port, int& out_pid) {
             close(dev_null);
         }
         std::string port_str = std::to_string(port);
-        execlp(bin_path.c_str(), bin_path.c_str(), "--port", port_str.c_str(), nullptr);
+        if (bin_path.find('/') != std::string::npos) {
+            execl(bin_path.c_str(), bin_path.c_str(), "--port", port_str.c_str(), nullptr);
+        } else {
+            execlp(bin_path.c_str(), bin_path.c_str(), "--port", port_str.c_str(), nullptr);
+        }
         _exit(1);
     }
     out_pid = static_cast<int>(pid);
@@ -604,10 +612,7 @@ static int read_pid_file(int* out_port = nullptr) {
 }
 
 static void write_pid_file(int pid, int port) {
-    std::ofstream f(DAEMON_PID_FILE);
-    if (f.is_open()) {
-        f << pid << " " << port << "\n";
-    }
+    utp::security::write_secret_file(DAEMON_PID_FILE, std::to_string(pid) + " " + std::to_string(port) + "\n");
 }
 
 static void remove_pid_file() {

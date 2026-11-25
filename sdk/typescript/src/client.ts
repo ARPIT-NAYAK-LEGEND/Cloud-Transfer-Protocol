@@ -287,6 +287,28 @@ export class UTPClient {
     return `${this.baseUrl}/api/stream?${params.toString()}`;
   }
 
+  /**
+   * Requests a short-lived signed stream ticket via Authorization header auth
+   * so the master bearer token is never placed in URL query strings.
+   */
+  async getSignedStreamUrl(
+    uriOrId: string,
+    options?: { download?: boolean; filename?: string }
+  ): Promise<string> {
+    const payload = uriOrId.includes('://') ? { uri: uriOrId } : { id: uriOrId };
+    const ticketRes = await this.request<{ ticket: string }>('POST', '/api/stream-tickets', payload);
+    const params = new URLSearchParams();
+    if (uriOrId.includes('://')) {
+      params.set('uri', uriOrId);
+    } else {
+      params.set('id', uriOrId);
+    }
+    params.set('ticket', ticketRes.ticket);
+    if (options?.download) params.set('download', 'true');
+    if (options?.filename) params.set('name', options.filename);
+    return `${this.baseUrl}/api/stream?${params.toString()}`;
+  }
+
   private sleep(ms: number, signal?: AbortSignal): Promise<void> {
     return new Promise((resolve, reject) => {
       if (signal?.aborted) {

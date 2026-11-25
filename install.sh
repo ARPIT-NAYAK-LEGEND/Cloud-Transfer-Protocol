@@ -37,18 +37,44 @@ else
 fi
 
 DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${VERSION}/${ASSET_NAME}"
+CHECKSUM_URL="https://github.com/${REPO}/releases/download/${VERSION}/SHA256SUMS.txt"
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
 echo -e "==> Downloading ${BOLD}${VERSION}${NC} for ${BOLD}${OS} (${ARCH})${NC}..."
 if command -v curl >/dev/null 2>&1; then
     curl -fsSL "$DOWNLOAD_URL" -o "$TMP_DIR/utp.tar.gz"
+    curl -fsSL "$CHECKSUM_URL" -o "$TMP_DIR/SHA256SUMS.txt"
 elif command -v wget >/dev/null 2>&1; then
     wget -q "$DOWNLOAD_URL" -O "$TMP_DIR/utp.tar.gz"
+    wget -q "$CHECKSUM_URL" -O "$TMP_DIR/SHA256SUMS.txt"
 else
     echo -e "${RED}[Error] Neither 'curl' nor 'wget' was found.${NC}"
     exit 1
 fi
+
+EXPECTED_SHA="$(awk -v asset="$ASSET_NAME" '{ f=$2; sub(/^.*\//, "", f); sub(/^\*/, "", f); if (f == asset) { print tolower($1); exit } }' "$TMP_DIR/SHA256SUMS.txt")"
+if [ -z "$EXPECTED_SHA" ]; then
+    echo -e "${RED}[Error] SHA-256 checksum for ${ASSET_NAME} not found in SHA256SUMS.txt.${NC}"
+    exit 1
+fi
+
+if command -v sha256sum >/dev/null 2>&1; then
+    ACTUAL_SHA="$(sha256sum "$TMP_DIR/utp.tar.gz" | awk '{print tolower($1)}')"
+elif command -v shasum >/dev/null 2>&1; then
+    ACTUAL_SHA="$(shasum -a 256 "$TMP_DIR/utp.tar.gz" | awk '{print tolower($1)}')"
+else
+    echo -e "${RED}[Error] Neither 'sha256sum' nor 'shasum' is available to verify binary integrity.${NC}"
+    exit 1
+fi
+
+if [ "$ACTUAL_SHA" != "$EXPECTED_SHA" ]; then
+    echo -e "${RED}[Error] SHA-256 verification failed for ${ASSET_NAME}!${NC}"
+    echo -e "  Expected: $EXPECTED_SHA"
+    echo -e "  Actual:   $ACTUAL_SHA"
+    exit 1
+fi
+echo -e "${GREEN}[OK]${NC} Verified SHA-256: ${ACTUAL_SHA}"
 
 echo -e "==> Extracting binary..."
 tar -xzf "$TMP_DIR/utp.tar.gz" -C "$TMP_DIR"

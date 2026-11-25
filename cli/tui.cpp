@@ -2,6 +2,7 @@
 #include "account_manager.hpp"
 #include "stream_server.hpp"
 #include "providers/http/http_provider.hpp"
+#include "utp/security_utils.hpp"
 #include <iostream>
 #include <thread>
 #include <chrono>
@@ -787,10 +788,9 @@ static SelectedEndpoint select_storage_endpoint(const std::string& step_title, i
             std::getline(std::cin, tok);
             tok = trim(tok);
             if (!tok.empty()) {
-                std::ofstream of(token_file);
-                if (of.is_open()) {
-                    of << "{\n  \"apple_id\": \"" << aid << "\",\n  \"token\": \"" << tok << "\",\n  \"mode\": \"web\"\n}\n";
-                }
+                std::string payload = "{\n  \"apple_id\": \"" + utp::security::escape_json(aid) +
+                    "\",\n  \"token\": \"" + utp::security::escape_json(tok) + "\",\n  \"mode\": \"web\"\n}\n";
+                utp::security::write_secret_file(token_file, payload);
             }
         }
 

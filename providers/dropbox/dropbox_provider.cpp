@@ -1,4 +1,5 @@
 #include "dropbox_provider.hpp"
+#include "utp/security_utils.hpp"
 #include <stdexcept>
 #include <iostream>
 #include <cstring>
@@ -9,34 +10,11 @@
 #include <cctype>
 #include <chrono>
 
-#ifdef _WIN32
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#pragma comment(lib, "ws2_32.lib")
-#else
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <unistd.h>
-#include <arpa/inet.h>
-#endif
-
 namespace utp {
 
-namespace {
-    static std::string url_encode(const std::string& value) {
-        std::ostringstream escaped;
-        escaped.fill('0');
-        escaped << std::hex;
-        for (char c : value) {
-            if (isalnum(static_cast<unsigned char>(c)) || c == '-' || c == '_' || c == '.' || c == '~') {
-                escaped << c;
-            } else {
-                escaped << '%' << std::setw(2) << std::uppercase << static_cast<int>(static_cast<unsigned char>(c));
-            }
-        }
-        return escaped.str();
-    }
+using utp::security::url_encode;
 
+namespace {
     static std::string normalize_dropbox_path(const std::string& path) {
         std::string p = path;
         while (!p.empty() && (p.front() == ' ' || p.front() == '\\')) p.erase(0, 1);
@@ -47,127 +25,11 @@ namespace {
     }
 
     static std::string escape_json_string(const std::string& s) {
-        std::ostringstream o;
-        for (char c : s) {
-            if (c == '"') o << "\\\"";
-            else if (c == '\\') o << "\\\\";
-            else if (c == '\b') o << "\\b";
-            else if (c == '\f') o << "\\f";
-            else if (c == '\n') o << "\\n";
-            else if (c == '\r') o << "\\r";
-            else if (c == '\t') o << "\\t";
-            else o << c;
-        }
-        return o.str();
+        return utp::security::escape_json(s);
     }
 
     static std::string extract_json_value(const std::string& json, const std::string& key) {
-        std::string search = "\"" + key + "\":";
-        size_t pos = json.find(search);
-        if (pos == std::string::npos) return "";
-        pos += search.length();
-        while (pos < json.length() && (json[pos] == ' ' || json[pos] == '\t' || json[pos] == '\r' || json[pos] == '\n')) pos++;
-        if (pos >= json.length()) return "";
-
-        if (json[pos] == '"') {
-            pos++; // skip opening quote
-            size_t end = pos;
-            while (end < json.length()) {
-                if (json[end] == '\\' && end + 1 < json.length()) {
-                    end += 2;
-                } else if (json[end] == '"') {
-                    break;
-                } else {
-                    end++;
-                }
-            }
-            return json.substr(pos, end - pos);
-        } else {
-            size_t end = pos;
-            while (end < json.length() && json[end] != ',' && json[end] != '}' && json[end] != ']' &&
-                   json[end] != ' ' && json[end] != '\t' && json[end] != '\r' && json[end] != '\n') {
-                end++;
-            }
-            return json.substr(pos, end - pos);
-        }
-    }
-
-    std::string capture_auth_code_via_server(int port) {
-        std::string code;
-#ifdef _WIN32
-        WSADATA wsaData;
-        WSAStartup(MAKEWORD(2, 2), &wsaData);
-#endif
-        int server_fd = socket(AF_INET, SOCK_STREAM, 0);
-        if (server_fd < 0) return "";
-        
-        int opt = 1;
-#ifdef _WIN32
-        setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, (const char*)&opt, sizeof(opt));
-#else
-        setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-#endif
-        struct sockaddr_in address;
-        address.sin_family = AF_INET;
-        address.sin_addr.s_addr = INADDR_ANY;
-        address.sin_port = htons(port);
-
-        if (bind(server_fd, (struct sockaddr*)&address, sizeof(address)) < 0) return "";
-        if (listen(server_fd, 1) < 0) return "";
-
-        struct sockaddr_in client_addr;
-#ifdef _WIN32
-        int addrlen = sizeof(client_addr);
-#else
-        socklen_t addrlen = sizeof(client_addr);
-#endif
-        int client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &addrlen);
-        if (client_fd >= 0) {
-            char buffer[4096] = {0};
-            recv(client_fd, buffer, 4096, 0);
-            std::string request(buffer);
-            
-            size_t code_pos = request.find("code=");
-            if (code_pos != std::string::npos) {
-                code_pos += 5;
-                size_t end_pos = request.find('&', code_pos);
-                size_t space_pos = request.find(' ', code_pos);
-                if (end_pos == std::string::npos || space_pos < end_pos) {
-                    end_pos = space_pos;
-                }
-                code = request.substr(code_pos, end_pos - code_pos);
-            }
-
-            std::string response = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nConnection: close\r\n\r\n"
-                                   "<html><body style='font-family:sans-serif;text-align:center;padding:50px;background:#0d1117;color:#c9d1d9;'>"
-                                   "<h2 style='color:#38bdf8;'>Dropbox Authentication Successful!</h2>"
-                                   "<p>You can close this window and return to UTP.</p></body></html>";
-            send(client_fd, response.c_str(), response.length(), 0);
-            
-#ifdef _WIN32
-            closesocket(client_fd);
-#else
-            close(client_fd);
-#endif
-        }
-#ifdef _WIN32
-        closesocket(server_fd);
-        WSACleanup();
-#else
-        close(server_fd);
-#endif
-        return code;
-    }
-    
-    void open_browser(const std::string& url) {
-#ifdef _WIN32
-        std::string cmd = "start \"\" \"" + url + "\"";
-#elif __APPLE__
-        std::string cmd = "open \"" + url + "\"";
-#else
-        std::string cmd = "xdg-open \"" + url + "\"";
-#endif
-        std::system(cmd.c_str());
+        return utp::security::extract_json_string(json, key);
     }
 }
 
@@ -260,10 +122,11 @@ void DropboxProvider::authenticate() {
                     if (!fetched_email.empty()) user_email_ = fetched_email;
                 }
 
-                // Save updated token file
-                std::string new_json = "{\"access_token\":\"" + access_token_ + "\",\"refresh_token\":\"" + refresh_token_ + "\",\"email\":\"" + user_email_ + "\"}";
-                std::ofstream outfile(token_file);
-                if (outfile.is_open()) outfile << new_json;
+                // Save updated token file with owner-only permissions
+                std::string new_json = "{\"access_token\":\"" + escape_json_string(access_token_) +
+                                       "\",\"refresh_token\":\"" + escape_json_string(refresh_token_) +
+                                       "\",\"email\":\"" + escape_json_string(user_email_) + "\"}";
+                utp::security::write_secret_file(token_file, new_json);
 
                 {
                     std::lock_guard<std::mutex> lock(s_dropbox_cache_mutex);
@@ -302,23 +165,31 @@ void DropboxProvider::authenticate() {
 
     // 3. Fallback: interactive browser authorization if credentials are configured
     if (!app_key_.empty() && app_key_ != "utp_dropbox_app") {
-        std::cout << prefix << "Authenticating via Dropbox OAuth2...\n";
+        std::cout << prefix << "Authenticating via Dropbox OAuth2 (PKCE + Loopback)...\n";
         std::string redirect_uri = "http://localhost:8080";
+        std::string oauth_state = utp::security::generate_random_hex(16);
+        auto pkce = utp::security::generate_pkce_pair();
         std::string auth_url = "https://www.dropbox.com/oauth2/authorize?"
                                "client_id=" + url_encode(app_key_) +
                                "&response_type=code"
                                "&token_access_type=offline"
-                               "&redirect_uri=" + url_encode(redirect_uri);
+                               "&redirect_uri=" + url_encode(redirect_uri) +
+                               "&state=" + url_encode(oauth_state) +
+                               "&code_challenge=" + url_encode(pkce.challenge) +
+                               "&code_challenge_method=S256";
 
         std::cout << prefix << "Opening browser for Dropbox authorization...\n";
-        open_browser(auth_url);
-        std::cout << prefix << "Waiting for authorization code on " << redirect_uri << "...\n";
-        std::string auth_code = capture_auth_code_via_server(8080);
+        if (!utp::security::open_url_safely(auth_url)) {
+            std::cout << prefix << "Open this URL in your browser:\n  " << auth_url << "\n";
+        }
+        std::cout << prefix << "Waiting for authorization callback on http://127.0.0.1:8080...\n";
+        std::string auth_code = utp::security::capture_oauth_code_loopback(8080, oauth_state, "Dropbox");
 
         if (!auth_code.empty()) {
             std::string token_url = "https://api.dropboxapi.com/oauth2/token";
             std::string body = "grant_type=authorization_code&code=" + url_encode(auth_code) +
                                "&client_id=" + url_encode(app_key_) +
+                               "&code_verifier=" + url_encode(pkce.verifier) +
                                "&redirect_uri=" + url_encode(redirect_uri);
             if (!app_secret_.empty()) {
                 body += "&client_secret=" + url_encode(app_secret_);
@@ -340,9 +211,10 @@ void DropboxProvider::authenticate() {
                 }
                 if (user_email_.empty()) user_email_ = "Connected Dropbox";
 
-                std::string new_json = "{\"access_token\":\"" + access_token_ + "\",\"refresh_token\":\"" + refresh_token_ + "\",\"email\":\"" + user_email_ + "\"}";
-                std::ofstream outfile(token_file);
-                if (outfile.is_open()) outfile << new_json;
+                std::string new_json = "{\"access_token\":\"" + escape_json_string(access_token_) +
+                                       "\",\"refresh_token\":\"" + escape_json_string(refresh_token_) +
+                                       "\",\"email\":\"" + escape_json_string(user_email_) + "\"}";
+                utp::security::write_secret_file(token_file, new_json);
 
                 std::cout << prefix << "Authentication successful! Account: \033[1;32m" << user_email_ << "\033[0m\n";
                 {
@@ -359,8 +231,8 @@ void DropboxProvider::authenticate() {
         }
     }
 
-    // Default mock/demo identity if no token file present yet
-    user_email_ = "dropbox-user@utp.cloud";
+    // Identity when no token file or app key configured yet
+    user_email_ = "Dropbox (Unauthenticated)";
 }
 
 ProviderCapabilities DropboxProvider::capabilities() {
@@ -421,12 +293,10 @@ void DropboxProvider::refresh_auth() {
 
     std::string token_file = token_file_path();
     {
-        std::ofstream outfile(token_file);
-        if (outfile.is_open()) {
-            outfile << "{\"access_token\":\"" << access_token_
-                    << "\",\"refresh_token\":\"" << refresh_token_
-                    << "\",\"email\":\"" << user_email_ << "\"}";
-        }
+        std::string updated_json = "{\"access_token\":\"" + escape_json_string(access_token_) +
+                                   "\",\"refresh_token\":\"" + escape_json_string(refresh_token_) +
+                                   "\",\"email\":\"" + escape_json_string(user_email_) + "\"}";
+        utp::security::write_secret_file(token_file, updated_json);
     }
     {
         std::lock_guard<std::mutex> lock(s_dropbox_cache_mutex);
@@ -692,7 +562,7 @@ void DropboxProvider::write(WriteSession session, uint64_t offset, const uint8_t
 
     if (s.session_id.empty()) return;
 
-    std::string arg = "{\"cursor\": {\"session_id\": \"" + s.session_id + "\", \"offset\": " + std::to_string(offset) + "}, \"close\": false}";
+    std::string arg = "{\"cursor\": {\"session_id\": \"" + escape_json_string(s.session_id) + "\", \"offset\": " + std::to_string(offset) + "}, \"close\": false}";
     std::vector<std::string> headers = {
         "Authorization: Bearer " + access_token_,
         "Content-Type: application/octet-stream",
@@ -725,7 +595,7 @@ void DropboxProvider::commit(WriteSession session) {
 
     if (s.session_id.empty()) return; // Already committed (empty file)
 
-    std::string arg = "{\"cursor\": {\"session_id\": \"" + s.session_id + "\", \"offset\": " + std::to_string(s.current_offset) + "},"
+    std::string arg = "{\"cursor\": {\"session_id\": \"" + escape_json_string(s.session_id) + "\", \"offset\": " + std::to_string(s.current_offset) + "},"
                       "\"commit\": {\"path\": \"" + escape_json_string(s.path) + "\", \"mode\": \"overwrite\", \"autorename\": false, \"mute\": false}}";
 
     std::vector<std::string> headers = {

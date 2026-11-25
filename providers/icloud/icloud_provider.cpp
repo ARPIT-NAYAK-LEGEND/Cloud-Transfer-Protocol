@@ -1,4 +1,5 @@
 #include "icloud_provider.hpp"
+#include "utp/security_utils.hpp"
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -13,41 +14,8 @@ namespace utp {
 
 namespace {
 
-static std::string trim_str(std::string s) {
-    while (!s.empty() && (s.front() == ' ' || s.front() == '\t' || s.front() == '\r' || s.front() == '\n')) s.erase(0, 1);
-    while (!s.empty() && (s.back() == ' ' || s.back() == '\t' || s.back() == '\r' || s.back() == '\n')) s.pop_back();
-    return s;
-}
-
 static std::string extract_json_value(const std::string& json, const std::string& key) {
-    std::string search = "\"" + key + "\":";
-    size_t pos = json.find(search);
-    if (pos == std::string::npos) return "";
-    pos += search.length();
-    while (pos < json.length() && (json[pos] == ' ' || json[pos] == '\t' || json[pos] == '\r' || json[pos] == '\n')) pos++;
-    if (pos >= json.length()) return "";
-
-    if (json[pos] == '"') {
-        pos++; // skip opening quote
-        size_t end = pos;
-        while (end < json.length()) {
-            if (json[end] == '\\' && end + 1 < json.length()) {
-                end += 2;
-            } else if (json[end] == '"') {
-                break;
-            } else {
-                end++;
-            }
-        }
-        return json.substr(pos, end - pos);
-    } else {
-        size_t end = pos;
-        while (end < json.length() && json[end] != ',' && json[end] != '}' && json[end] != ']' &&
-               json[end] != ' ' && json[end] != '\r' && json[end] != '\n') {
-            end++;
-        }
-        return json.substr(pos, end - pos);
-    }
+    return utp::security::extract_json_string(json, key);
 }
 
 static std::string normalize_cloud_path(const std::string& path) {
@@ -133,28 +101,16 @@ void ICloudProvider::load_token_file() {
 
 void ICloudProvider::save_token_file(const std::string& apple_id, const std::string& token, const std::string& dsid, const std::string& docws_url) {
     std::string tf = get_token_file_path();
-    std::ofstream f(tf);
-    if (!f.is_open()) return;
-
+    std::ostringstream f;
     f << "{\n";
-    f << "  \"apple_id\": \"" << apple_id << "\",\n";
-    f << "  \"token\": \"" << token << "\",\n";
-    f << "  \"dsid\": \"" << dsid << "\",\n";
-    f << "  \"docws_url\": \"" << docws_url << "\",\n";
+    f << "  \"apple_id\": \"" << utp::security::escape_json(apple_id) << "\",\n";
+    f << "  \"token\": \"" << utp::security::escape_json(token) << "\",\n";
+    f << "  \"dsid\": \"" << utp::security::escape_json(dsid) << "\",\n";
+    f << "  \"docws_url\": \"" << utp::security::escape_json(docws_url) << "\",\n";
     f << "  \"mode\": \"" << (use_local_bridge_ ? "local" : "web") << "\",\n";
-    if (use_local_bridge_) {
-        std::string escaped_path = local_root_path_;
-        for (size_t i = 0; i < escaped_path.length(); ++i) {
-            if (escaped_path[i] == '\\') {
-                escaped_path.insert(i, "\\");
-                i++;
-            }
-        }
-        f << "  \"local_path\": \"" << escaped_path << "\"\n";
-    } else {
-        f << "  \"local_path\": \"\"\n";
-    }
+    f << "  \"local_path\": \"" << (use_local_bridge_ ? utp::security::escape_json(local_root_path_) : "") << "\"\n";
     f << "}\n";
+    utp::security::write_secret_file(tf, f.str());
 }
 
 void ICloudProvider::init_session() {
@@ -253,9 +209,9 @@ FileInfo ICloudProvider::stat(Path path) {
 
     // ── Local Bridge Fast Path ──
     if (use_local_bridge_) {
-        fs::path full_p = fs::path(local_root_path_) / clean;
+        if (clean.empty()) return {"root", 0, true, "iCloud Drive"};
+        fs::path full_p = utp::security::resolve_within_base(local_root_path_, clean);
         if (!fs::exists(full_p)) {
-            if (clean.empty()) return {"root", 0, true, "iCloud Drive"};
             throw TransferError(ErrorCategory::FATAL, "iCloud file not found: " + path);
         }
         bool is_d = fs::is_directory(full_p);
@@ -291,7 +247,9 @@ std::vector<FileInfo> ICloudProvider::list(Path path) {
 
     // ── Local Bridge Fast Path ──
     if (use_local_bridge_) {
-        fs::path full_p = fs::path(local_root_path_) / clean;
+        fs::path full_p = clean.empty()
+            ? fs::path(local_root_path_)
+            : utp::security::resolve_within_base(local_root_path_, clean);
         if (!fs::exists(full_p) || !fs::is_directory(full_p)) {
             return results;
         }
@@ -445,7 +403,7 @@ size_t ICloudProvider::read(ReadStream session, uint64_t offset, uint8_t* buffer
 
     // ── Local Bridge Fast Path ──
     if (use_local_bridge_) {
-        fs::path full_p = fs::path(local_root_path_) / s.path;
+        fs::path full_p = utp::security::resolve_within_base(local_root_path_, s.path);
         std::ifstream file(full_p, std::ios::binary);
         if (!file.is_open()) {
             throw TransferError(ErrorCategory::FATAL, "Cannot open iCloud file for reading: " + s.path);
@@ -490,7 +448,7 @@ WriteSession ICloudProvider::openWrite(Path path, uint64_t size, const std::stri
     s.total_size = size;
 
     if (use_local_bridge_) {
-        fs::path full_p = fs::path(local_root_path_) / clean;
+        fs::path full_p = utp::security::resolve_within_base(local_root_path_, clean);
         fs::create_directories(full_p.parent_path());
     } else {
         s.buffer.reserve(size > 0 && size < 50 * 1024 * 1024 ? size : 0);
@@ -506,7 +464,7 @@ void ICloudProvider::write(WriteSession session, uint64_t offset, const uint8_t*
     if (it == sessions_.end()) throw TransferError(ErrorCategory::FATAL, "Invalid iCloud write session");
 
     if (use_local_bridge_) {
-        fs::path full_p = fs::path(local_root_path_) / it->second.path;
+        fs::path full_p = utp::security::resolve_within_base(local_root_path_, it->second.path);
         std::fstream file(full_p, std::ios::in | std::ios::out | std::ios::binary);
         if (!file.is_open()) {
             file.open(full_p, std::ios::out | std::ios::binary);
@@ -567,12 +525,12 @@ void ICloudProvider::abort(WriteSession session) {
 
 bool ICloudProvider::copy_shared_file(const std::string& source_file_id, const std::string& dest_path, const std::string& filename) {
     if (use_local_bridge_) {
-        fs::path src = fs::path(local_root_path_) / normalize_cloud_path(source_file_id);
+        fs::path src = utp::security::resolve_within_base(local_root_path_, normalize_cloud_path(source_file_id));
         std::string d_p = dest_path;
         if (!filename.empty() && d_p.find(filename) == std::string::npos) {
             d_p = d_p.empty() ? filename : (d_p + "/" + filename);
         }
-        fs::path dst = fs::path(local_root_path_) / normalize_cloud_path(d_p);
+        fs::path dst = utp::security::resolve_within_base(local_root_path_, normalize_cloud_path(d_p));
         fs::create_directories(dst.parent_path());
         std::error_code ec;
         fs::copy_file(src, dst, fs::copy_options::overwrite_existing, ec);

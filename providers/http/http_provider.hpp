@@ -16,7 +16,7 @@ namespace utp {
 
 class HttpProvider : public StorageProvider {
 public:
-    HttpProvider(const std::string& base_url = "", const std::string& auth_context = "");
+    HttpProvider(const std::string& base_url = "", const std::string& auth_context = "", bool allow_private_hosts = false);
     ~HttpProvider() override = default;
 
     ProviderCapabilities capabilities() override;
@@ -33,6 +33,7 @@ public:
 private:
     std::string base_url_;
     std::string auth_context_; // Token or credentials
+    bool allow_private_hosts_{false};
     std::mutex mutex_;
     uint64_t next_id_{1};
     HttpClient http_;

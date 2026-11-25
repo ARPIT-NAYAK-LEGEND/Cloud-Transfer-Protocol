@@ -13,6 +13,7 @@
 #include "server/httplib.h"
 #include "providers/interface/storage_provider.hpp"
 #include "utp/uri_parser.hpp"
+#include "utp/security_utils.hpp"
 
 #include <iostream>
 #include <memory>
@@ -125,7 +126,8 @@ int run_cloud_stream_server(const std::string& cloud_uri, int port, bool auto_op
     }
 
     if (filename.empty()) filename = "video.mp4";
-    std::string mime = get_media_mime_type(filename);
+    std::string safe_filename = utp::security::sanitize_header_filename(filename);
+    std::string mime = get_media_mime_type(safe_filename);
 
     ReadStream rstream;
     try {
@@ -148,9 +150,9 @@ int run_cloud_stream_server(const std::string& cloud_uri, int port, bool auto_op
 
     auto stream_handler = [&](const httplib::Request&, httplib::Response& res) {
         res.set_header("Accept-Ranges", "bytes");
-        res.set_header("Access-Control-Allow-Origin", "*");
+        res.set_header("Access-Control-Allow-Origin", "http://127.0.0.1");
         res.set_header("Access-Control-Allow-Headers", "Range, Accept, Content-Type");
-        res.set_header("Content-Disposition", "inline; filename=\"" + filename + "\"");
+        res.set_header("Content-Disposition", "inline; filename=\"" + safe_filename + "\"");
 
         res.set_content_provider(
             file_size,
@@ -218,16 +220,7 @@ int run_cloud_stream_server(const std::string& cloud_uri, int port, bool auto_op
     if (auto_open) {
         std::thread([stream_url]() {
             std::this_thread::sleep_for(std::chrono::milliseconds(500));
-#if defined(_WIN32)
-            std::string cmd = "start \"\" \"" + stream_url + "\"";
-            system(cmd.c_str());
-#elif defined(__APPLE__)
-            std::string cmd = "open \"" + stream_url + "\"";
-            system(cmd.c_str());
-#else
-            std::string cmd = "xdg-open \"" + stream_url + "\" >/dev/null 2>&1";
-            system(cmd.c_str());
-#endif
+            utp::security::open_url_safely(stream_url);
         }).detach();
     }
 

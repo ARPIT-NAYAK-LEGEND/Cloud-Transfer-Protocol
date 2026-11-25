@@ -17,7 +17,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Install system dependencies
         run: |
@@ -31,9 +31,9 @@ jobs:
 
       - name: Phase 3 Secret Hygiene Scan
         run: |
-          # Assert zero hardcoded secret variables in code/protocol files
-          if grep -E -rn "g_sec|o_sec" core/ cli/ server/ providers/ protocol/; then
-            echo "Security violation: hardcoded client secret pattern detected!"
+          # Assert zero hardcoded secret variables or credential literals in tracked code/protocol/workflow files
+          if grep -E -rn "g_sec|o_sec|k_gdrive_encoded|k_onedrive_encoded|GOCSPX-|Rzy8Q~|AKIA[0-9A-Z]{16}|BEGIN [A-Z ]*PRIVATE KEY" core/ cli/ server/ providers/ protocol/ sdk/; then
+            echo "Security violation: hardcoded client secret or credential pattern detected!"
             exit 1
           fi
           echo "Secret hygiene scan: 0 hardcoded secrets detected."
@@ -66,10 +66,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
       - name: Build Docker Image
         run: |

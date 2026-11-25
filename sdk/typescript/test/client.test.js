@@ -291,4 +291,23 @@ describe('UTPClient SDK Unit & Mock Battery', () => {
     const downloadUrl = client.getStreamUrl('utp_transfer_999', { download: true, filename: 'my_video.mp4' });
     assert.equal(downloadUrl, 'http://localhost:8080/api/stream?id=utp_transfer_999&token=my-tok-123&download=true&name=my_video.mp4');
   });
+
+  test('getSignedStreamUrl() exchanges Bearer token for short-lived ticket', async () => {
+    let seenAuth = '';
+    const mockFetch = async (_url, init) => {
+      seenAuth = init?.headers?.Authorization || '';
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ ticket: '1900000000.nonce.sig', expires_in: 300 }),
+      };
+    };
+
+    const client = new UTPClient({ baseUrl: 'http://127.0.0.1:8080', token: 'master-secret-xyz', fetchFn: mockFetch });
+    const signedUrl = await client.getSignedStreamUrl('gdrive://movies/clip.mp4', { download: true, filename: 'clip.mp4' });
+    assert.equal(seenAuth, 'Bearer master-secret-xyz');
+    assert.ok(signedUrl.includes('ticket=1900000000.nonce.sig'));
+    assert.ok(!signedUrl.includes('master-secret-xyz'));
+    assert.ok(signedUrl.includes('download=true'));
+  });
 });

@@ -3,6 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
+const crypto = require('crypto');
 const os = require('os');
 const { execFileSync } = require('child_process');
 
@@ -143,12 +144,34 @@ function copyBinaryIfRegular(srcPath, destPath) {
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'utp-install-'));
 const archiveFile = path.join(tmpDir, assetName);
+const checksumFile = path.join(tmpDir, 'SHA256SUMS.txt');
+const checksumUrl = `https://github.com/${REPO}/releases/download/${VERSION}/SHA256SUMS.txt`;
 const extractDir = path.join(tmpDir, 'extracted');
 
 function cleanupTmp() {
   try {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   } catch {}
+}
+
+function verifyArchiveSha256(filePath, sumsPath, expectedAssetName) {
+  const sumsContent = fs.readFileSync(sumsPath, 'utf8');
+  let expectedHex = null;
+  for (const rawLine of sumsContent.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    const match = line.match(/^([a-fA-F0-9]{64})\s+\*?(.+)$/);
+    if (match && path.basename(match[2].trim()) === expectedAssetName) {
+      expectedHex = match[1].toLowerCase();
+      break;
+    }
+  }
+  if (!expectedHex) return false;
+
+  const actualHex = crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex').toLowerCase();
+  const expectedBuf = Buffer.from(expectedHex, 'hex');
+  const actualBuf = Buffer.from(actualHex, 'hex');
+  return expectedBuf.length === actualBuf.length && crypto.timingSafeEqual(expectedBuf, actualBuf);
 }
 
 download(url, archiveFile, MAX_REDIRECTS, (err) => {
@@ -158,29 +181,36 @@ download(url, archiveFile, MAX_REDIRECTS, (err) => {
     process.exit(0);
   }
 
-  try {
-    const stat = fs.statSync(archiveFile);
-    if (stat.size === 0) {
+  download(checksumUrl, checksumFile, MAX_REDIRECTS, (sumErr) => {
+    if (sumErr) {
       cleanupTmp();
       process.exit(0);
     }
 
-    fs.mkdirSync(extractDir, { recursive: true });
+    try {
+      const stat = fs.statSync(archiveFile);
+      if (stat.size === 0 || !verifyArchiveSha256(archiveFile, checksumFile, assetName)) {
+        cleanupTmp();
+        process.exit(0);
+      }
 
-    const tarArgs = platform === 'win32'
-      ? ['-xf', archiveFile, '-C', extractDir]
-      : ['-xzf', archiveFile, '-C', extractDir];
+      fs.mkdirSync(extractDir, { recursive: true });
 
-    execFileSync('tar', tarArgs, { stdio: 'ignore', shell: false });
+      const tarArgs = platform === 'win32'
+        ? ['-xf', archiveFile, '-C', extractDir]
+        : ['-xzf', archiveFile, '-C', extractDir];
 
-    copyBinaryIfRegular(path.join(extractDir, cliBinaryName), targetCliFile);
-    const extractedDaemon = hasFile(path.join(extractDir, daemonBinaryName))
-      ? path.join(extractDir, daemonBinaryName)
-      : path.join(extractDir, platform === 'win32' ? 'utp-server.exe' : 'utp-server');
-    copyBinaryIfRegular(extractedDaemon, targetDaemonFile);
-  } catch {
-    // Silent fallback to local build instructions on runtime
-  } finally {
-    cleanupTmp();
-  }
+      execFileSync('tar', tarArgs, { stdio: 'ignore', shell: false });
+
+      copyBinaryIfRegular(path.join(extractDir, cliBinaryName), targetCliFile);
+      const extractedDaemon = hasFile(path.join(extractDir, daemonBinaryName))
+        ? path.join(extractDir, daemonBinaryName)
+        : path.join(extractDir, platform === 'win32' ? 'utp-server.exe' : 'utp-server');
+      copyBinaryIfRegular(extractedDaemon, targetDaemonFile);
+    } catch {
+      // Silent fallback to local build instructions on runtime
+    } finally {
+      cleanupTmp();
+    }
+  });
 });

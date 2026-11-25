@@ -1,7 +1,9 @@
 #include "http_provider.hpp"
+#include "utp/security_utils.hpp"
 #include <stdexcept>
 #include <iostream>
 #include <cstring>
+#include <cstdlib>
 #include <algorithm>
 #include <sstream>
 #include <cctype>
@@ -54,8 +56,14 @@ static std::string clean_filename(std::string name) {
 
 } // namespace
 
-HttpProvider::HttpProvider(const std::string& base_url, const std::string& auth_context)
-    : base_url_(base_url), auth_context_(auth_context) {
+HttpProvider::HttpProvider(const std::string& base_url, const std::string& auth_context, bool allow_private_hosts)
+    : base_url_(base_url), auth_context_(auth_context), allow_private_hosts_(allow_private_hosts) {
+    if (!allow_private_hosts_) {
+        const char* env_allow = std::getenv("UTP_ALLOW_PRIVATE_HTTP");
+        if (env_allow && std::string(env_allow) == "1") {
+            allow_private_hosts_ = true;
+        }
+    }
 }
 
 ProviderCapabilities HttpProvider::capabilities() {
@@ -134,6 +142,10 @@ std::string HttpProvider::extract_filename(const std::map<std::string, std::stri
 
 FileInfo HttpProvider::stat(Path path) {
     std::string url = resolve_url(path);
+    std::string ssrf_err;
+    if (!utp::security::is_safe_public_http_url(url, allow_private_hosts_, &ssrf_err)) {
+        throw TransferError(ErrorCategory::FATAL, "Blocked HTTP source URL (" + ssrf_err + ")");
+    }
     std::vector<std::string> headers;
     if (!auth_context_.empty()) {
         headers.push_back("Authorization: Bearer " + auth_context_);
@@ -222,9 +234,13 @@ std::vector<FileInfo> HttpProvider::list(Path path) {
 }
 
 ReadStream HttpProvider::openRead(Path path) {
+    std::string full_url = resolve_url(path);
+    std::string ssrf_err;
+    if (!utp::security::is_safe_public_http_url(full_url, allow_private_hosts_, &ssrf_err)) {
+        throw TransferError(ErrorCategory::FATAL, "Blocked HTTP source URL (" + ssrf_err + ")");
+    }
     std::lock_guard<std::mutex> lock(mutex_);
     std::string id = "http_read_" + std::to_string(next_id_++);
-    std::string full_url = resolve_url(path);
     sessions_[id] = {id, full_url, 0};
     return {id};
 }

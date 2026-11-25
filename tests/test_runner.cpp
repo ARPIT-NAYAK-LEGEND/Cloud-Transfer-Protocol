@@ -35,6 +35,7 @@
 #include "providers/local/local_provider.hpp"
 #include "cli/stream_server.hpp"
 #include "providers/http/http_provider.hpp"
+#include "utp/security_utils.hpp"
 
 namespace fs = std::filesystem;
 
@@ -764,31 +765,113 @@ void test_performance_pipeline_suite() {
 
 void test_phase3_security_and_api_auth_suite() {
     // 1. Secret Hygiene Verification (§ Phase 3)
-    // Assert that scanning the source code for secret patterns returns zero matches.
-    std::string pat_g = std::string("g_") + "sec";
-    std::string pat_o = std::string("o_") + "sec";
-    std::vector<std::string> search_dirs = {"core", "cli", "server", "providers", "protocol", "tests"};
+    // Assert that scanning tracked source code for secret/encoded patterns returns zero matches.
+    std::vector<std::string> forbidden_patterns = {
+        std::string("g_") + "sec",
+        std::string("o_") + "sec",
+        std::string("k_gdrive_") + "encoded",
+        std::string("k_onedrive_") + "encoded",
+        std::string("GOCSPX") + "-",
+        std::string("Rzy8Q") + "~",
+        std::string("PRIVATE ") + "KEY-----"
+    };
+    std::vector<std::string> search_dirs = {"core", "cli", "server", "providers", "protocol", "tests", "sdk"};
     for (const auto& dir : search_dirs) {
         if (!fs::exists(dir)) continue;
         for (const auto& entry : fs::recursive_directory_iterator(dir)) {
             if (!entry.is_regular_file()) continue;
+            auto pstr = entry.path().string();
+            if (pstr.find("node_modules") != std::string::npos || pstr.find("dist") != std::string::npos) continue;
             auto ext = entry.path().extension().string();
-            if (ext != ".hpp" && ext != ".cpp" && ext != ".h" && ext != ".md") continue;
+            if (ext != ".hpp" && ext != ".cpp" && ext != ".h" && ext != ".md" && ext != ".py" && ext != ".ts") continue;
 
             std::ifstream file(entry.path());
             std::string line;
             size_t line_num = 0;
             while (std::getline(file, line)) {
                 line_num++;
-                bool found_g = (line.find(pat_g) != std::string::npos);
-                bool found_o = (line.find(pat_o) != std::string::npos);
-                if (found_g || found_o) {
-                    throw std::runtime_error("Phase 3 violation: secret pattern found in " +
-                                             entry.path().string() + ":" + std::to_string(line_num) +
-                                             " -> " + line);
+                for (const auto& pat : forbidden_patterns) {
+                    if (line.find(pat) != std::string::npos) {
+                        throw std::runtime_error("Phase 3 violation: secret pattern found in " +
+                                                 entry.path().string() + ":" + std::to_string(line_num));
+                    }
                 }
             }
         }
+    }
+
+    // 1b. Cryptographic, Path Traversal, Header Injection & SSRF Hardening Verification
+    {
+        auto h1 = utp::security::generate_random_hex(32);
+        auto h2 = utp::security::generate_random_hex(32);
+        ASSERT_EQ(h1.size(), size_t(64));
+        ASSERT_EQ(h2.size(), size_t(64));
+        ASSERT_TRUE(h1 != h2);
+
+        auto pkce = utp::security::generate_pkce_pair();
+        ASSERT_TRUE(pkce.verifier.size() >= 43);
+        ASSERT_TRUE(!pkce.challenge.empty());
+        ASSERT_TRUE(pkce.verifier != pkce.challenge);
+        ASSERT_TRUE(pkce.verifier.find('=') == std::string::npos);
+        ASSERT_TRUE(pkce.challenge.find('=') == std::string::npos);
+
+        ASSERT_TRUE(utp::security::constant_time_equals("token_abc_123", "token_abc_123"));
+        ASSERT_TRUE(!utp::security::constant_time_equals("token_abc_123", "token_abc_124"));
+        ASSERT_TRUE(!utp::security::constant_time_equals("token_abc_123", "token_abc_1234"));
+
+        std::string raw_val = "hello \"world\" \\ slash\nline2\t!";
+        std::string json_doc = "{\"k\": \"" + utp::security::escape_json(raw_val) + "\"}";
+        ASSERT_EQ(utp::security::extract_json_string(json_doc, "k"), raw_val);
+
+        std::string clean_name = utp::security::sanitize_header_filename("../../evil\"\r\nX-Inject: 1.mp4");
+        ASSERT_TRUE(clean_name.find('\r') == std::string::npos);
+        ASSERT_TRUE(clean_name.find('\n') == std::string::npos);
+        ASSERT_TRUE(clean_name.find('"') == std::string::npos);
+        ASSERT_TRUE(clean_name.find('/') == std::string::npos);
+
+        std::string reason;
+        ASSERT_TRUE(!utp::security::is_safe_public_http_url("http://127.0.0.1:8080/a", false, &reason));
+        ASSERT_TRUE(!utp::security::is_safe_public_http_url("http://169.254.169.254/latest/meta-data/", false, &reason));
+        ASSERT_TRUE(!utp::security::is_safe_public_http_url("http://10.0.0.1/secret", false, &reason));
+        ASSERT_TRUE(!utp::security::is_safe_public_http_url("http://localhost:8080/x", false, &reason));
+        ASSERT_TRUE(!utp::security::is_safe_public_http_url("file:///etc/passwd", false, &reason));
+        ASSERT_TRUE(!utp::security::is_safe_public_http_url("http://[::1]:8080/x", false, &reason));
+        ASSERT_TRUE(utp::security::is_safe_public_http_url("http://127.0.0.1:8080/a", true, &reason));
+
+        fs::path tmp_base = fs::temp_directory_path() / "utp_sec_base_test";
+        fs::create_directories(tmp_base / "sub");
+        ASSERT_THROWS(utp::security::resolve_within_base(tmp_base.string(), "../outside.txt"), std::runtime_error);
+        ASSERT_THROWS(utp::security::resolve_within_base(tmp_base.string(), "sub/../../outside.txt"), std::runtime_error);
+        fs::path resolved_ok = utp::security::resolve_within_base(tmp_base.string(), "sub/file.txt");
+        ASSERT_TRUE(!resolved_ok.empty());
+        std::error_code rm_ec;
+        fs::remove_all(tmp_base, rm_ec);
+
+        utp::HttpProvider strict_http;
+        bool blocked_private = false;
+        try {
+            strict_http.stat("http://127.0.0.1:18099/secret");
+        } catch (const utp::TransferError&) {
+            blocked_private = true;
+        }
+        ASSERT_TRUE(blocked_private);
+
+        bool blocked_metadata = false;
+        try {
+            strict_http.stat("http://169.254.169.254/latest/meta-data/");
+        } catch (const utp::TransferError&) {
+            blocked_metadata = true;
+        }
+        ASSERT_TRUE(blocked_metadata);
+
+        std::string secret_key = "test_daemon_master_secret_hex";
+        std::string tkt = utp::security::create_stream_ticket(secret_key, "uri:gdrive://movies/demo.mp4", 300);
+        ASSERT_TRUE(utp::security::verify_stream_ticket(secret_key, "uri:gdrive://movies/demo.mp4", tkt));
+        ASSERT_TRUE(!utp::security::verify_stream_ticket(secret_key, "uri:gdrive://movies/other.mp4", tkt));
+        std::string tampered = tkt;
+        tampered.back() = (tampered.back() == 'a' ? 'b' : 'a');
+        ASSERT_TRUE(!utp::security::verify_stream_ticket(secret_key, "uri:gdrive://movies/demo.mp4", tampered));
+        ASSERT_TRUE(!utp::security::verify_stream_ticket(secret_key, "uri:gdrive://movies/demo.mp4", "1.nonce.deadbeef"));
     }
 
     // 2. API Server Authentication Verification (§ Phase 3)
@@ -1396,7 +1479,7 @@ void test_http_ingestion_suite() {
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
     try {
-        utp::HttpProvider http_prov;
+        utp::HttpProvider http_prov("", "", true);
         std::string test_url = "http://127.0.0.1:" + std::to_string(test_port) + "/stream/movie.mp4";
 
         // 1. Verify Stat metadata extraction
@@ -1420,7 +1503,7 @@ void test_http_ingestion_suite() {
         std::string dst_file = test_dir + "/downloaded.mp4";
         std::string test_db = test_dir + "/ingest.db";
 
-        auto http_src = std::make_shared<utp::HttpProvider>();
+        auto http_src = std::make_shared<utp::HttpProvider>("", "", true);
         auto local_dst = std::make_shared<utp::LocalProvider>();
         utp::Engine engine(http_src, local_dst, test_db);
 
@@ -1437,7 +1520,7 @@ void test_http_ingestion_suite() {
         ASSERT_TRUE(dst_bytes == sample_data);
 
         // 4. Verify 401 Auth Rejection
-        utp::HttpProvider bad_auth_prov("", "wrong_key");
+        utp::HttpProvider bad_auth_prov("", "wrong_key", true);
         std::string protected_url = "http://127.0.0.1:" + std::to_string(test_port) + "/stream/protected.mp4";
         ASSERT_THROWS(bad_auth_prov.stat(protected_url), utp::TransferError);
 

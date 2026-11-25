@@ -1,5 +1,6 @@
 #include "onedrive_provider.hpp"
 #include "providers/common/credentials.hpp"
+#include "utp/security_utils.hpp"
 #include <stdexcept>
 #include <iostream>
 #include <cstring>
@@ -10,158 +11,29 @@
 #include <cctype>
 #include <chrono>
 
-#ifdef _WIN32
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#pragma comment(lib, "ws2_32.lib")
-#else
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <unistd.h>
-#include <arpa/inet.h>
-#endif
-
 namespace utp {
 
-namespace {
-    static std::string url_encode(const std::string& value) {
-        std::ostringstream escaped;
-        escaped.fill('0');
-        escaped << std::hex;
-        for (char c : value) {
-            if (isalnum(static_cast<unsigned char>(c)) || c == '-' || c == '_' || c == '.' || c == '~') {
-                escaped << c;
-            } else {
-                escaped << '%' << std::setw(2) << std::uppercase << static_cast<int>(static_cast<unsigned char>(c));
-            }
-        }
-        return escaped.str();
+using utp::security::url_encode;
+using utp::security::escape_json;
+
+static std::string url_encode_path(const std::string& path) {
+    std::string encoded;
+    std::stringstream ss(path);
+    std::string segment;
+    bool first = true;
+    while (std::getline(ss, segment, '/')) {
+        if (!first) encoded += "/";
+        first = false;
+        encoded += url_encode(segment);
     }
-
-    static std::string url_encode_path(const std::string& path) {
-        std::string encoded;
-        std::stringstream ss(path);
-        std::string segment;
-        bool first = true;
-        while (std::getline(ss, segment, '/')) {
-            if (!first) encoded += "/";
-            first = false;
-            encoded += url_encode(segment);
-        }
-        return encoded;
-    }
-
-    std::string capture_auth_code_via_server(int port) {
-        std::string code;
-#ifdef _WIN32
-        WSADATA wsaData;
-        WSAStartup(MAKEWORD(2, 2), &wsaData);
-#endif
-        
-        int server_fd = socket(AF_INET, SOCK_STREAM, 0);
-        if (server_fd < 0) return "";
-        
-        int opt = 1;
-#ifdef _WIN32
-        setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, (const char*)&opt, sizeof(opt));
-#else
-        setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-#endif
-
-        struct sockaddr_in address;
-        address.sin_family = AF_INET;
-        address.sin_addr.s_addr = INADDR_ANY;
-        address.sin_port = htons(port);
-
-        if (bind(server_fd, (struct sockaddr*)&address, sizeof(address)) < 0) return "";
-        if (listen(server_fd, 1) < 0) return "";
-
-        struct sockaddr_in client_addr;
-#ifdef _WIN32
-        int addrlen = sizeof(client_addr);
-#else
-        socklen_t addrlen = sizeof(client_addr);
-#endif
-        int client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &addrlen);
-        if (client_fd >= 0) {
-            char buffer[4096] = {0};
-            recv(client_fd, buffer, 4096, 0);
-            std::string request(buffer);
-            
-            size_t code_pos = request.find("code=");
-            if (code_pos != std::string::npos) {
-                code_pos += 5;
-                size_t end_pos = request.find('&', code_pos);
-                size_t space_pos = request.find(' ', code_pos);
-                if (end_pos == std::string::npos || space_pos < end_pos) {
-                    end_pos = space_pos;
-                }
-                code = request.substr(code_pos, end_pos - code_pos);
-            }
-
-            std::string response = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nConnection: close\r\n\r\n<html><body><h2>OneDrive Authentication successful! You can close this window and return to the application.</h2></body></html>";
-            send(client_fd, response.c_str(), response.length(), 0);
-            
-#ifdef _WIN32
-            closesocket(client_fd);
-#else
-            close(client_fd);
-#endif
-        }
-#ifdef _WIN32
-        closesocket(server_fd);
-        WSACleanup();
-#else
-        close(server_fd);
-#endif
-        return code;
-    }
-    
-    void open_browser(const std::string& url) {
-#ifdef _WIN32
-        std::string cmd = "start \"\" \"" + url + "\"";
-#elif __APPLE__
-        std::string cmd = "open \"" + url + "\"";
-#else
-        std::string cmd = "xdg-open \"" + url + "\"";
-#endif
-        std::system(cmd.c_str());
-    }
+    return encoded;
 }
-
 
 static std::string extract_json_value(const std::string& json, const std::string& key) {
-    std::string search = "\"" + key + "\":";
-    size_t pos = json.find(search);
-    if (pos == std::string::npos) return "";
-    pos += search.length();
-    while (pos < json.length() && (json[pos] == ' ' || json[pos] == '\t' || json[pos] == '\r' || json[pos] == '\n')) pos++;
-    if (pos >= json.length()) return "";
-
-    if (json[pos] == '"') {
-        pos++; // skip opening quote
-        size_t end = pos;
-        while (end < json.length()) {
-            if (json[end] == '\\' && end + 1 < json.length()) {
-                end += 2;
-            } else if (json[end] == '"') {
-                break;
-            } else {
-                end++;
-            }
-        }
-        return json.substr(pos, end - pos);
-    } else {
-        size_t end = pos;
-        while (end < json.length() && json[end] != ',' && json[end] != '}' && json[end] != ']' &&
-               json[end] != ' ' && json[end] != '\t' && json[end] != '\r' && json[end] != '\n') {
-            end++;
-        }
-        return json.substr(pos, end - pos);
-    }
+    return utp::security::extract_json_string(json, key);
 }
 
-OneDriveProvider::OneDriveProvider(const std::string& client_id, const std::string& client_secret, const std::string& name_context) 
+OneDriveProvider::OneDriveProvider(const std::string& client_id, const std::string& client_secret, const std::string& name_context)
     : client_id_(client_id), client_secret_(client_secret), name_context_(name_context) {
     if (client_secret_.empty()) {
         client_secret_ = utp::resolve_onedrive_client_secret(client_id_);
@@ -216,9 +88,9 @@ void OneDriveProvider::authenticate() {
 
         if (!refresh_token_.empty()) {
             std::string url = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
-            std::string body = "client_id=" + url_encode(client_id_) + 
-                               "&grant_type=refresh_token" + 
-                               "&refresh_token=" + url_encode(refresh_token_) + 
+            std::string body = "client_id=" + url_encode(client_id_) +
+                               "&grant_type=refresh_token" +
+                               "&refresh_token=" + url_encode(refresh_token_) +
                                "&scope=offline_access%20Files.ReadWrite.All";
             if (!client_secret_.empty()) {
                 body += "&client_secret=" + url_encode(client_secret_);
@@ -232,28 +104,29 @@ void OneDriveProvider::authenticate() {
                 if (!new_ref.empty()) refresh_token_ = new_ref;
 
                 std::vector<std::string> auth_header = {"Authorization: Bearer " + access_token_};
-        std::string user_name;
-        auto me_resp = http_.get("https://graph.microsoft.com/v1.0/me", auth_header);
-        if (me_resp.status_code == 200) {
-            std::string mail = extract_json_value(me_resp.body, "mail");
-            if (mail.empty()) mail = extract_json_value(me_resp.body, "userPrincipalName");
-            if (!mail.empty()) user_name = mail;
-            else user_name = extract_json_value(me_resp.body, "displayName");
-        }
-        if (user_name.empty()) {
-            auto user_resp = http_.get("https://graph.microsoft.com/v1.0/me/drive", auth_header);
-            if (user_resp.status_code == 200) {
-                user_name = extract_json_value(user_resp.body, "email");
-                if (user_name.empty()) user_name = extract_json_value(user_resp.body, "userPrincipalName");
-                if (user_name.empty()) user_name = extract_json_value(user_resp.body, "displayName");
-            }
-        }
-        if (user_name.empty()) user_name = "Connected Account";
-        user_email_ = user_name;
+                std::string user_name;
+                auto me_resp = http_.get("https://graph.microsoft.com/v1.0/me", auth_header);
+                if (me_resp.status_code == 200) {
+                    std::string mail = extract_json_value(me_resp.body, "mail");
+                    if (mail.empty()) mail = extract_json_value(me_resp.body, "userPrincipalName");
+                    if (!mail.empty()) user_name = mail;
+                    else user_name = extract_json_value(me_resp.body, "displayName");
+                }
+                if (user_name.empty()) {
+                    auto user_resp = http_.get("https://graph.microsoft.com/v1.0/me/drive", auth_header);
+                    if (user_resp.status_code == 200) {
+                        user_name = extract_json_value(user_resp.body, "email");
+                        if (user_name.empty()) user_name = extract_json_value(user_resp.body, "userPrincipalName");
+                        if (user_name.empty()) user_name = extract_json_value(user_resp.body, "displayName");
+                    }
+                }
+                if (user_name.empty()) user_name = "Connected Account";
+                user_email_ = user_name;
 
-                std::string new_json = "{\"access_token\":\"" + access_token_ + "\",\"refresh_token\":\"" + refresh_token_ + "\",\"email\":\"" + user_name + "\"}";
-                std::ofstream outfile(token_file);
-                if (outfile.is_open()) outfile << new_json;
+                std::string new_json = "{\"access_token\":\"" + escape_json(access_token_) +
+                                       "\",\"refresh_token\":\"" + escape_json(refresh_token_) +
+                                       "\",\"email\":\"" + escape_json(user_name) + "\"}";
+                utp::security::write_secret_file(token_file, new_json);
 
                 {
                     std::lock_guard<std::mutex> lock(s_onedrive_cache_mutex);
@@ -278,47 +151,55 @@ void OneDriveProvider::authenticate() {
         }
     }
 
-    std::cout << prefix << "Authenticating via OAuth2...\n";
-    
+    std::cout << prefix << "Authenticating via OAuth2 (PKCE + Loopback)...\n";
+
     std::string redirect_uri = "http://localhost:8080";
+    std::string oauth_state = utp::security::generate_random_hex(16);
+    auto pkce = utp::security::generate_pkce_pair();
     std::string auth_url = "https://login.microsoftonline.com/common/oauth2/v2.0/authorize?"
-                           "client_id=" + client_id_ +
+                           "client_id=" + url_encode(client_id_) +
                            "&response_type=code"
-                           "&redirect_uri=" + redirect_uri +
+                           "&redirect_uri=" + url_encode(redirect_uri) +
                            "&scope=offline_access%20Files.ReadWrite.All"
-                           "&prompt=select_account";
+                           "&prompt=select_account"
+                           "&state=" + url_encode(oauth_state) +
+                           "&code_challenge=" + url_encode(pkce.challenge) +
+                           "&code_challenge_method=S256";
 
     std::cout << prefix << "Opening browser for authentication...\n";
-    open_browser(auth_url);
-    
-    std::cout << prefix << "Waiting for authorization code on http://localhost:8080...\n";
-    std::string auth_code = capture_auth_code_via_server(8080);
-    
+    if (!utp::security::open_url_safely(auth_url)) {
+        std::cout << prefix << "Open this URL in your browser:\n  " << auth_url << "\n";
+    }
+
+    std::cout << prefix << "Waiting for authorization callback on http://127.0.0.1:8080...\n";
+    std::string auth_code = utp::security::capture_oauth_code_loopback(8080, oauth_state, "OneDrive");
+
     if (auth_code.empty()) {
-        throw std::runtime_error("Failed to capture authorization code from local server");
+        throw std::runtime_error("Failed to capture valid OAuth authorization code from loopback callback");
     }
 
     std::string token_url = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
-    std::string body = "client_id=" + url_encode(client_id_) + 
+    std::string body = "client_id=" + url_encode(client_id_) +
                        "&scope=offline_access%20Files.ReadWrite.All" +
-                       "&code=" + url_encode(auth_code) + 
-                       "&redirect_uri=" + url_encode(redirect_uri) + 
+                       "&code=" + url_encode(auth_code) +
+                       "&code_verifier=" + url_encode(pkce.verifier) +
+                       "&redirect_uri=" + url_encode(redirect_uri) +
                        "&grant_type=authorization_code";
-    
+
     if (!client_secret_.empty()) {
         body += "&client_secret=" + url_encode(client_secret_);
     }
-                       
+
     std::vector<std::string> headers = {
         "Content-Type: application/x-www-form-urlencoded"
     };
 
     auto resp = http_.post(token_url, body, headers);
-    
+
     if (resp.status_code == 200) {
         access_token_ = extract_json_value(resp.body, "access_token");
         refresh_token_ = extract_json_value(resp.body, "refresh_token");
-        
+
         std::vector<std::string> auth_header = {"Authorization: Bearer " + access_token_};
         std::string user_name;
         auto me_resp = http_.get("https://graph.microsoft.com/v1.0/me", auth_header);
@@ -341,9 +222,10 @@ void OneDriveProvider::authenticate() {
 
         std::cout << prefix << "Authentication successful! Authenticated as: \033[1;32m" << user_name << "\033[0m\n";
 
-        std::string new_json = "{\"access_token\":\"" + access_token_ + "\",\"refresh_token\":\"" + refresh_token_ + "\",\"email\":\"" + user_name + "\"}";
-        std::ofstream outfile(token_file);
-        if (outfile.is_open()) outfile << new_json;
+        std::string new_json = "{\"access_token\":\"" + escape_json(access_token_) +
+                               "\",\"refresh_token\":\"" + escape_json(refresh_token_) +
+                               "\",\"email\":\"" + escape_json(user_name) + "\"}";
+        utp::security::write_secret_file(token_file, new_json);
 
         {
             std::lock_guard<std::mutex> lock(s_onedrive_cache_mutex);
@@ -355,7 +237,7 @@ void OneDriveProvider::authenticate() {
             };
         }
     } else {
-        std::cerr << prefix << "Authentication failed (" << resp.status_code << "): " << resp.body << "\n";
+        std::cerr << prefix << "Authentication failed (HTTP " << resp.status_code << ")\n";
         throw std::runtime_error("OAuth authentication failed");
     }
 }
@@ -395,7 +277,7 @@ void OneDriveProvider::refresh_auth() {
     auto r = http_.post(url, body, {"Content-Type: application/x-www-form-urlencoded"});
     if (r.status_code != 200) {
         throw TransferError(ErrorCategory::AUTH,
-            "OneDrive token refresh failed (" + std::to_string(r.status_code) + "): " + r.body,
+            "OneDrive token refresh failed (" + std::to_string(r.status_code) + ")",
             r.status_code);
     }
     std::string new_access = extract_json_value(r.body, "access_token");
@@ -409,12 +291,10 @@ void OneDriveProvider::refresh_auth() {
 
     std::string token_file = token_file_path();
     {
-        std::ofstream outfile(token_file);
-        if (outfile.is_open()) {
-            outfile << "{\"access_token\":\"" << access_token_
-                    << "\",\"refresh_token\":\"" << refresh_token_
-                    << "\",\"email\":\"" << user_email_ << "\"}";
-        }
+        std::string updated_json = "{\"access_token\":\"" + escape_json(access_token_) +
+                                   "\",\"refresh_token\":\"" + escape_json(refresh_token_) +
+                                   "\",\"email\":\"" + escape_json(user_email_) + "\"}";
+        utp::security::write_secret_file(token_file, updated_json);
     }
     {
         std::lock_guard<std::mutex> lock(s_onedrive_cache_mutex);
@@ -433,16 +313,15 @@ FileInfo OneDriveProvider::stat(Path path) {
 
     std::string url;
     if (clean_path.rfind("01", 0) == 0 && clean_path.length() > 20) {
-        url = "https://graph.microsoft.com/v1.0/me/drive/items/" + clean_path;
+        url = "https://graph.microsoft.com/v1.0/me/drive/items/" + url_encode_path(clean_path);
     } else {
         url = "https://graph.microsoft.com/v1.0/me/drive/root:/" + url_encode_path(clean_path);
     }
     auto resp = http_.get(url, headers);
-    
+
     if (resp.status_code != 200) {
-        // Fallback attempt
-        std::string alt_url = (url.find("/root:/") != std::string::npos) ? 
-            ("https://graph.microsoft.com/v1.0/me/drive/items/" + clean_path) :
+        std::string alt_url = (url.find("/root:/") != std::string::npos) ?
+            ("https://graph.microsoft.com/v1.0/me/drive/items/" + url_encode_path(clean_path)) :
             ("https://graph.microsoft.com/v1.0/me/drive/root:/" + url_encode_path(clean_path));
         resp = http_.get(alt_url, headers);
         if (resp.status_code != 200) {
@@ -516,8 +395,6 @@ std::vector<FileInfo> OneDriveProvider::list(Path path) {
     while (!clean_path.empty() && (clean_path.front() == '/' || clean_path.front() == ' ')) clean_path.erase(0, 1);
     while (!clean_path.empty() && (clean_path.back() == '/' || clean_path.back() == ' ')) clean_path.pop_back();
 
-    // P1.2: Graph pages children (~200/call); follow @odata.nextLink until
-    // exhausted instead of silently truncating large folders.
     std::string url;
     if (clean_path.empty() || clean_path == "." || clean_path == "root") {
         url = "https://graph.microsoft.com/v1.0/me/drive/root/children";
@@ -530,7 +407,7 @@ std::vector<FileInfo> OneDriveProvider::list(Path path) {
     };
 
     int page = 0;
-    const int max_pages = 100; // safety bound against runaway loops
+    const int max_pages = 100;
     while (!url.empty() && page++ < max_pages) {
         auto resp = http_.get(url, headers);
         if (resp.status_code != 200) {
@@ -577,18 +454,16 @@ void OneDriveProvider::ensure_folder_path(const std::string& folder_path) {
 
         std::string target_path = current_parent.empty() ? segment : (current_parent + "/" + segment);
 
-        // Check if target folder exists
         std::string check_url = "https://graph.microsoft.com/v1.0/me/drive/root:/" + url_encode_path(target_path);
         auto check_resp = http_.get(check_url, headers);
         if (check_resp.status_code != 200) {
-            // Folder does not exist, create it via Graph API
             std::string create_url = current_parent.empty()
                 ? "https://graph.microsoft.com/v1.0/me/drive/root/children"
                 : ("https://graph.microsoft.com/v1.0/me/drive/root:/" + url_encode_path(current_parent) + ":/children");
-            std::string body = "{\"name\":\"" + segment + "\",\"folder\":{},\"@microsoft.graph.conflictBehavior\":\"fail\"}";
+            std::string body = "{\"name\":\"" + escape_json(segment) + "\",\"folder\":{},\"@microsoft.graph.conflictBehavior\":\"fail\"}";
             auto create_resp = http_.post(create_url, body, headers);
             if (create_resp.status_code != 200 && create_resp.status_code != 201 && create_resp.status_code != 409) {
-                std::cerr << "[OneDrive] Note: failed to create intermediate folder '" << target_path 
+                std::cerr << "[OneDrive] Note: failed to create intermediate folder '" << target_path
                           << "' (" << create_resp.status_code << "): " << create_resp.body << "\n";
             }
         }
@@ -627,8 +502,6 @@ WriteSession OneDriveProvider::openWrite(Path path, uint64_t size, const std::st
 
     std::string upload_url;
     if (!resume_token.empty()) {
-        // P1.3: resume the persisted Graph upload session — the uploadUrl stays
-        // valid and the service already knows nextExpectedRanges.
         upload_url = resume_token;
     } else {
         std::vector<std::string> headers = {
@@ -648,7 +521,6 @@ WriteSession OneDriveProvider::openWrite(Path path, uint64_t size, const std::st
             throw TransferError(ErrorCategory::FATAL, "OneDrive missing uploadUrl in response");
         }
 
-        // Fix escaped forward slashes from JSON
         size_t pos = 0;
         while ((pos = upload_url.find("\\/", pos)) != std::string::npos) {
             upload_url.replace(pos, 2, "/");
@@ -678,28 +550,27 @@ size_t OneDriveProvider::read(ReadStream session, uint64_t offset, uint8_t* buff
         }
         s = sessions_[session.id];
     }
-    
+
     uint64_t end_byte = offset + count - 1;
     std::vector<std::string> headers = {
         "Authorization: Bearer " + access_token_,
         "Range: bytes=" + std::to_string(offset) + "-" + std::to_string(end_byte)
     };
-    
+
     std::string url;
     if (s.path.find('/') != std::string::npos || (s.path.length() < 20)) {
         url = "https://graph.microsoft.com/v1.0/me/drive/root:/" + url_encode_path(s.path) + ":/content";
     } else {
-        url = "https://graph.microsoft.com/v1.0/me/drive/items/" + s.path + "/content";
+        url = "https://graph.microsoft.com/v1.0/me/drive/items/" + url_encode_path(s.path) + "/content";
     }
     auto resp = http_.get(url, headers);
-    
+
     if (resp.status_code != 200 && resp.status_code != 206) {
-        if (resp.status_code == 416) return 0; // Range Not Satisfiable (EOF)
+        if (resp.status_code == 416) return 0;
         if (resp.status_code == 401 || resp.status_code == 403) {
             throw TransferError(ErrorCategory::AUTH, "OneDrive auth error: " + resp.body, resp.status_code);
         }
         if (resp.status_code == 302) {
-             // Handle redirects for OneDrive content download, though HttpClient might already do it
              auto loc_it = resp.headers.find("Location");
              if (loc_it == resp.headers.end()) loc_it = resp.headers.find("location");
              if (loc_it != resp.headers.end()) {
@@ -711,12 +582,12 @@ size_t OneDriveProvider::read(ReadStream session, uint64_t offset, uint8_t* buff
             throw TransferError(ErrorCategory::RETRYABLE, "OneDrive read failed: " + resp.body, resp.status_code);
         }
     }
-    
+
     size_t bytes_read = resp.body.size();
-    if (bytes_read > count) bytes_read = count; // Safeguard
-    
+    if (bytes_read > count) bytes_read = count;
+
     std::memcpy(buffer, resp.body.data(), bytes_read);
-    
+
     return bytes_read;
 }
 
@@ -739,8 +610,7 @@ void OneDriveProvider::write(WriteSession session, uint64_t offset, const uint8_
     };
 
     auto resp = http_.put(s.upload_uri, data, size, headers);
-    
-    // 202 means incomplete, 200/201 means complete
+
     if (resp.status_code != 202 && resp.status_code != 200 && resp.status_code != 201) {
         if (resp.status_code == 401 || resp.status_code == 403) {
             throw TransferError(ErrorCategory::AUTH, "OneDrive auth error", resp.status_code);
