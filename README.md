@@ -58,10 +58,10 @@ UTP classifies surfaces into **Core Production MVP** (covered by automated CI bu
 | **Multi-Destination Fan-Out** | `utp route <src> <d1> <d2>...` | **Core MVP (Production)** | Zero-Disk Fan-Out Streaming + Concurrent Broadcast |
 | **Smart Routing Engine** | `utp route <src> --rule "<c>:<d>"` | **Core MVP (Production)** | Pattern Engine (`ext`, `size`, `path`, `name`, `--default`) |
 | **Daemon Management** | `utp daemon start\|stop\|status` | **Core MVP (Production)** | Detached Process Group Controls + PID/Token State |
-| **TypeScript / Node SDK** | `@utp/client` (`sdk/typescript/`) | **Core MVP (Production)** | Native Typed Client + Async Event Stream + Unit Suite (10/10) |
+| **TypeScript / Node SDK** | `@utp/client` (`sdk/typescript/`) | **Core MVP (Production)** | Native Typed Client + Async Event Stream + Unit Suite (11/11) |
 | **State Persistence** | SQLite WAL ledger (`utp.db`) | **Core MVP (Production)** | Crash-Resilient Upsert & Event Stream |
-| **Direct Web Ingestion** | `http://` & `https://` (`HttpProvider`) | *Experimental (Extension)* | Ranged HTTP Stream Read + Header Filename Probing |
-| **Zero-Disk Stream Server** | Local `utp stream` & Daemon `/api/stream` | *Experimental (Extension)* | HTTP 206 Range Seeking + Token Auth |
+| **Direct Web Ingestion** | `http://` & `https://` (`HttpProvider`) | *Experimental (Extension)* | Ranged HTTP Stream Read + SSRF Guards + Filename Probing |
+| **Zero-Disk Stream Server** | Local `utp stream` & Daemon `/api/stream` | *Experimental (Extension)* | HTTP 206 Range Seeking + Signed Tickets / Token Auth |
 | **Daemon Server (`utpd`)** | REST API (`/api/transfers`, `/api/stream`) | *Experimental (Post-MVP)* | Marked `X-UTP-Surface: experimental` |
 | **Web Dashboard** | Browser UI (`web/`) | *Experimental (Post-MVP)* | Preview UI for Daemon API |
 | **Python SDK** | `utp-client` (`sdk/python/`) | *Experimental (Post-MVP)* | Beta Client Library |
@@ -299,9 +299,9 @@ await client.waitForCompletion(transferId, {
   },
 });
 
-// Generate on-demand streaming or direct download URL
-const streamUrl = client.getStreamUrl('gdrive://movies/clip.mp4');
-const downloadUrl = client.getStreamUrl('gdrive://movies/clip.mp4', {
+// Generate short-lived signed streaming or direct download URL (no bearer token in URL)
+const streamUrl = await client.getSignedStreamUrl('gdrive://movies/clip.mp4');
+const downloadUrl = await client.getSignedStreamUrl('gdrive://movies/clip.mp4', {
   download: true,
   filename: 'clip.mp4',
 });
@@ -314,7 +314,7 @@ Automate data pipelines and media streaming links with Python:
 ```python
 from utp_client import UTPClient
 
-client = UTPClient(host="http://127.0.0.1:8080")
+client = UTPClient(host="http://127.0.0.1:8080", token="YOUR_API_TOKEN")
 
 # Trigger transfer
 transfer_id = client.transfer(
@@ -326,8 +326,8 @@ transfer_id = client.transfer(
 status = client.wait_until_complete(transfer_id)
 print(f"Transfer finished with status: {status['state']}")
 
-# Construct streaming or direct download URL
-stream_url = client.get_stream_url("gdrive://movies/clip.mp4", download=False)
+# Construct short-lived signed streaming or direct download URL
+stream_url = client.create_signed_stream_url("gdrive://movies/clip.mp4", download=False)
 ```
 
 ---

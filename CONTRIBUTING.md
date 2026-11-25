@@ -72,25 +72,26 @@ chmod +x build.sh
 ./build.sh
 
 # On Windows:
-.\build_cli.bat
+.\scripts\build_cli.bat
+.\scripts\build_server.bat
 ```
-This produces an optimized standalone executable:
-- `./utp` (Linux / macOS) or `utp.exe` (Windows)
+This produces standalone executables:
+- `./utp` / `./utpd` (Linux / macOS) or `utp.exe` / `utp-server.exe` (Windows)
 
 ### 2. Run the Full Test Battery
-Run the 23-suite automated test suite (including mock cloud providers, URI parsers, SQLite WAL state recovery, and multi-cloud fan-out):
+Run the 26-suite automated test suite (including mock cloud providers, URI parsers, SQLite WAL state recovery, security hardening, and multi-cloud fan-out):
 ```bash
 # On Linux / macOS:
 g++ -std=c++20 -O3 -I core/include -I . \
   tests/test_runner.cpp \
   core/src/chunk_planner.cpp core/src/engine.cpp core/src/state_manager.cpp core/src/uri_parser.cpp \
   core/src/sync_engine.cpp core/src/multi_engine.cpp core/src/routing_rules.cpp \
-  providers/common/http_client.cpp providers/local/local_provider.cpp \
+  providers/common/http_client.cpp providers/local/local_provider.cpp providers/http/http_provider.cpp \
   -o test_runner -lcurl -lssl -lcrypto -lpthread -lsqlite3
 ./test_runner
 
 # On Windows:
-.\build_tests.bat
+.\scripts\build_tests.bat
 .\test_runner.exe
 ```
 
@@ -112,12 +113,15 @@ To add support for a new cloud provider (e.g. Box, MEGA, SFTP):
    ```cpp
    class MyCloudProvider : public StorageProvider {
    public:
-       ResourceMetadata get_metadata(const Resource& resource) override;
-       std::vector<ResourceMetadata> list_directory(const Resource& resource) override;
-       StreamSession open_read_stream(const Resource& resource, uint64_t offset, uint64_t length) override;
-       StreamSession open_write_stream(const Resource& resource, uint64_t total_size) override;
-       bool commit_chunk(StreamSession& session, const uint8_t* data, size_t size, uint64_t offset) override;
-       bool finalize_stream(StreamSession& session) override;
+       ProviderCapabilities capabilities() override;
+       FileInfo stat(Path path) override;
+       std::vector<FileInfo> list(Path path) override;
+       ReadStream openRead(Path path) override;
+       WriteSession openWrite(Path path, uint64_t size, const std::string& resume_token = "") override;
+       size_t read(ReadStream session, uint64_t offset, uint8_t* buffer, size_t count) override;
+       void write(WriteSession session, uint64_t offset, const uint8_t* data, size_t size) override;
+       void commit(WriteSession session) override;
+       void abort(WriteSession session) override;
    };
    ```
 2. **Register URI Scheme:**
@@ -138,7 +142,7 @@ To add support for a new cloud provider (e.g. Box, MEGA, SFTP):
    - RAII for all resource management (smart pointers, no raw `malloc`/`free`)
    - Descriptive variable names and no hardcoded personal credentials or secrets
 3. **Verify Tests Pass:**
-   Ensure all 23 suites in `test_runner` pass before opening your PR.
+   Ensure all 26 suites in `test_runner` pass before opening your PR.
 4. **Submit Pull Request:**
    - Fill out the [Pull Request Template](.github/PULL_REQUEST_TEMPLATE.md).
    - Link any related GitHub issues.

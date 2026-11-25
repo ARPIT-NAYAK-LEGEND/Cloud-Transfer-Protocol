@@ -27,7 +27,7 @@ Cloud tokens and API secrets are sensitive credentials:
 - **No Hardcoded Secrets**: Client secrets are never embedded, compiled into binaries, or XOR-masked in source files. Hardcoded secret arrays have been eliminated entirely.
 - **Environment & Keyring Integration**: OAuth client secrets must be supplied via environment variables (`GDRIVE_CLIENT_SECRET`, `ONEDRIVE_CLIENT_SECRET`, `AWS_SECRET_ACCESS_KEY`, etc.) or secure local configuration.
 - **Local Isolation**: Tokens are stored exclusively in user-scoped files (`.utp_*_token.json`) located in the application directory.
-- **Narrow API Scopes**: OAuth authorization requests ask only for storage and file operations (`drive.file`, `Files.ReadWrite.All`), avoiding broad profile or identity permissions.
+- **Narrow API Scopes**: OAuth authorization requests ask only for storage and file operations (`drive.readonly`, `drive.file`, `Files.ReadWrite.All`) alongside PKCE (`S256`) and CSPRNG CSRF `state` validation, avoiding broad profile or identity permissions.
 - **Never Logged**: Auth tokens, bearer headers, and refresh secrets are strictly excluded from console logs, test output, and SQLite transaction traces.
 
 ---
@@ -42,10 +42,11 @@ Account configurations in `.utp_accounts.json` maintain discrete isolation:
 
 ## 5. API Server Authentication Guard (Phase 3)
 
-The UTP background daemon (`utp server` on port 8999/8080) enforces zero-trust access control across all HTTP endpoints:
-- **Mandatory Authentication**: All `/api/*` endpoints require authentication using a Bearer token or API key:
+The UTP background daemon (`utpd`, bound by default to `127.0.0.1:8080`) enforces zero-trust access control across all HTTP endpoints:
+- **Mandatory Authentication**: All `/api/*` endpoints require authentication using a Bearer token, API key, or (for `/api/stream` only) a short-lived resource-scoped HMAC-SHA256 `?ticket=`:
   - Header `Authorization: Bearer <token>`
   - Header `X-API-Key: <token>`
-- **Rejection of Unauthenticated Calls**: Any call missing valid credentials is unconditionally rejected with HTTP `401 Unauthorized` and `WWW-Authenticate: Bearer realm="utp"`.
-- **Token Provisioning**: The server acquires its secret key from the `UTP_API_TOKEN` environment variable. If unset, it generates a cryptographically random 32-character hexadecimal token on startup and writes it to `.utp_api_token`.
-- **CORS Preflight Exemption**: HTTP `OPTIONS` requests are routed without authentication to allow cross-origin web user interfaces to negotiate CORS headers safely.
+  - Signed stream ticket `POST /api/stream-tickets` → `?ticket=<exp>.<nonce>.<hmac>`
+- **Rejection of Unauthenticated Calls**: Any call missing valid credentials is unconditionally rejected in constant time (`EVP_Digest` + `CRYPTO_memcmp`) with HTTP `401 Unauthorized` and `WWW-Authenticate: Bearer realm="utp"`.
+- **Token Provisioning**: The server acquires its secret key from the `UTP_API_TOKEN` environment variable. If unset, it generates a cryptographically random 64-character hexadecimal token (`RAND_bytes(32)`) on startup and writes it with owner-only permissions (`0600` / user ACL) to `.utp_api_token` without logging it.
+- **CORS Preflight Exemption**: HTTP `OPTIONS` requests are validated against loopback origins (or `UTP_CORS_ORIGIN`) without exposing credentials to untrusted origins.
