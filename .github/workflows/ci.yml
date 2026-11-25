@@ -44,7 +44,7 @@ jobs:
             tests/test_runner.cpp \
             core/src/chunk_planner.cpp core/src/engine.cpp core/src/state_manager.cpp core/src/uri_parser.cpp \
             core/src/sync_engine.cpp core/src/multi_engine.cpp core/src/routing_rules.cpp \
-            providers/common/http_client.cpp providers/local/local_provider.cpp \
+            providers/common/http_client.cpp providers/local/local_provider.cpp providers/http/http_provider.cpp \
             -o test_runner -lcurl -lssl -lcrypto -lpthread -lsqlite3
           ./test_runner
 

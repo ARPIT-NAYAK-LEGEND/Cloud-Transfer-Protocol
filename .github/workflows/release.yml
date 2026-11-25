@@ -26,23 +26,34 @@ jobs:
             mingw-w64-ucrt-x86_64-openssl
             mingw-w64-ucrt-x86_64-sqlite3
 
-      - name: Compile UTP CLI
+      - name: Compile UTP CLI & Daemon
         shell: msys2 {0}
         run: |
-          g++ -std=c++20 -O3 -I core/include -I . \
-            cli/main.cpp cli/tui.cpp \
+          g++ -std=c++20 -O3 -s -D_WIN32_WINNT=0x0A00 -I core/include -I . \
+            cli/main.cpp cli/tui.cpp cli/stream_server.cpp \
             core/src/chunk_planner.cpp core/src/engine.cpp core/src/state_manager.cpp core/src/uri_parser.cpp \
+            core/src/sync_engine.cpp core/src/multi_engine.cpp core/src/routing_rules.cpp \
             providers/azure/azure_provider.cpp providers/common/http_client.cpp \
             providers/dropbox/dropbox_provider.cpp providers/google_drive/gdrive_provider.cpp \
-            providers/icloud/icloud_provider.cpp providers/local/local_provider.cpp \
+            providers/http/http_provider.cpp providers/icloud/icloud_provider.cpp providers/local/local_provider.cpp \
             providers/onedrive/onedrive_provider.cpp providers/s3/s3_provider.cpp \
             providers/webdav/webdav_provider.cpp \
             -o utp.exe -lcurl -lssl -lcrypto -lws2_32 -lsqlite3
 
+          g++ -std=c++20 -O3 -s -D_WIN32_WINNT=0x0A00 -I core/include -I . -I server \
+            server/main.cpp \
+            core/src/chunk_planner.cpp core/src/engine.cpp core/src/state_manager.cpp core/src/uri_parser.cpp \
+            providers/azure/azure_provider.cpp providers/common/http_client.cpp \
+            providers/dropbox/dropbox_provider.cpp providers/google_drive/gdrive_provider.cpp \
+            providers/http/http_provider.cpp providers/icloud/icloud_provider.cpp providers/local/local_provider.cpp \
+            providers/onedrive/onedrive_provider.cpp providers/s3/s3_provider.cpp \
+            providers/webdav/webdav_provider.cpp \
+            -o utpd.exe -lcurl -lssl -lcrypto -lws2_32 -lsqlite3
+
       - name: Package Windows ZIP
         shell: pwsh
         run: |
-          Compress-Archive -Path utp.exe, LICENSE, README.md -DestinationPath utp-windows-x64.zip
+          Compress-Archive -Path utp.exe, utpd.exe, LICENSE, README.md, PRIVACY.md, SECURITY.md -DestinationPath utp-windows-x64.zip
 
       - name: Upload Windows Asset
         uses: actions/upload-artifact@v4
@@ -64,11 +75,12 @@ jobs:
       - name: Compile UTP CLI
         run: |
           g++ -std=c++20 -O3 -I core/include -I . \
-            cli/main.cpp cli/tui.cpp \
+            cli/main.cpp cli/tui.cpp cli/stream_server.cpp \
             core/src/chunk_planner.cpp core/src/engine.cpp core/src/state_manager.cpp core/src/uri_parser.cpp \
+            core/src/sync_engine.cpp core/src/multi_engine.cpp core/src/routing_rules.cpp \
             providers/azure/azure_provider.cpp providers/common/http_client.cpp \
             providers/dropbox/dropbox_provider.cpp providers/google_drive/gdrive_provider.cpp \
-            providers/icloud/icloud_provider.cpp providers/local/local_provider.cpp \
+            providers/http/http_provider.cpp providers/icloud/icloud_provider.cpp providers/local/local_provider.cpp \
             providers/onedrive/onedrive_provider.cpp providers/s3/s3_provider.cpp \
             providers/webdav/webdav_provider.cpp \
             -o utp -lcurl -lssl -lcrypto -lpthread -lsqlite3
@@ -98,11 +110,12 @@ jobs:
           clang++ -std=c++20 -O3 -I core/include -I . \
             -I$(brew --prefix openssl)/include -L$(brew --prefix openssl)/lib \
             -I$(brew --prefix sqlite)/include -L$(brew --prefix sqlite)/lib \
-            cli/main.cpp cli/tui.cpp \
+            cli/main.cpp cli/tui.cpp cli/stream_server.cpp \
             core/src/chunk_planner.cpp core/src/engine.cpp core/src/state_manager.cpp core/src/uri_parser.cpp \
+            core/src/sync_engine.cpp core/src/multi_engine.cpp core/src/routing_rules.cpp \
             providers/azure/azure_provider.cpp providers/common/http_client.cpp \
             providers/dropbox/dropbox_provider.cpp providers/google_drive/gdrive_provider.cpp \
-            providers/icloud/icloud_provider.cpp providers/local/local_provider.cpp \
+            providers/http/http_provider.cpp providers/icloud/icloud_provider.cpp providers/local/local_provider.cpp \
             providers/onedrive/onedrive_provider.cpp providers/s3/s3_provider.cpp \
             providers/webdav/webdav_provider.cpp \
             -o utp -lcurl -lssl -lcrypto -lpthread -lsqlite3
@@ -134,3 +147,46 @@ jobs:
           draft: false
           prerelease: false
           generate_release_notes: true
+
+  publish-npm:
+    needs: [build-windows, build-linux, build-macos, create-release]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Download Windows Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: utp-windows-x64
+          path: tmp-windows
+
+      - name: Unpack Windows binaries for npm distribution
+        run: |
+          unzip -q tmp-windows/utp-windows-x64.zip -d tmp-windows/extracted
+          cp tmp-windows/extracted/utp.exe npm/bin/utp.exe || true
+          cp tmp-windows/extracted/utpd.exe npm/bin/utpd.exe || true
+
+      - name: Build TypeScript SDK
+        run: |
+          cd sdk/typescript
+          npm install
+          npm run build
+          npm test
+
+      - name: Publish to NPM
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -n "$NODE_AUTH_TOKEN" ]; then
+            cd sdk/typescript && npm publish --access public || echo "sdk publish skipped"
+            cd ../../npm && npm publish --access public || echo "npm publish skipped"
+          else
+            echo "NPM_TOKEN secret not present; skipping npm publish"
+          fi

@@ -17,11 +17,11 @@
 [![Official Portal](https://img.shields.io/badge/Official%20Site-ctp.arpitnayak.tech-FF5B1F.svg)](https://ctp.arpitnayak.tech)
 [![Privacy & Terms](https://img.shields.io/badge/Legal-Privacy%20%26%20Terms-22c55e.svg)](https://ctp.arpitnayak.tech/privacy)
 [![C++20](https://img.shields.io/badge/Standard-C%2B%2B20-purple.svg)](https://en.cppreference.com/w/cpp/20)
-[![Release](https://img.shields.io/badge/Release-v2.6.0--pro-cyan.svg)](https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol/releases)
+[![Release](https://img.shields.io/badge/Release-v2.6.1--pro-cyan.svg)](https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol/releases)
 [![Platforms](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-emerald.svg)](#installation--quick-start)
 [![Zero Disk Footprint](https://img.shields.io/badge/Storage-Zero%20Disk%20RAM%20Stream-orange.svg)](#-architecture--security)
 [![Encryption](https://img.shields.io/badge/Security-TLS%201.3%20%2F%20AES--256-cyan.svg)](#-architecture--security)
-[![TypeScript SDK](https://img.shields.io/badge/TypeScript%20SDK-v2.6.0-3178C6.svg)](sdk/typescript)
+[![TypeScript SDK](https://img.shields.io/badge/TypeScript%20SDK-v2.6.1-3178C6.svg)](sdk/typescript)
 
 </div>
 

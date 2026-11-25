@@ -1,14 +1,14 @@
 class Utp < Formula
   desc "Universal Cloud Transfer Protocol (UTP) - Direct 0-Disk High-Speed Cloud-to-Cloud Pipeline"
   homepage "https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol"
-  version "2.6.0"
+  version "2.6.1"
   license "MIT"
 
   if OS.mac?
-    url "https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol/releases/download/v2.6.0/utp-macos.tar.gz"
+    url "https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol/releases/download/v2.6.1/utp-macos.tar.gz"
     sha256 "SKIP"
   elsif OS.linux?
-    url "https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol/releases/download/v2.6.0/utp-linux-x64.tar.gz"
+    url "https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol/releases/download/v2.6.1/utp-linux-x64.tar.gz"
     sha256 "SKIP"
   end
 

@@ -39,12 +39,12 @@ if [ "$OS" = "Darwin" ]; then
 fi
 
 $CXX -std=c++20 -O3 -I core/include -I . $EXTRA_INCLUDES \
-    cli/main.cpp cli/tui.cpp \
+    cli/main.cpp cli/tui.cpp cli/stream_server.cpp \
     core/src/chunk_planner.cpp core/src/engine.cpp core/src/state_manager.cpp core/src/uri_parser.cpp \
     core/src/sync_engine.cpp core/src/multi_engine.cpp core/src/routing_rules.cpp \
     providers/azure/azure_provider.cpp providers/common/http_client.cpp \
     providers/dropbox/dropbox_provider.cpp providers/google_drive/gdrive_provider.cpp \
-    providers/icloud/icloud_provider.cpp providers/local/local_provider.cpp \
+    providers/http/http_provider.cpp providers/icloud/icloud_provider.cpp providers/local/local_provider.cpp \
     providers/onedrive/onedrive_provider.cpp providers/s3/s3_provider.cpp \
     providers/webdav/webdav_provider.cpp \
     -o utp $EXTRA_LIBS -lcurl -lssl -lcrypto -lpthread -lsqlite3

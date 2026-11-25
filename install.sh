@@ -9,7 +9,7 @@ BOLD='\033[1m'
 NC='\033[0m'
 
 REPO="ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol"
-VERSION="v2.6.0"
+VERSION="v2.6.1"
 
 echo -e "\n${BOLD}${CYAN}╔══════════════════════════════════════════════════════════════╗${NC}"
 echo -e "${BOLD}${CYAN}║       Installing Universal Cloud Transfer Protocol (UTP)     ║${NC}"
