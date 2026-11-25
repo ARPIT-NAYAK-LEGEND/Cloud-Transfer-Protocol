@@ -6,7 +6,7 @@
   "architecture": {
     "64bit": {
       "url": "https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol/releases/download/v2.6.2/utp-windows-x64.zip",
-      "hash": "a992194d28b234e6a21896905ed1911e0d1989ae08c8b4314c351587eaf07d80",
+      "hash": "306db64e8a25de2ffb3eca9e8ab069af3fb3f011c2dcdd1f5b66f5b73dc22d6f",
       "bin": [
         "utp.exe",
         "utpd.exe"

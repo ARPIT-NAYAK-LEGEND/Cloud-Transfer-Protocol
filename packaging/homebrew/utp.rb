@@ -6,12 +6,12 @@ class Utp < Formula
 
   on_macos do
     url "https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol/releases/download/v2.6.2/utp-macos.tar.gz"
-    sha256 "03944321ce44b51dea912e43aefcaf2acb374cd198eb5540d7b9eb5ad5d991dd"
+    sha256 "1aaff4c79d41085970c72e944406f891585acf06dc8e93bfeb2a130eb7a96df4"
   end
 
   on_linux do
     url "https://github.com/ARPIT-NAYAK-LEGEND/Cloud-Transfer-Protocol/releases/download/v2.6.2/utp-linux-x64.tar.gz"
-    sha256 "5689fc2b130b73d76459149a5b775478160990e0efbaa855db49612f6b9b0ac1"
+    sha256 "fb8d769b008e46704533ab851a836e01505c54a2451843a4eb9256d9aa407952"
   end
 
   depends_on "curl"

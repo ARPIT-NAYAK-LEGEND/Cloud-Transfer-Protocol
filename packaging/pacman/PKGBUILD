@@ -11,7 +11,7 @@ provides=('utp')
 conflicts=('utp')
 source_x86_64=("${url}/releases/download/v${pkgver}/utp-linux-x64.tar.gz")
 # Populated automatically by .github/workflows/release.yml from SHA256SUMS.txt on tag release (fail-closed checksum verification).
-sha256sums_x86_64=('5689fc2b130b73d76459149a5b775478160990e0efbaa855db49612f6b9b0ac1')
+sha256sums_x86_64=('fb8d769b008e46704533ab851a836e01505c54a2451843a4eb9256d9aa407952')
 
 package() {
     install -Dm755 "${srcdir}/utp" "${pkgdir}/usr/bin/utp"
