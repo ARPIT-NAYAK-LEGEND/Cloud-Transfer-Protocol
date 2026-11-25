@@ -2,13 +2,32 @@
 build/
 dist/
 *.exe
+*.o
+*.obj
 *.db
 *.db-shm
 *.db-wal
 *.zip
 *.tar.gz
+*.tgz
 *.crt
 *.pem
+
+# Compiled SDK output
+sdk/typescript/dist/
+
+# Package lock files (library repos)
+sdk/typescript/package-lock.json
+web/package-lock.json
+
+# Internal / AI development files
+CLAUDE.md
+PROMPTS.md
+project_architecture_and_next_steps.md
+
+# Personal / marketing assets
+logo.png
+assets/visuals/
 
 # Credentials & tokens
 .utp_*
